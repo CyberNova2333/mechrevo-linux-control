@@ -13,5 +13,6 @@
   "final_mode": "turbo 0x30",
   "custom_and_turbo_submodes": "unverified; not enabled",
   "lighting_state_unchanged": false,
-  "temporary_git_repo": "/home/cybernova/tmp/mechrevo-control-lab-ss2w4wnc"
+  "temporary_git_repo": "/home/cybernova/tmp/mechrevo-control-lab-ss2w4wnc",
+  "lighting_note": "Lighting state file changed during interactive GUI use; current settings retained. Profile helper writes only EC mode byte; no light-state restoration performed."
 }
