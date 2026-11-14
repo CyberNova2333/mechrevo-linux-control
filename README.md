@@ -43,3 +43,7 @@ BIOS更新后需重新验证，不能移除机型/BIOS校验。新增轻量恢�
 恢复后用 `pkexec --disable-internal-agent /usr/local/libexec/mechrevo-profile-helper status` 只读核对。
 
 新增系统单元 mechrevo-profile-guard.service 与 mechrevo-profile-sleep.service 均安装到 /etc/systemd/system，root:root0644。恢复时先 reset 撤销调校，再安装助手与单元，执行 systemctl daemon-reload、systemctl enable --now mechrevo-profile-guard.service、systemctl enable mechrevo-profile-sleep.service。睡眠前清理、机身按键竞争及守护重启均已实测；唤醒不重施调校。运行时 /run/mechrevo-tuning.json 是本次开机的恢复记录，不备份或跨开机恢复。
+
+## 2026-11-15 GPU联动研究进度
+
+已确认休眠恢复后9张ACPI SSDT物理地址上移，运行内核仍持旧指针，导致NPCF查询失败。补齐powerd服务和DBus策略，加入ACPI完整性门槛；powerd尚未开机启用。休眠改shutdown路径作为待验证绕行。需要正常重启后再继续实际GPU负载和模式联动测试，完整子模式GUI仍未开放。见 [powerd/ACPI研究与接续步骤](research/powerd-acpi-resume-20261115.md)。

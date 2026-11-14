@@ -1,0 +1,56 @@
+#!/usr/bin/python3 -I
+"""Read-only firmware-table integrity check and private boot baseline capture."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import struct
+import sys
+import time
+
+TABLES=Path('/sys/firmware/acpi/tables')
+DEST=Path('/var/lib/mechrevo-acpi-check')
+
+
+def inspect(name, data):
+    expected='DSDT' if name=='DSDT' else 'SSDT'
+    signature=data[:4].decode('ascii',errors='replace')
+    length=struct.unpack_from('<I',data,4)[0] if len(data)>=8 else 0
+    reasons=[]
+    if signature!=expected:reasons.append('signature-mismatch')
+    if length<36 or length!=len(data):reasons.append('length-mismatch')
+    if sum(data)%256:reasons.append('checksum-mismatch')
+    return {'table':name,'signature':signature,'declared_length':length,
+            'read_length':len(data),'checksum_mod256':sum(data)%256,
+            'sha256':hashlib.sha256(data).hexdigest(),'valid':not reasons,'errors':reasons,
+            'contains_npcf':b'NVDA0820' in data}
+
+
+def collect(capture=False):
+    records=[];raw={}
+    for p in sorted(TABLES.iterdir()):
+        if not re.fullmatch(r'DSDT|SSDT\d*',p.name):continue
+        with p.open('rb') as stream:data=stream.read(1024*1024)
+        raw[p.name]=data;records.append(inspect(p.name,data))
+    report={'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+            'time_unix':time.time(),'kernel':os.uname().release,'tables':records}
+    report['healthy']=bool(records) and all(r['valid'] for r in records) and any(r['contains_npcf'] for r in records)
+    if capture:
+        os.umask(0o077);DEST.mkdir(mode=0o700,parents=True,exist_ok=True)
+        folder=DEST/(report['boot_id']+'-'+str(time.time_ns()));folder.mkdir(mode=0o700)
+        for name,data in raw.items():(folder/(name+'.aml')).write_bytes(data)
+        (folder/'report.json').write_text(json.dumps(report,indent=2))
+        temp=DEST/'latest.new';temp.write_text(json.dumps(report,indent=2));temp.replace(DEST/'latest.json')
+        report['capture_directory']=str(folder)
+    return report
+
+
+if __name__=='__main__':
+    try:
+        if sys.argv[1:] not in ([],['--capture']):raise ValueError('Usage: mechrevo-acpi-check [--capture]')
+        result=collect(sys.argv[1:]==['--capture'])
+        print(json.dumps(result,ensure_ascii=False))
+        sys.exit(0 if result['healthy'] else 1)
+    except Exception as exc:
+        print(json.dumps({'healthy':False,'error':str(exc)},ensure_ascii=False));sys.exit(1)
