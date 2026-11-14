@@ -1,0 +1,316 @@
+{
+  "rsdp": "0x613ba014",
+  "xsdt": "0x613b9728",
+  "tables": [
+    {
+      "address": "0x613a1000",
+      "signature": "FACP",
+      "oem_id": "A M I \u0000\u0000",
+      "length": 276,
+      "checksum": 0
+    },
+    {
+      "address": "0x613b8000",
+      "signature": "SSDT",
+      "oem_id": "Cpu0Ist\u0000",
+      "length": 1574,
+      "checksum": 0
+    },
+    {
+      "address": "0x613b7000",
+      "signature": "SSDT",
+      "oem_id": "Cpu0Hwp\u0000",
+      "length": 1531,
+      "checksum": 0
+    },
+    {
+      "address": "0x613b6000",
+      "signature": "SSDT",
+      "oem_id": "Cpu0Psd\u0000",
+      "length": 427,
+      "checksum": 0
+    },
+    {
+      "address": "0x613b5000",
+      "signature": "SSDT",
+      "oem_id": "Cpu0Cst\u0000",
+      "length": 916,
+      "checksum": 0
+    },
+    {
+      "address": "0x613b3000",
+      "signature": "SSDT",
+      "oem_id": "ApIst\u0000\u0000\u0000",
+      "length": 7087,
+      "checksum": 0
+    },
+    {
+      "address": "0x613b1000",
+      "signature": "SSDT",
+      "oem_id": "ApHwp\u0000\u0000\u0000",
+      "length": 5664,
+      "checksum": 0
+    },
+    {
+      "address": "0x613af000",
+      "signature": "SSDT",
+      "oem_id": "ApPsd\u0000\u0000\u0000",
+      "length": 4937,
+      "checksum": 0
+    },
+    {
+      "address": "0x613ae000",
+      "signature": "SSDT",
+      "oem_id": "ApCst\u0000\u0000\u0000",
+      "length": 4027,
+      "checksum": 0
+    },
+    {
+      "address": "0x613aa000",
+      "signature": "SSDT",
+      "oem_id": "CpuSsdt\u0000",
+      "length": 15304,
+      "checksum": 0
+    },
+    {
+      "address": "0x613a9000",
+      "signature": "DTPR",
+      "oem_id": "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
+      "length": 136,
+      "checksum": 0
+    },
+    {
+      "address": "0x613a3000",
+      "signature": "SSDT",
+      "oem_id": "DptfTabl",
+      "length": 21338,
+      "checksum": 0
+    },
+    {
+      "address": "0x613a2000",
+      "signature": "SSDT",
+      "oem_id": "PDatTabl",
+      "length": 3331,
+      "checksum": 0
+    },
+    {
+      "address": "0x6130d000",
+      "signature": "FIDT",
+      "oem_id": "A M I\u0000\u0000\u0000",
+      "length": 156,
+      "checksum": 0
+    },
+    {
+      "address": "0x6130c000",
+      "signature": "MSDM",
+      "oem_id": "A M I \u0000\u0000",
+      "length": 85,
+      "checksum": 0
+    },
+    {
+      "address": "0x6130b000",
+      "signature": "SSDT",
+      "oem_id": "Pmax_Dev",
+      "length": 908,
+      "checksum": 0
+    },
+    {
+      "address": "0x61308000",
+      "signature": "SSDT",
+      "oem_id": "IgfxSsdt",
+      "length": 9342,
+      "checksum": 0
+    },
+    {
+      "address": "0x612fe000",
+      "signature": "SSDT",
+      "oem_id": "TcssSsdt",
+      "length": 39908,
+      "checksum": 0
+    },
+    {
+      "address": "0x612fd000",
+      "signature": "HPET",
+      "oem_id": "A M I \u0000\u0000",
+      "length": 56,
+      "checksum": 0
+    },
+    {
+      "address": "0x612fc000",
+      "signature": "APIC",
+      "oem_id": "A M I \u0000\u0000",
+      "length": 856,
+      "checksum": 0
+    },
+    {
+      "address": "0x612fb000",
+      "signature": "MCFG",
+      "oem_id": "A M I \u0000\u0000",
+      "length": 60,
+      "checksum": 0
+    },
+    {
+      "address": "0x612ee000",
+      "signature": "SSDT",
+      "oem_id": "ArlS_Ber",
+      "length": 50635,
+      "checksum": 0
+    },
+    {
+      "address": "0x612ec000",
+      "signature": "SSDT",
+      "oem_id": "I2Pm_194",
+      "length": 5135,
+      "checksum": 0
+    },
+    {
+      "address": "0x612e8000",
+      "signature": "SSDT",
+      "oem_id": "Ther_Rvp",
+      "length": 14782,
+      "checksum": 0
+    },
+    {
+      "address": "0x6145d000",
+      "signature": "UEFI",
+      "oem_id": "A M I \u0000\u0000",
+      "length": 72,
+      "checksum": 0
+    },
+    {
+      "address": "0x612e7000",
+      "signature": "NHLT",
+      "oem_id": "A M I \u0000\u0000",
+      "length": 45,
+      "checksum": 0
+    },
+    {
+      "address": "0x612e6000",
+      "signature": "LPIT",
+      "oem_id": "A M I \u0000\u0000",
+      "length": 204,
+      "checksum": 0
+    },
+    {
+      "address": "0x612e4000",
+      "signature": "SSDT",
+      "oem_id": "PtidDevc",
+      "length": 3238,
+      "checksum": 0
+    },
+    {
+      "address": "0x612de000",
+      "signature": "SSDT",
+      "oem_id": "TbtTypeC",
+      "length": 24130,
+      "checksum": 0
+    },
+    {
+      "address": "0x612dd000",
+      "signature": "DBGP",
+      "oem_id": "A M I \u0000\u0000",
+      "length": 52,
+      "checksum": 0
+    },
+    {
+      "address": "0x612dc000",
+      "signature": "DBG2",
+      "oem_id": "A M I \u0000\u0000",
+      "length": 84,
+      "checksum": 0
+    },
+    {
+      "address": "0x612da000",
+      "signature": "SSDT",
+      "oem_id": "UsbCTabl",
+      "length": 5865,
+      "checksum": 0
+    },
+    {
+      "address": "0x612d9000",
+      "signature": "DMAR",
+      "oem_id": "A M I \u0000\u0000",
+      "length": 152,
+      "checksum": 0
+    },
+    {
+      "address": "0x612d8000",
+      "signature": "FPDT",
+      "oem_id": "A M I \u0000\u0000",
+      "length": 68,
+      "checksum": 0
+    },
+    {
+      "address": "0x612d6000",
+      "signature": "SSDT",
+      "oem_id": "xh_arls0",
+      "length": 5362,
+      "checksum": 0
+    },
+    {
+      "address": "0x612d3000",
+      "signature": "SSDT",
+      "oem_id": "SocGpe \u0000",
+      "length": 10266,
+      "checksum": 0
+    },
+    {
+      "address": "0x612d0000",
+      "signature": "SSDT",
+      "oem_id": "SocCmn \u0000",
+      "length": 10451,
+      "checksum": 0
+    },
+    {
+      "address": "0x612cd000",
+      "signature": "SSDT",
+      "oem_id": "PchGpe \u0000",
+      "length": 11734,
+      "checksum": 0
+    },
+    {
+      "address": "0x612cc000",
+      "signature": "BGRT",
+      "oem_id": "A M I \u0000\u0000",
+      "length": 56,
+      "checksum": 0
+    },
+    {
+      "address": "0x612cb000",
+      "signature": "SSDT",
+      "oem_id": "NvDDSN20",
+      "length": 1125,
+      "checksum": 0
+    },
+    {
+      "address": "0x612c6000",
+      "signature": "SSDT",
+      "oem_id": "Opt2Tabl",
+      "length": 16553,
+      "checksum": 0,
+      "npcf_file": "current-Opt2Tabl.aml",
+      "sha256": "8bfb33b85deb2c68b9d21d8d3a90ebf8156191008b5dc7f90635f0ebdfac19df"
+    },
+    {
+      "address": "0x612c5000",
+      "signature": "TPM2",
+      "oem_id": "A M I \u0000\u0000",
+      "length": 76,
+      "checksum": 0
+    },
+    {
+      "address": "0x612c4000",
+      "signature": "PHAT",
+      "oem_id": "A M I \u0000\u0000",
+      "length": 1972,
+      "checksum": 0
+    },
+    {
+      "address": "0x612e5000",
+      "signature": "WSMT",
+      "oem_id": "A M I \u0000\u0000",
+      "length": 40,
+      "checksum": 0
+    }
+  ]
+}

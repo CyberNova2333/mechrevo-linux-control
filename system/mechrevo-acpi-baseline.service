@@ -1,0 +1,12 @@
+[Unit]
+Description=Capture ACPI table integrity and private boot baseline
+After=local-fs.target
+Before=nvidia-powerd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/mechrevo-acpi-check --capture
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

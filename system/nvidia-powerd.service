@@ -1,0 +1,16 @@
+[Unit]
+Description=NVIDIA Dynamic Boost power management (ACPI integrity guarded)
+After=dbus.service mechrevo-acpi-baseline.service
+Wants=mechrevo-acpi-baseline.service
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+ExecCondition=/usr/local/libexec/mechrevo-acpi-check
+ExecStart=/usr/bin/nvidia-powerd
+Restart=on-abort
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
