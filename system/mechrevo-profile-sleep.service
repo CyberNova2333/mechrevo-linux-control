@@ -1,0 +1,11 @@
+[Unit]
+Description=Release managed MECHREVO power and fan settings before sleep
+Before=sleep.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/mechrevo-profile-helper reset
+TimeoutStartSec=10
+
+[Install]
+WantedBy=sleep.target
