@@ -1,0 +1,6 @@
+polkit.addRule(function(action, subject) {
+    if (action.id === "org.cybernova.mechrevo.profile" &&
+        subject.user === "cybernova" && subject.local && subject.active) {
+        return polkit.Result.YES;
+    }
+});

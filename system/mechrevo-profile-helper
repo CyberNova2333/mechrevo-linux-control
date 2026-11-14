@@ -1,0 +1,128 @@
+#!/usr/bin/python3 -I
+"""Local, model/BIOS-pinned firmware mode selector. No arbitrary EC access API.
+
+Only the three values captured from this laptop's physical mode key are writable.
+No fan tables, power limits, voltage, clocks, NVRAM or custom flags are changed.
+"""
+import fcntl
+import json
+import os
+from pathlib import Path
+import stat
+import sys
+import time
+
+BASE = 0xFE410000
+MODE = 0x751
+MODES = {"office": 0xA0, "balanced": 0x20, "turbo": 0x30}
+REGISTERS = (MODE, 0x706, 0x726, 0x727, 0x783, 0x784, 0x785, 0x7C5, 0x7E8)
+
+
+def check_machine():
+    for name, expected in {
+        "sys_vendor": "MECHREVO", "board_name": "YAOSHI Series-XxAF55xx",
+        "bios_version": "N.1.33MRO91",
+    }.items():
+        if Path('/sys/class/dmi/id', name).read_text().strip() != expected:
+            raise RuntimeError('机型或 BIOS 已变化，需要重新验证性能适配')
+    if 'fe410000-fe410fff : INOU0000:00' not in Path('/proc/iomem').read_text():
+        raise RuntimeError('固件 EC 内存资源与已验证地址不符')
+
+
+class EC:
+    def __init__(self, writable=False):
+        self.fd = os.open('/dev/mem', (os.O_RDWR if writable else os.O_RDONLY) | os.O_CLOEXEC)
+
+    def read(self, address):
+        if address not in REGISTERS:
+            raise ValueError('Unsupported register')
+        data = os.pread(self.fd, 1, BASE + address)
+        if len(data) != 1:
+            raise OSError('EC 读取不完整')
+        return data[0]
+
+    def write_mode(self, value):
+        if value not in MODES.values():
+            raise ValueError('Unsupported mode value')
+        if os.pwrite(self.fd, bytes([value]), BASE + MODE) != 1:
+            raise OSError('EC 写入不完整')
+
+    def close(self):
+        os.close(self.fd)
+
+
+def snapshot(ec):
+    return {address: ec.read(address) for address in REGISTERS}
+
+
+def standard_state(values):
+    return (values[MODE] in MODES.values()
+            and values[0x706] == 0x40
+            and not values[0x726] & 0x80
+            and not values[0x727] & 0x40
+            and not values[0x7C5] & 0x80
+            and all(values[a] == 0 for a in (0x783, 0x784, 0x785)))
+
+
+def status(ec):
+    values = snapshot(ec)
+    standard = standard_state(values)
+    return {
+        'mode': next((name for name, value in MODES.items() if value == values[MODE]), 'unknown'),
+        'switchable': standard,
+        'reason': '' if standard else '检测到未验证的自定义、风扇加速或功耗设置，暂停软件切档',
+        'ec_mode': hex(values[MODE]),
+        'custom_supported': False, 'turbo_variants_supported': False,
+    }
+
+
+def set_mode(ec, name, pause=time.sleep):
+    target = MODES[name]
+    before = snapshot(ec)
+    if not standard_state(before):
+        raise RuntimeError('当前 EC 状态不属于已验证的基础档位，拒绝覆盖')
+    if before[MODE] == target:
+        return status(ec)
+    # Re-read immediately before mutation, so an intervening hardware key wins.
+    if snapshot(ec) != before:
+        raise RuntimeError('硬件状态正在变化，请稍后重试')
+    try:
+        ec.write_mode(target)
+        pause(0.15)
+        result = status(ec)
+        if result['mode'] != name or not result['switchable']:
+            raise RuntimeError('档位回读不一致，请检查机身模式键')
+        return result
+    except Exception:
+        # Roll back only a value still owned by this operation. Never overwrite
+        # an intervening hardware-key change or unfamiliar firmware state.
+        if ec.read(MODE) == target:
+            ec.write_mode(before[MODE])
+        raise
+
+
+def main(args):
+    if args != ['status'] and not (len(args) == 2 and args[0] == 'set' and args[1] in MODES):
+        raise ValueError('用法：status | set office|balanced|turbo')
+    check_machine()
+    fd = os.open('/run/mechrevo-profile.lock', os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise RuntimeError('性能控制锁文件权限异常')
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        ec = EC(writable=args[0] == 'set')
+        try:
+            return status(ec) if args[0] == 'status' else set_mode(ec, args[1])
+        finally:
+            ec.close()
+    finally:
+        os.close(fd)
+
+
+if __name__ == '__main__':
+    try:
+        print(json.dumps(main(sys.argv[1:]), ensure_ascii=False))
+    except Exception as exc:
+        print(json.dumps({'error': str(exc)}, ensure_ascii=False))
+        sys.exit(1)

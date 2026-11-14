@@ -1,0 +1,17 @@
+[
+  {
+    "requested": "office",
+    "label": "当前：办公 · 绿色",
+    "message": "切换成功，硬件回读一致"
+  },
+  {
+    "requested": "balanced",
+    "label": "当前：均衡 · 蓝色",
+    "message": "切换成功，硬件回读一致"
+  },
+  {
+    "requested": "turbo",
+    "label": "当前：狂暴 · 紫色",
+    "message": "切换成功，硬件回读一致"
+  }
+]

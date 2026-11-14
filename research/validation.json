@@ -1,0 +1,17 @@
+{
+  "date": "2026-11-14",
+  "board": "YAOSHI Series-XxAF55xx",
+  "bios": "N.1.33MRO91",
+  "user_confirmed_software_led_cycle": true,
+  "verified_modes": {
+    "office": "0xa0",
+    "balanced": "0x20",
+    "turbo": "0x30"
+  },
+  "gui_pkexec_hardware_test": "passed all three modes",
+  "helper_unit_tests": 5,
+  "final_mode": "turbo 0x30",
+  "custom_and_turbo_submodes": "unverified; not enabled",
+  "lighting_state_unchanged": false,
+  "temporary_git_repo": "/home/cybernova/tmp/mechrevo-control-lab-ss2w4wnc"
+}

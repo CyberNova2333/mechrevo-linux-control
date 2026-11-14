@@ -1,0 +1,320 @@
+--- a/src/iteglow/devices.py
++++ b/src/iteglow/devices.py
+@@ -8,6 +8,7 @@
+ 
+ import fcntl
+ import os
++from pathlib import Path
+ import time
+ from typing import Iterable, List, Optional, Tuple
+ 
+@@ -43,8 +44,20 @@
+     try:
+         nodes = os.listdir(base)
+     except OSError:
++        nodes = []
++    if nodes:
++        return f"/dev/{nodes[0]}"
++    # Local fallback: only the physically verified machine and exact USB IDs.
++    board = Path("/sys/class/dmi/id/board_name")
++    if not board.exists() or board.read_text().strip() != "YAOSHI Series-XxAF55xx":
+         return None
+-    return f"/dev/{nodes[0]}" if nodes else None
++    expected = {"rgb:kbd_backlight": "0003:0000048D:0000600B",
++                "rgb:lightbar": "0003:0000048D:00007001"}.get(led_name)
++    for node in sorted(Path("/sys/class/hidraw").glob("*")):
++        props = dict(line.split("=", 1) for line in (node / "device/uevent").read_text().splitlines() if "=" in line)
++        if expected and props.get("HID_ID") == expected:
++            return "/dev/" + node.name
++    return None
+ 
+ 
+ class HidLed:
+--- a/src/iteglow/gui.py
++++ b/src/iteglow/gui.py
+@@ -18,6 +18,7 @@
+ from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
+ 
+ from . import devices, effects, protocol, state  # noqa: E402
++from .performance import PerformancePanel  # noqa: E402
+ 
+ 
+ def _rgba_to_rgb(rgba):
+@@ -74,41 +75,41 @@
+         self.append(grid)
+         r = 0
+ 
+-        grid.attach(Gtk.Label(label="Mode", xalign=0), 0, r, 1, 1)
++        grid.attach(Gtk.Label(label="灯效", xalign=0), 0, r, 1, 1)
+         self.mode_dd = Gtk.DropDown.new_from_strings(self.mode_names)
+         self.mode_dd.set_hexpand(True)
+         grid.attach(self.mode_dd, 1, r, 1, 1); r += 1
+ 
+-        grid.attach(Gtk.Label(label="Brightness", xalign=0), 0, r, 1, 1)
++        grid.attach(Gtk.Label(label="亮度", xalign=0), 0, r, 1, 1)
+         self.bright = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, self.bmax, 1)
+         self.bright.set_hexpand(True)
+         self.bright.set_draw_value(True)
+         grid.attach(self.bright, 1, r, 1, 1); r += 1
+ 
+-        self.speed_lbl = Gtk.Label(label="Speed (1=fast)", xalign=0)
++        self.speed_lbl = Gtk.Label(label="速度（1 最快）", xalign=0)
+         grid.attach(self.speed_lbl, 0, r, 1, 1)
+         self.speed = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, 10, 1)
+         self.speed.set_hexpand(True); self.speed.set_draw_value(True)
+         grid.attach(self.speed, 1, r, 1, 1); r += 1
+ 
+-        self.dir_lbl = Gtk.Label(label="Direction", xalign=0)
++        self.dir_lbl = Gtk.Label(label="方向", xalign=0)
+         grid.attach(self.dir_lbl, 0, r, 1, 1)
+         self.dir_dd = Gtk.DropDown.new_from_strings([d[0] for d in self.dirs])
+         grid.attach(self.dir_dd, 1, r, 1, 1); r += 1
+ 
+-        self.color_lbl = Gtk.Label(label="Colour", xalign=0)
++        self.color_lbl = Gtk.Label(label="颜色", xalign=0)
+         grid.attach(self.color_lbl, 0, r, 1, 1)
+         self.color_btn = _make_color_button((0, 255, 255))
+         grid.attach(self.color_btn, 1, r, 1, 1); r += 1
+ 
+-        self.palette_lbl = Gtk.Label(label="Palette", xalign=0)
++        self.palette_lbl = Gtk.Label(label="调色板", xalign=0)
+         grid.attach(self.palette_lbl, 0, r, 1, 1)
+         self.palette_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+         self.palette_btns = []
+         for c in effects.RAINBOW:
+             b = _make_color_button(c)
+             self.palette_box.append(b); self.palette_btns.append(b)
+-        reset = Gtk.Button(label="Rainbow")
++        reset = Gtk.Button(label="彩虹")
+         self.palette_box.append(reset)
+         grid.attach(self.palette_box, 1, r, 1, 1); r += 1
+ 
+@@ -164,7 +165,7 @@
+             st = protocol.parse_keyboard_state(self.dev.query(protocol.QUERY_EFFECT))
+         except OSError:
+             return
+-        if st["power"] == 0x01:
++        if st["power"] == 0x01 or st["brightness"] == 0:
+             self.mode_dd.set_selected(self.mode_names.index("off"))
+         else:
+             for i, name in enumerate(self.mode_names):
+@@ -238,8 +239,8 @@
+         if win is not None:       # re-launched: raise the existing window
+             win.present()
+             return
+-        win = Gtk.ApplicationWindow(application=self, title="iteglow")
+-        win.set_default_size(580, 440)
++        win = Gtk.ApplicationWindow(application=self, title="机械革命控制 · iteglow")
++        win.set_default_size(620, 460)
+         present = devices.available_devices()
+         if not present:
+             win.set_child(Gtk.Label(
+@@ -248,12 +249,15 @@
+             return
+         nb = Gtk.Notebook()
+         nb.set_vexpand(True)
++        self.panels = []
+         for _led, _usb, label in present:
+             try:
+                 page = DevicePanel(label)
++                self.panels.append(page)
+             except Exception as e:  # noqa: BLE001
+                 page = Gtk.Label(label=f"{label} unavailable:\n{e}")
+-            nb.append_page(page, Gtk.Label(label=label.capitalize()))
++            nb.append_page(page, Gtk.Label(label={"keyboard": "键盘灯", "lightbar": "机身灯带"}[label]))
++        nb.append_page(PerformancePanel(), Gtk.Label(label="性能档位"))
+         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+         outer.append(nb)
+         outer.append(self._make_pin_bar())
+@@ -264,40 +268,20 @@
+         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+         for fn in ("set_margin_top", "set_margin_bottom", "set_margin_start", "set_margin_end"):
+             getattr(bar, fn)(10)
+-        self._pin_status = Gtk.Label(xalign=0, hexpand=True)
+-        self._pin_status.add_css_class("dim-label")
+-        btn = Gtk.Button(label="Pin for boot & resume…")
+-        btn.set_tooltip_text(
+-            "Save the current state system-wide so it is restored on every "
+-            "boot and resume (asks for your password via polkit)")
+-        btn.connect("clicked", self._on_pin)
+-        bar.append(self._pin_status)
+-        bar.append(btn)
++        hint = Gtk.Label(label="灯光调整立即生效；灯带显示上次保存值", xalign=0, hexpand=True, wrap=True)
++        hint.set_max_width_chars(24)
++        hint.add_css_class("dim-label")
++        bar.append(hint)
++        button = Gtk.Button(label="关闭全部灯光")
++        button.connect("clicked", self._all_off)
++        bar.append(button)
+         return bar
+ 
+-    def _on_pin(self, _btn):
+-        self._pin_status.set_text("waiting for authentication…")
+-        try:
+-            proc = Gio.Subprocess.new(
+-                ["pkexec", "iteglow", "pin"],
+-                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_MERGE)
+-        except GLib.Error as e:
+-            self._pin_status.set_text(f"pin failed: {e.message}")
+-            return
+-        proc.communicate_utf8_async(None, None, self._on_pin_done)
+-
+-    def _on_pin_done(self, proc, result):
+-        try:
+-            _ok, out, _err = proc.communicate_utf8_finish(result)
+-        except GLib.Error as e:
+-            self._pin_status.set_text(f"pin failed: {e.message}")
+-            return
+-        if proc.get_successful():
+-            self._pin_status.set_text("pinned — this state is restored on every boot & resume")
+-        else:
+-            lines = (out or "").strip().splitlines()
+-            self._pin_status.set_text(
+-                f"pin failed: {lines[-1] if lines else 'authentication cancelled'}")
++    def _all_off(self, _button):
++        for panel in self.panels:
++            panel.mode_dd.set_selected(panel.mode_names.index("off"))
++            panel.bright.set_value(0)
++            panel._do_apply()
+ 
+ 
+ def main() -> int:
+--- a/src/iteglow/cli.py
++++ b/src/iteglow/cli.py
+@@ -37,7 +37,8 @@
+ # --------------------------------------------------------------------- commands
+ 
+ def cmd_doctor(_args) -> int:
+-    print(f"iteglow {__version__}\n")
++    print(f"iteglow {__version__} (MECHREVO 本机适配)\n")
++    print('本机使用已有 hid-generic/hidraw 接口；不要求加载 tuxedo-drivers。')
+     mods = ""
+     try:
+         with open("/proc/modules") as f:
+@@ -63,7 +64,7 @@
+                     extra = f"  fw {fw[0]}.{fw[1]}"
+                     if label == "keyboard":
+                         st = protocol.parse_keyboard_state(dev.query(protocol.QUERY_EFFECT))
+-                        onoff = "off" if st["power"] == 0x01 else "on"
++                        onoff = "off" if st["power"] == 0x01 or st["brightness"] == 0 else "on"
+                         extra += (f"  [{onoff}, mode 0x{st['mode']:02x}, "
+                                   f"brightness {st['brightness']}]")
+             except OSError:
+@@ -74,7 +75,7 @@
+         ok = ok and access
+     if not ok:
+         print("\nFixes:")
+-        print("  * modules NOT loaded   -> install tuxedo-drivers (see README)")
++        print("  * 本机设备缺失 -> 检查 USB 设备和维护记录，不要为此强装平台驱动")
+         print("  * NO ACCESS            -> sudo install -m644 data/60-iteglow.rules "
+               "/etc/udev/rules.d/ && sudo udevadm control --reload && reboot")
+     return 0 if ok else 1
+--- /dev/null
++++ b/src/iteglow/performance.py
+@@ -0,0 +1,106 @@
++"""Asynchronous UI for this machine's verified firmware mode helper."""
++import json
++
++from gi.repository import Gio, GLib, Gtk
++
++HELPER = '/usr/local/libexec/mechrevo-profile-helper'
++LABELS = {'office': '办公 · 绿色', 'balanced': '均衡 · 蓝色', 'turbo': '狂暴 · 紫色'}
++
++
++class PerformancePanel(Gtk.Box):
++    def __init__(self):
++        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=14)
++        for side in ('top', 'bottom', 'start', 'end'):
++            getattr(self, 'set_margin_' + side)(18)
++        self.busy = False
++        self.switchable = False
++        self.current = Gtk.Label(label='正在读取性能档位…', xalign=0)
++        self.current.add_css_class('title-3')
++        self.append(self.current)
++        self.buttons = []
++        row = Gtk.Box(spacing=8, homogeneous=True)
++        for mode, label in LABELS.items():
++            button = Gtk.Button(label=label)
++            button.set_sensitive(False)
++            button.connect('clicked', lambda _button, selected=mode: self.request(['set', selected]))
++            row.append(button)
++            self.buttons.append((mode, button))
++        self.append(row)
++        note = Gtk.Label(label='点击即可切换；机身模式键仍可使用。\n当前档位每 3 秒刷新，开机与唤醒时不会强制切档。', xalign=0)
++        note.set_wrap(True)
++        self.append(note)
++        self.message = Gtk.Label(xalign=0, wrap=True)
++        self.message.add_css_class('dim-label')
++        self.append(self.message)
++        self.append(Gtk.Separator())
++        pending = Gtk.Label(label='自定义（白色）与静音／高能狂暴：尚未开放', xalign=0)
++        self.append(pending)
++        detail = Gtk.Label(label='这几项还需要验证本机的风扇曲线及功耗设置。\n目前的“狂暴”对应机身按键紫色档，不指定狂暴子模式。', xalign=0, wrap=True)
++        detail.add_css_class('dim-label')
++        self.append(detail)
++        self.connect('map', self._mapped)
++        self.connect('unmap', self._unmapped)
++        self.timer = None
++        self.request(['status'])
++
++    def _mapped(self, *_):
++        if self.timer is None:
++            self.timer = GLib.timeout_add_seconds(3, self._poll)
++        self._poll()
++
++    def _unmapped(self, *_):
++        if self.timer is not None:
++            GLib.source_remove(self.timer)
++            self.timer = None
++
++    def _poll(self):
++        if not self.busy:
++            self.request(['status'])
++        return True
++
++    def request(self, args):
++        if self.busy:
++            return
++        self.busy = True
++        for _, button in self.buttons:
++            button.set_sensitive(False)
++        if args[0] == 'set':
++            self.message.set_text('正在切换并核对硬件回读…')
++        try:
++            process = Gio.Subprocess.new(['/usr/bin/pkexec', '--disable-internal-agent', HELPER, *args],
++                                         Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE)
++        except GLib.Error as exc:
++            self.busy = False
++            self.message.set_text('性能控制未就绪：' + str(exc))
++            return
++        timeout = GLib.timeout_add_seconds(5, lambda: (process.force_exit(), False)[1])
++        process.communicate_utf8_async(None, None, self._finished, (args[0], timeout))
++
++    def _finished(self, process, result, context):
++        operation, timeout = context
++        # The timeout may already have fired; find_source avoids a GLib warning.
++        if GLib.MainContext.default().find_source_by_id(timeout):
++            GLib.source_remove(timeout)
++        self.busy = False
++        try:
++            _, output, error = process.communicate_utf8_finish(result)
++            try:
++                data = json.loads(output)
++            except (ValueError, TypeError):
++                raise RuntimeError(error.strip() or '性能助手未返回数据（可能未授权或已超时）')
++            if not process.get_successful() or 'error' in data:
++                raise RuntimeError(data.get('error', error.strip() or '性能控制失败'))
++            self.switchable = data['switchable']
++            mode = data['mode']
++            self.current.set_text('当前：' + LABELS.get(mode, '未知档位'))
++            self.message.set_text(data['reason'] or ('切换成功，硬件回读一致' if operation == 'set' else '已连接固件档位控制'))
++            for value, button in self.buttons:
++                button.set_sensitive(self.switchable and value != mode)
++                if value == mode:
++                    button.add_css_class('suggested-action')
++                else:
++                    button.remove_css_class('suggested-action')
++        except Exception as exc:
++            self.switchable = False
++            self.current.set_text('当前：无法读取')
++            self.message.set_text(str(exc))

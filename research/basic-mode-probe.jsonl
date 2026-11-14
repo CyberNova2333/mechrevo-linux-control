@@ -1,0 +1,4 @@
+{"time": "21:56:09", "mode": "office", "requested": "0xa0", "readback": "0xa0"}
+{"time": "21:56:17", "mode": "balanced", "requested": "0x20", "readback": "0x20"}
+{"time": "21:56:25", "mode": "turbo", "requested": "0x30", "readback": "0x30"}
+{"restored": "0x30"}
