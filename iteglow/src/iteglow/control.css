@@ -46,3 +46,5 @@
 .mechrevo-shell .mode-card.selected:disabled { opacity: 1; color: #2459c4; background: #eaf2ff; border-color: #81a8f2; }
 
 .mechrevo-shell scale:disabled { opacity: .4; }
+
+.mechrevo-shell .white-led { color: #64748b; }

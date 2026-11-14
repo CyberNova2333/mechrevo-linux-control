@@ -4,7 +4,7 @@ import json
 from gi.repository import Gio, GLib, Gtk
 
 HELPER = '/usr/local/libexec/mechrevo-profile-helper'
-LABELS = {'office': '办公 · 绿色', 'balanced': '均衡 · 蓝色', 'turbo': '狂暴 · 紫色'}
+LABELS = {'office': '办公 · 绿色', 'balanced': '均衡 · 蓝色', 'turbo': '狂暴 · 紫色', 'custom': '自定义基础档 · 白色'}
 
 
 class PerformancePanel(Gtk.Box):
@@ -20,10 +20,11 @@ class PerformancePanel(Gtk.Box):
         self.current = Gtk.Label(label='正在读取当前档位…', xalign=0)
         self.current.add_css_class('performance-current'); self.append(self.current)
         self.buttons = []
-        row = Gtk.Box(spacing=12, homogeneous=True)
-        for mode, title, color, css in [('office','办公模式','绿色指示灯','green-led'),
+        row = Gtk.Grid(column_spacing=12, row_spacing=12, column_homogeneous=True)
+        for index, (mode, title, color, css) in enumerate([('office','办公模式','绿色指示灯','green-led'),
                                        ('balanced','均衡模式','蓝色指示灯','blue-led'),
-                                       ('turbo','狂暴模式','紫色指示灯','purple-led')]:
+                                       ('turbo','狂暴模式','紫色指示灯','purple-led'),
+                                       ('custom','自定义基础档','白色指示灯','white-led')]):
             button = Gtk.Button(); button.add_css_class('mode-card')
             content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
             name = Gtk.Label(label=title, xalign=0); name.add_css_class('mode-name')
@@ -31,7 +32,7 @@ class PerformancePanel(Gtk.Box):
             content.append(name); content.append(led); button.set_child(content)
             button.set_sensitive(False)
             button.connect('clicked', lambda _button, selected=mode: self.request(['set', selected]))
-            row.append(button); self.buttons.append((mode, button))
+            row.attach(button, index % 2, index // 2, 1, 1); self.buttons.append((mode, button))
         self.append(row)
         self.message = Gtk.Label(xalign=0, wrap=True)
         self.message.add_css_class('status-text'); self.append(self.message)
@@ -41,8 +42,8 @@ class PerformancePanel(Gtk.Box):
         note2.add_css_class('subtitle'); self.append(note2)
         pending = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         pending.add_css_class('control-card')
-        title = Gtk.Label(label='更多模式 · 待验证', xalign=0); title.add_css_class('section-title'); pending.append(title)
-        detail = Gtk.Label(label='自定义（白色）、静音狂暴与高能狂暴尚未开放。\n当前“狂暴”对应机身按键的紫色档，不指定狂暴子模式。', xalign=0, wrap=True)
+        title = Gtk.Label(label='自定义与狂暴子模式', xalign=0); title.add_css_class('section-title'); pending.append(title)
+        detail = Gtk.Label(label='白色基础档已验证进入与退出；自定义功耗、超频和风扇曲线尚未开放。\n静音／高能狂暴的指令已定位，策略效果仍在验证，暂不提供切换。', xalign=0, wrap=True)
         detail.add_css_class('subtitle'); pending.append(detail)
         self.append(pending)
         self.connect('map', self._mapped)
