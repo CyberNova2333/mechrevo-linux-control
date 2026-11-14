@@ -67,3 +67,11 @@ BIOS 更新后助手会拒绝切档；重新核实资源地址与硬件键值后
 
 恢复后用 `pkexec --disable-internal-agent /usr/local/libexec/mechrevo-profile-helper status` 只读验证。
 撤销适配时可删除上述三个文件，并恢复改动前 GUI 源码及桌面入口；无需卸载内核驱动或修改 BIOS。
+
+## 中文界面与灯效修复（后续更新）
+
+已修复 spark / aurora / reactive 的自动播放：此前误把波浪方向当作按键触发标志。
+用户已确认三者正常，GUI 分别显示“烟花 / 极光 / 随机闪烁”，并提供独立触发方式。
+界面已改为浅色侧栏、设备示意、中文灯效卡片、独立参数区与性能卡片。
+详细证据、协议来源及维护要求见 [灯效与界面记录](research/lighting-fix.md)。
+全部 9 项测试通过；GUI 实际按钮回读、较小窗口布局也已检查。

@@ -98,7 +98,8 @@ def cmd_set(args) -> int:
     # default: first direction of the device's own table (forward / ltr)
     direction = _resolve_direction(args.device, args.direction) if args.direction else 1
     params = dict(color=args.color, colors=args.palette or None,
-                  brightness=args.brightness, speed=args.speed, direction=direction)
+                  brightness=args.brightness, speed=args.speed, direction=direction,
+                  reactive=args.reactive)
     reports = effects.build(args.device, args.mode, **params)
     with _open(args.device) as dev:
         dev.send(reports)
@@ -128,6 +129,7 @@ def _build_from_params(label: str, params: dict):
         brightness=params.get("brightness"),
         speed=params.get("speed", 5),
         direction=params.get("direction", 1),
+        reactive=params.get("reactive", False),
     )
 
 
@@ -198,6 +200,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="up to 7 colours for multi-colour effects")
     s.add_argument("--brightness", type=int, default=None, help="0..100 (lightbar) / 0..50 (keyboard)")
     s.add_argument("--speed", type=int, default=5, help="1 (fast) .. 10 (slow)")
+    s.add_argument("--reactive", action="store_true", help="按键触发（随机闪烁/涟漪/极光/烟花）；默认自动播放")
     s.add_argument("--direction", default=None,
                    help="lightbar: forward/reverse; keyboard: ltr/rtl/btt/ttb "
                         "(default: forward / ltr)")

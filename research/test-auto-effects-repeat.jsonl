@@ -1,0 +1,4 @@
+{"time": "22:07:46", "mode": "reactive", "readback": {"power": 2, "mode": 4, "speed": 4, "brightness": 30, "direction": 0}}
+{"time": "22:07:54", "mode": "aurora", "readback": {"power": 2, "mode": 14, "speed": 4, "brightness": 30, "direction": 0}}
+{"time": "22:08:02", "mode": "spark", "readback": {"power": 2, "mode": 17, "speed": 4, "brightness": 30, "direction": 0}}
+{"restored": {"power": 2, "mode": 2, "speed": 1, "brightness": 30, "direction": 1}}

@@ -1,0 +1,10 @@
+{
+  "user_confirmed_all_three_auto_effects": true,
+  "hardware_readback": "GUI reactive=0x04, aurora=0x0e, spark=0x11; byte6=0 for all",
+  "unit_tests_passed": 9,
+  "css_parse_errors": 0,
+  "gui_runtime_warnings": 0,
+  "small_window_check": "840x620 logical pixels",
+  "agy": "authenticated; read-only layout advice",
+  "scope": "native GTK only; no new GNOME extension; profile hardware helper unchanged"
+}
