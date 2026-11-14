@@ -31,13 +31,13 @@ KEYBOARD_MODES: Dict[str, dict] = {
     "solid":     dict(code=0x33, single=True),
     "breathing": dict(code=0x02, palette=True, speed=True),
     "wave":      dict(code=0x03, palette=True, speed=True, direction=True),
-    "reactive":  dict(code=0x04, palette=True, speed=True),
+    "reactive":  dict(code=0x04, palette=True, speed=True, trigger=True),
     "rainbow":   dict(code=0x05, speed=True),
-    "ripple":    dict(code=0x06, palette=True, speed=True),
+    "ripple":    dict(code=0x06, palette=True, speed=True, trigger=True),
     "marquee":   dict(code=0x09, palette=True, speed=True),
     "raindrop":  dict(code=0x0A, palette=True, speed=True),
-    "aurora":    dict(code=0x0E, palette=True, speed=True),
-    "spark":     dict(code=0x11, palette=True, speed=True),
+    "aurora":    dict(code=0x0E, palette=True, speed=True, trigger=True),
+    "spark":     dict(code=0x11, palette=True, speed=True, trigger=True),
 }
 
 # direction name -> byte
@@ -53,7 +53,8 @@ def build(label: str, mode: str, *,
           colors: Optional[Sequence[RGB]] = None,
           brightness: Optional[int] = None,
           speed: int = 5,
-          direction: int = 1) -> List[Report]:
+          direction: int = 1,
+          reactive: bool = False) -> List[Report]:
     """Translate a (device, mode, params) selection into protocol reports."""
     modes = MODES_BY_LABEL[label]
     if mode not in modes:
@@ -75,5 +76,8 @@ def build(label: str, mode: str, *,
         return protocol.keyboard_off()
     if spec.get("single"):
         return protocol.keyboard_solid(*color, bright)
-    return protocol.keyboard_effect(spec["code"], pal, bright, speed, direction,
+    # Byte 6 is overloaded: wave direction vs. key trigger (0 auto, 1 reactive).
+    # Never reuse a saved wave direction for a key-trigger-capable effect.
+    behavior = int(bool(reactive)) if spec.get("trigger") else direction if spec.get("direction") else 0
+    return protocol.keyboard_effect(spec["code"], pal, bright, speed, behavior,
                                     use_palette=bool(spec.get("palette")))
