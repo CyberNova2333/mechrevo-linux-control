@@ -1,0 +1,72 @@
+{
+  "date": "2026-11-14",
+  "machine": "YAOSHI Series-XxAF55xx",
+  "bios": "N.1.33MRO91",
+  "official_service_sha256": "9ee018d42684d02032da642d90376843383223d76d82a6fba6ce42e475a82093",
+  "recovered_method_count": 5765,
+  "target_methods": [
+    {
+      "token": "0x6001990",
+      "original_rva": "0x8e0720",
+      "recovered_sha256": "7984327c2070188cf8d5f07d21941be4987b69bf8551252f15db24cfdb401ca5",
+      "code_size": 44,
+      "marker": "VBPD"
+    },
+    {
+      "token": "0x6001497",
+      "original_rva": "0x8e0720",
+      "recovered_sha256": "9f36285191f566b63f35aee61b907f193066b7a073ffd570222e65f2ecf56b1f",
+      "code_size": 382,
+      "marker": "VBPD"
+    },
+    {
+      "token": "0x60019b5",
+      "original_rva": "0x8e0720",
+      "recovered_sha256": "ce96f00cd58978d962b0dc1396453eafb9b2aa987c776e86d6496adb386242be",
+      "code_size": 1565,
+      "marker": "VBPD"
+    },
+    {
+      "token": "0x6001496",
+      "original_rva": "0x8e0720",
+      "recovered_sha256": "e430b797a71a4e1ccb453fb77b184441714ac4ed3c267dd63b465f39eb84ba35",
+      "code_size": 382,
+      "marker": "VBPD"
+    },
+    {
+      "token": "0x6001a9b",
+      "original_rva": "0x8e0720",
+      "recovered_sha256": "5c31cf10034a56bfbaf73385e5d544df545dd9eec3664b0470d7cc94f5d068eb",
+      "code_size": 212,
+      "marker": "VBPD"
+    },
+    {
+      "token": "0x6001a9c",
+      "original_rva": "0x8e0720",
+      "recovered_sha256": "3e986800f742666f251b1b4ba0a5fc3785a8f1891c5feae8b91a592a4d7588bb",
+      "code_size": 215,
+      "marker": "VBPD"
+    },
+    {
+      "token": "0x600198f",
+      "original_rva": "0x8e0720",
+      "recovered_sha256": "3c66f3b1cacbf0d537cbdc098097fc49dda91dbd3b0d0be4d55080fc79cf5b80",
+      "code_size": 660,
+      "marker": "VBPD"
+    },
+    {
+      "token": "0x600198e",
+      "original_rva": "0x8e0720",
+      "recovered_sha256": "98b1b903934e42304e80bc6a74aecbab31118a3d370938f88ebf5d2de2dcba7d",
+      "code_size": 660,
+      "marker": "VBPD"
+    }
+  ],
+  "custom_physical_confirmation": "User explicitly saw white followed by purple on the repeated 15-second test.",
+  "turbo_effect_validation": "Register and ACPI call verified; no demonstrated acoustic/power separation in the ~63W GPU workload. Unsupported ACPI-notification assertions occur in NVIDIA 595.99.02 for ordinary modes too. Not enabled in GUI.",
+  "logo": "User reports an illuminated logo. 0x7ab stayed 0x01 in trials; no logo register or HID writes in this change.",
+  "tests": 14,
+  "installed_kernel_module": false,
+  "gui_verified_transitions": 6,
+  "final_mode": "turbo / purple"
+}

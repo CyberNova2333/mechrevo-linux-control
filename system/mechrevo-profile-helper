@@ -1,8 +1,9 @@
 #!/usr/bin/python3 -I
 """Local, model/BIOS-pinned firmware mode selector. No arbitrary EC access API.
 
-Only the three values captured from this laptop's physical mode key are writable.
-No fan tables, power limits, voltage, clocks, NVRAM or custom flags are changed.
+Three physical-key modes plus the verified custom-mode entry/exit are writable.
+Custom entry changes only MODE and two OEM flags. No custom tuning, fan tables,
+power limits, voltage, clocks, NVRAM or logo bits are written.
 """
 import fcntl
 import json
@@ -14,8 +15,9 @@ import time
 
 BASE = 0xFE410000
 MODE = 0x751
-MODES = {"office": 0xA0, "balanced": 0x20, "turbo": 0x30}
-REGISTERS = (MODE, 0x706, 0x726, 0x727, 0x783, 0x784, 0x785, 0x7C5, 0x7E8)
+MODES = {"office": 0xA0, "balanced": 0x20, "turbo": 0x30, "custom": 0x00}
+FLAG_MASKS = {0x726: 0x80, 0x727: 0x40}
+REGISTERS = (MODE, 0x706, 0x726, 0x727, 0x728, 0x741, 0x783, 0x784, 0x785, 0x786, 0x787, 0x7AB, 0x7C5, 0x7E8)
 
 
 def check_machine():
@@ -42,10 +44,18 @@ class EC:
         return data[0]
 
     def write_mode(self, value):
-        if value not in MODES.values():
+        if value not in (*MODES.values(), 0x10):
             raise ValueError('Unsupported mode value')
         if os.pwrite(self.fd, bytes([value]), BASE + MODE) != 1:
             raise OSError('EC 写入不完整')
+
+    def write_flag(self, address, enabled):
+        if address not in FLAG_MASKS or not isinstance(enabled, bool):
+            raise ValueError('Unsupported flag')
+        mask = FLAG_MASKS[address]
+        value = (self.read(address) & ~mask) | (mask if enabled else 0)
+        if os.pwrite(self.fd, bytes([value]), BASE + address) != 1:
+            raise OSError('EC 标志写入不完整')
 
     def close(self):
         os.close(self.fd)
@@ -56,23 +66,37 @@ def snapshot(ec):
 
 
 def standard_state(values):
-    return (values[MODE] in MODES.values()
-            and values[0x706] == 0x40
-            and not values[0x726] & 0x80
-            and not values[0x727] & 0x40
-            and not values[0x7C5] & 0x80
-            and all(values[a] == 0 for a in (0x783, 0x784, 0x785)))
+    common = (values[0x706] == 0x40 and not values[0x741] & 1
+              and not values[0x7C5] & 0x80
+              and all(values[a] == 0 for a in (0x783, 0x784, 0x785, 0x786, 0x787)))
+    regular = (values[MODE] in (0xA0, 0x00, 0x10, 0x20, 0x30)
+               and not values[0x726] & 0x80 and not values[0x727] & 0x40)
+    custom = (values[MODE] == 0 and values[0x726] & 0x80 and values[0x727] & 0x40)
+    return bool(common and (regular or custom))
+
+
+def mode_name(values):
+    raw = values[MODE]
+    if raw == 0 and values[0x726] & 0x80 and values[0x727] & 0x40:
+        return 'custom'
+    if raw in (0x10, 0x30):
+        return 'turbo'
+    if raw in (0x00, 0x20):
+        return 'balanced'
+    return 'office' if raw == 0xA0 else 'unknown'
 
 
 def status(ec):
     values = snapshot(ec)
     standard = standard_state(values)
     return {
-        'mode': next((name for name, value in MODES.items() if value == values[MODE]), 'unknown'),
+        'mode': mode_name(values),
         'switchable': standard,
-        'reason': '' if standard else '检测到未验证的自定义、风扇加速或功耗设置，暂停软件切档',
+        'reason': '' if standard else '检测到其他控制程序、未验证的风扇或功耗设置，暂停软件切档',
         'ec_mode': hex(values[MODE]),
-        'custom_supported': False, 'turbo_variants_supported': False,
+        'custom_supported': True, 'custom_tuning_supported': False,
+        'turbo_variants_supported': False,
+        'turbo_variant': 'quiet' if values[0x728] & 1 else 'extreme',
     }
 
 
@@ -81,29 +105,54 @@ def set_mode(ec, name, pause=time.sleep):
     before = snapshot(ec)
     if not standard_state(before):
         raise RuntimeError('当前 EC 状态不属于已验证的基础档位，拒绝覆盖')
-    if before[MODE] == target:
+    if mode_name(before) == name:
         return status(ec)
-    # Re-read immediately before mutation, so an intervening hardware key wins.
     if snapshot(ec) != before:
         raise RuntimeError('硬件状态正在变化，请稍后重试')
+    if name == 'custom':
+        # OEM 0x060019b5: CustomerModeLightOn, MODE=0, custom flag.
+        steps = [(0x727, 1), (MODE, target), (0x726, 1)]
+    elif mode_name(before) == 'custom':
+        steps = [(0x726, 0), (0x727, 0), (MODE, target)]
+    else:
+        steps = [(MODE, target)]
+    attempted = []
     try:
-        ec.write_mode(target)
-        pause(0.15)
+        for address, value in steps:
+            old = ec.read(address)
+            mask = FLAG_MASKS.get(address, 0xFF)
+            expected = value if address == MODE else ((old & ~mask) | (mask if value else 0))
+            attempted.append((address, old, expected, mask))
+            if address == MODE:
+                ec.write_mode(value)
+            else:
+                ec.write_flag(address, bool(value))
+        pause(0.25)
         result = status(ec)
         if result['mode'] != name or not result['switchable']:
             raise RuntimeError('档位回读不一致，请检查机身模式键')
         return result
-    except Exception:
-        # Roll back only a value still owned by this operation. Never overwrite
-        # an intervening hardware-key change or unfamiliar firmware state.
-        if ec.read(MODE) == target:
-            ec.write_mode(before[MODE])
+    except Exception as error:
+        rollback_errors = []
+        for address, old, expected, mask in reversed(attempted):
+            try:
+                current = ec.read(address)
+                if current & mask != expected & mask:
+                    continue  # A hardware key or another owner wins.
+                if address == MODE:
+                    ec.write_mode(old)
+                else:
+                    ec.write_flag(address, bool(old & mask))
+            except Exception as rollback_error:
+                rollback_errors.append(str(rollback_error))
+        if rollback_errors:
+            raise RuntimeError(str(error) + '；恢复未完成：' + '；'.join(rollback_errors)) from error
         raise
 
 
 def main(args):
     if args != ['status'] and not (len(args) == 2 and args[0] == 'set' and args[1] in MODES):
-        raise ValueError('用法：status | set office|balanced|turbo')
+        raise ValueError('用法：status | set office|balanced|turbo|custom')
     check_machine()
     fd = os.open('/run/mechrevo-profile.lock', os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
     try:

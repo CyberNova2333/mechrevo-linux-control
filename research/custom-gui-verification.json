@@ -1,0 +1,96 @@
+{
+  "original": "turbo",
+  "steps": [
+    {
+      "selected": "custom",
+      "current_label": "当前：自定义基础档 · 白色",
+      "message": "切换成功，硬件回读一致",
+      "hardware": {
+        "mode": "custom",
+        "switchable": true,
+        "reason": "",
+        "ec_mode": "0x0",
+        "custom_supported": true,
+        "custom_tuning_supported": false,
+        "turbo_variants_supported": false,
+        "turbo_variant": "extreme"
+      }
+    },
+    {
+      "selected": "office",
+      "current_label": "当前：办公 · 绿色",
+      "message": "切换成功，硬件回读一致",
+      "hardware": {
+        "mode": "office",
+        "switchable": true,
+        "reason": "",
+        "ec_mode": "0xa0",
+        "custom_supported": true,
+        "custom_tuning_supported": false,
+        "turbo_variants_supported": false,
+        "turbo_variant": "extreme"
+      }
+    },
+    {
+      "selected": "custom",
+      "current_label": "当前：自定义基础档 · 白色",
+      "message": "切换成功，硬件回读一致",
+      "hardware": {
+        "mode": "custom",
+        "switchable": true,
+        "reason": "",
+        "ec_mode": "0x0",
+        "custom_supported": true,
+        "custom_tuning_supported": false,
+        "turbo_variants_supported": false,
+        "turbo_variant": "extreme"
+      }
+    },
+    {
+      "selected": "balanced",
+      "current_label": "当前：均衡 · 蓝色",
+      "message": "切换成功，硬件回读一致",
+      "hardware": {
+        "mode": "balanced",
+        "switchable": true,
+        "reason": "",
+        "ec_mode": "0x20",
+        "custom_supported": true,
+        "custom_tuning_supported": false,
+        "turbo_variants_supported": false,
+        "turbo_variant": "extreme"
+      }
+    },
+    {
+      "selected": "custom",
+      "current_label": "当前：自定义基础档 · 白色",
+      "message": "切换成功，硬件回读一致",
+      "hardware": {
+        "mode": "custom",
+        "switchable": true,
+        "reason": "",
+        "ec_mode": "0x0",
+        "custom_supported": true,
+        "custom_tuning_supported": false,
+        "turbo_variants_supported": false,
+        "turbo_variant": "extreme"
+      }
+    },
+    {
+      "selected": "turbo",
+      "current_label": "当前：狂暴 · 紫色",
+      "message": "切换成功，硬件回读一致",
+      "hardware": {
+        "mode": "turbo",
+        "switchable": true,
+        "reason": "",
+        "ec_mode": "0x30",
+        "custom_supported": true,
+        "custom_tuning_supported": false,
+        "turbo_variants_supported": false,
+        "turbo_variant": "extreme"
+      }
+    }
+  ],
+  "errors": []
+}
