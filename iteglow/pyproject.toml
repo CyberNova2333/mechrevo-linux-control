@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "iteglow"
+description = "Userspace RGB control for ITE 8291/8233 keyboard backlights and lightbars (Tongfang/Uniwill/Clevo laptops)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Jean Elsner", email = "jean.elsner@tum.de" }]
+keywords = ["rgb", "lightbar", "keyboard", "ite", "ite8291", "tongfang", "uniwill", "tuxedo", "led", "hidraw"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Topic :: System :: Hardware",
+]
+dynamic = ["version"]
+dependencies = []  # core + CLI are pure stdlib
+
+[project.optional-dependencies]
+# The GUI uses the system PyGObject (recommended: distro packages
+# python3-gi + gir1.2-gtk-4.0). This extra is only useful in environments
+# where PyGObject can be built/installed from PyPI.
+gui = ["PyGObject>=3.42"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+iteglow = "iteglow.cli:main"
+
+[project.gui-scripts]
+iteglow-gui = "iteglow.gui:main"
+
+[project.urls]
+Homepage = "https://github.com/JeanElsner/iteglow"
+Issues = "https://github.com/JeanElsner/iteglow/issues"
+
+[tool.hatch.version]
+path = "src/iteglow/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/iteglow"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

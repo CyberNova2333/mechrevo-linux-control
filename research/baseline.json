@@ -1,0 +1,87 @@
+{
+  "gui": "iteglow 0.3.2",
+  "upstream": "https://github.com/JeanElsner/iteglow",
+  "commit": "c867888cac78e64b2e96c6a7b1ec85fe1398f1ab",
+  "local_adaptation": "exact-board hidraw fallback; Chinese controls; all-off button instead of uninstalled boot pin service",
+  "physical_gui_validation": "用户确认键盘和灯带均能正常控制",
+  "mode_observation_user_sequence": [
+    "紫色",
+    "蓝色",
+    "绿色",
+    "紫色"
+  ],
+  "mode_transitions": [
+    {
+      "time": "2026-11-14 21:49:35",
+      "ec": {
+        "mode": "30",
+        "app_flags": "80",
+        "mode_index_or_logo": "01",
+        "default_mode": "10",
+        "silent_status": "00",
+        "pl1_setting": "00",
+        "pl2_setting": "00",
+        "pl4_setting": "00",
+        "tgp_setting": "00",
+        "db_tgp_setting": "00"
+      }
+    },
+    {
+      "time": "2026-11-14 21:49:58",
+      "ec": {
+        "mode": "20",
+        "app_flags": "80",
+        "mode_index_or_logo": "01",
+        "default_mode": "00",
+        "silent_status": "00",
+        "pl1_setting": "00",
+        "pl2_setting": "00",
+        "pl4_setting": "00",
+        "tgp_setting": "00",
+        "db_tgp_setting": "00"
+      }
+    },
+    {
+      "time": "2026-11-14 21:50:04",
+      "ec": {
+        "mode": "a0",
+        "app_flags": "80",
+        "mode_index_or_logo": "01",
+        "default_mode": "80",
+        "silent_status": "00",
+        "pl1_setting": "00",
+        "pl2_setting": "00",
+        "pl4_setting": "00",
+        "tgp_setting": "00",
+        "db_tgp_setting": "00"
+      }
+    },
+    {
+      "time": "2026-11-14 21:50:12",
+      "ec": {
+        "mode": "30",
+        "app_flags": "80",
+        "mode_index_or_logo": "01",
+        "default_mode": "10",
+        "silent_status": "00",
+        "pl1_setting": "00",
+        "pl2_setting": "00",
+        "pl4_setting": "00",
+        "tgp_setting": "00",
+        "db_tgp_setting": "00"
+      }
+    }
+  ],
+  "vendor_version": "5.56.60.46",
+  "vendor_software_enum": {
+    "Office": 0,
+    "Gaming": 1,
+    "Turbo": 2,
+    "Custom": 3,
+    "Benchmark": 4
+  },
+  "ec_writes_performed": false,
+  "new_kernel_modules": false,
+  "dsdt_sha256": "82af6b395a2ad784548e2af56b60ede394d7a726200572210372ed03c2b2341b",
+  "windows_service_sha256": "9ee018d42684d02032da642d90376843383223d76d82a6fba6ce42e475a82093"
+}
