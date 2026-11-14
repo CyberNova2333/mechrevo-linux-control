@@ -1,0 +1,76 @@
+{
+  "date": "2026-11-14",
+  "source_version": "ControlCenterX 5.56.60.46",
+  "board": "YAOSHI Series-XxAF55xx",
+  "bios": "N.1.33MRO91",
+  "water_cooler": "User confirmed original external cooler; not connected",
+  "scope": "static analysis and read-only EC; no firmware writes, BLE connections, pump commands or live GUI changes",
+  "sources": {
+    "official_ui_dll": {
+      "path": "/home/cybernova/.cache/mechrevo-linux-research/vendor/ui/CCUWinUI.dll",
+      "sha256": "8842646eddc0ed62be1500f807960502c5a1c20cd8102e9d93fdd5b6e8aa3ff4"
+    },
+    "official_service": {
+      "path": "/home/cybernova/.cache/mechrevo-linux-research/vendor/extracted/app/AiStoneService/MyControlCenter/GCUService.exe",
+      "sha256": "9ee018d42684d02032da642d90376843383223d76d82a6fba6ce42e475a82093"
+    },
+    "local_dsdt": {
+      "path": "/home/cybernova/.cache/mechrevo-linux-research/vendor/DSDT.aml",
+      "sha256": "82af6b395a2ad784548e2af56b60ede394d7a726200572210372ed03c2b2341b"
+    }
+  },
+  "read_only_observation_at": "2026-11-14 22:20:44 Asia/Shanghai",
+  "ec_hex": {
+    "0x706": "40",
+    "0x726": "00",
+    "0x727": "80",
+    "0x728": "00",
+    "0x741": "80",
+    "0x751": "30",
+    "0x766": "90",
+    "0x783": "00",
+    "0x784": "00",
+    "0x785": "00",
+    "0x786": "00",
+    "0x787": "00",
+    "0x7a4": "80",
+    "0x7c5": "00",
+    "0x7c7": "0c",
+    "0x7e6": "a8"
+  },
+  "decoded_from_dsdt": {
+    "TB43": 0,
+    "CUME": 0,
+    "LCSE": 0,
+    "OCPL": 3,
+    "LCOC": 0
+  },
+  "confirmed_ui_commands": {
+    "turbo_silent": {
+      "Action": "SET_CPU_CORE_OFFSET_SILENT",
+      "SILENT": 1
+    },
+    "turbo_extreme": {
+      "Action": "SET_CPU_CORE_OFFSET_EXTREME",
+      "EXTREME": 1
+    },
+    "water_mode_office": {
+      "IsNormalRun": 0
+    },
+    "water_mode_balanced": {
+      "IsNormalRun": 1
+    },
+    "water_mode_turbo": {
+      "IsNormalRun": 2
+    },
+    "water_mode_custom": {
+      "IsCustomRun": true
+    }
+  },
+  "not_confirmed": [
+    "Exact service EC write sequence and bit polarity for turbo submodes",
+    "Water-connected per-mode PL1/PL2/GPU TGP/fan tables for this machine",
+    "Connected fault/disconnect fallback sequence",
+    "Physical coolant insertion versus BLE/flow-based detection state machine"
+  ]
+}
