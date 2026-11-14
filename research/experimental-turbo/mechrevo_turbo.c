@@ -13,6 +13,7 @@
 static DEFINE_MUTEX(control_lock);
 static struct kobject *control_kobj;
 static acpi_handle reader, writer, policy;
+static unsigned long long original_cstm, original_gatm;
 static int read_ec(unsigned int reg, u8 *value)
 {
  union acpi_object arg = { .type = ACPI_TYPE_INTEGER };
@@ -35,11 +36,33 @@ static int refresh_policy(void)
 {
  return ACPI_FAILURE(acpi_evaluate_object(policy, NULL, NULL, NULL)) ? -EIO : 0;
 }
-static const unsigned int regs[] = {0x706,0x726,0x727,0x728,0x741,0x751,0x783,0x784,0x785,0x786,0x787,0x7ab,0x7c5,0x7c7,0x7e8};
+static const unsigned int regs[] = {0x706,0x726,0x727,0x728,0x72b,0x741,0x751,0x783,0x784,0x785,0x786,0x787,0x7ab,0x7c5,0x7c7,0x7e8};
+static int workload_set(const char *path, unsigned long long value)
+{
+ union acpi_object a = { .type = ACPI_TYPE_INTEGER };
+ struct acpi_object_list args = { .count = 1, .pointer = &a };
+ a.integer.value = value;
+ return ACPI_FAILURE(acpi_evaluate_object(NULL, (char *)path, &args, NULL)) ? -EIO : 0;
+}
+static ssize_t workload_store(struct kobject *k, struct kobj_attribute *a, const char *buf, size_t count)
+{
+ int ret;
+ if (!sysfs_streq(buf,"game") && !sysfs_streq(buf,"combined") && !sysfs_streq(buf,"restore")) return -EINVAL;
+ mutex_lock(&control_lock);
+ ret = workload_set("\\_SB.INOU.CTAF", sysfs_streq(buf,"restore") ? original_cstm : sysfs_streq(buf,"combined"));
+ if (!ret) ret = workload_set("\\_SB.INOU.GAMM", sysfs_streq(buf,"restore") ? original_gatm : sysfs_streq(buf,"game"));
+ mutex_unlock(&control_lock);
+ return ret ? ret : count;
+}
 static ssize_t status_show(struct kobject *k, struct kobj_attribute *a, char *buf)
 {
  int i, ret = 0; ssize_t n = 0; u8 v;
  mutex_lock(&control_lock);
+ {
+ unsigned long long c, g;
+ if (ACPI_SUCCESS(acpi_evaluate_integer(NULL,"\\_SB.INOU.CSTM",NULL,&c)) && ACPI_SUCCESS(acpi_evaluate_integer(NULL,"\\_SB.INOU.GATM",NULL,&g)))
+ n += sysfs_emit_at(buf,n,"CSTM=%llu\nGATM=%llu\n",c,g);
+ }
  for (i = 0; i < ARRAY_SIZE(regs); i++) {
   ret = read_ec(regs[i], &v); if (ret) break;
   n += sysfs_emit_at(buf, n, "%03x=%02x\n", regs[i], v);
@@ -88,18 +111,20 @@ static ssize_t variant_store(struct kobject *k, struct kobj_attribute *a, const 
 }
 static struct kobj_attribute status_attr = __ATTR_RO(status);
 static struct kobj_attribute variant_attr = __ATTR(variant,0200,NULL,variant_store);
-static struct attribute *attrs[] = { &status_attr.attr, &variant_attr.attr, NULL };
+static struct kobj_attribute workload_attr = __ATTR(workload,0200,NULL,workload_store);
+static struct attribute *attrs[] = { &status_attr.attr, &variant_attr.attr, &workload_attr.attr, NULL };
 static const struct attribute_group group = { .attrs = attrs };
 static int __init bridge_init(void)
 {
  int ret;
  if (!dmi_match(DMI_SYS_VENDOR,"MECHREVO") || !dmi_match(DMI_BOARD_NAME,"YAOSHI Series-XxAF55xx") || !dmi_match(DMI_BIOS_VERSION,"N.1.33MRO91")) return -ENODEV;
  if (ACPI_FAILURE(acpi_get_handle(NULL,"\\_SB.INOU.ECRR",&reader)) || ACPI_FAILURE(acpi_get_handle(NULL,"\\_SB.INOU.ECRW",&writer)) || ACPI_FAILURE(acpi_get_handle(NULL,"\\_SB.PC00.LPCB.EC0.PMSF",&policy))) return -ENODEV;
+ if (ACPI_FAILURE(acpi_evaluate_integer(NULL,"\\_SB.INOU.CSTM",NULL,&original_cstm)) || ACPI_FAILURE(acpi_evaluate_integer(NULL,"\\_SB.INOU.GATM",NULL,&original_gatm))) return -ENODEV;
  control_kobj = kobject_create_and_add("mechrevo_turbo",kernel_kobj); if (!control_kobj) return -ENOMEM;
  ret = sysfs_create_group(control_kobj,&group); if(ret) kobject_put(control_kobj);
  return ret;
 }
-static void __exit bridge_exit(void) { kobject_put(control_kobj); }
+static void __exit bridge_exit(void) { workload_set("\\_SB.INOU.CTAF",original_cstm); workload_set("\\_SB.INOU.GAMM",original_gatm); kobject_put(control_kobj); }
 module_init(bridge_init); module_exit(bridge_exit);
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Exact-model Mechrevo firmware turbo-submode bridge");

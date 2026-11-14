@@ -1,10 +1,5 @@
 #!/usr/bin/python3 -I
-"""Local, model/BIOS-pinned firmware mode selector. No arbitrary EC access API.
-
-Three physical-key modes plus the verified custom-mode entry/exit are writable.
-Custom entry changes only MODE and two OEM flags. No custom tuning, fan tables,
-power limits, voltage, clocks, NVRAM or logo bits are written.
-"""
+"""Exact-model firmware profiles and qualified CPU/fan tuning, with recovery journal."""
 import fcntl
 import json
 import os
@@ -12,12 +7,14 @@ from pathlib import Path
 import stat
 import sys
 import time
+import subprocess
+import tempfile
 
 BASE = 0xFE410000
 MODE = 0x751
 MODES = {"office": 0xA0, "balanced": 0x20, "turbo": 0x30, "custom": 0x00}
 FLAG_MASKS = {0x726: 0x80, 0x727: 0x40}
-REGISTERS = (MODE, 0x706, 0x726, 0x727, 0x728, 0x741, 0x783, 0x784, 0x785, 0x786, 0x787, 0x7AB, 0x7C5, 0x7E8)
+REGISTERS = (MODE, 0x706, 0x726, 0x727, 0x728, 0x741, 0x783, 0x784, 0x785, 0x786, 0x787, 0x7AB, 0x7C5, 0x7C6, 0x7E8)
 
 
 def check_machine():
@@ -36,7 +33,7 @@ class EC:
         self.fd = os.open('/dev/mem', (os.O_RDWR if writable else os.O_RDONLY) | os.O_CLOEXEC)
 
     def read(self, address):
-        if address not in REGISTERS:
+        if address not in REGISTERS and not 0xF00 <= address <= 0xF5F:
             raise ValueError('Unsupported register')
         data = os.pread(self.fd, 1, BASE + address)
         if len(data) != 1:
@@ -57,6 +54,14 @@ class EC:
         if os.pwrite(self.fd, bytes([value]), BASE + address) != 1:
             raise OSError('EC 标志写入不完整')
 
+    def write_tuning(self, address, value):
+        if address not in OWN_MASKS and not 0xF00 <= address <= 0xF5F:
+            raise ValueError('Unsupported tuning register')
+        if type(value) is not int or not 0 <= value <= 255:
+            raise ValueError('Invalid byte')
+        if os.pwrite(self.fd, bytes([value]), BASE + address) != 1:
+            raise OSError('EC 写入不完整')
+
     def close(self):
         os.close(self.fd)
 
@@ -67,7 +72,7 @@ def snapshot(ec):
 
 def standard_state(values):
     common = (values[0x706] == 0x40 and not values[0x741] & 1
-              and not values[0x7C5] & 0x80
+              and not values[0x7C5] & 0x80 and not values[0x7C6] & 4
               and all(values[a] == 0 for a in (0x783, 0x784, 0x785, 0x786, 0x787)))
     regular = (values[MODE] in (0xA0, 0x00, 0x10, 0x20, 0x30)
                and not values[0x726] & 0x80 and not values[0x727] & 0x40)
@@ -88,13 +93,18 @@ def mode_name(values):
 
 def status(ec):
     values = snapshot(ec)
-    standard = standard_state(values)
+    state = read_state()
+    managed = bool(state and state['phase'] == 'active' and matches(ec, state))
+    standard = standard_state(values) and not state
     return {
         'mode': mode_name(values),
-        'switchable': standard,
-        'reason': '' if standard else '检测到其他控制程序、未验证的风扇或功耗设置，暂停软件切档',
+        'switchable': standard or managed,
+        'reason': '' if standard or managed else '检测到其他控制程序、未验证的风扇或功耗设置，暂停软件切档',
         'ec_mode': hex(values[MODE]),
-        'custom_supported': True, 'custom_tuning_supported': False,
+        'custom_supported': True, 'custom_tuning_supported': True,
+        'tuning_active': managed, 'tuning_recovery_pending': bool(state and not managed),
+        'tuning': state['config'] if managed else None,
+        'cpu_limits_w': [25, 75],
         'turbo_variants_supported': False,
         'turbo_variant': 'quiet' if values[0x728] & 1 else 'extreme',
     }
@@ -129,7 +139,7 @@ def set_mode(ec, name, pause=time.sleep):
                 ec.write_flag(address, bool(value))
         pause(0.25)
         result = status(ec)
-        if result['mode'] != name or not result['switchable']:
+        if result['mode'] != name or not standard_state(snapshot(ec)):
             raise RuntimeError('档位回读不一致，请检查机身模式键')
         return result
     except Exception as error:
@@ -150,9 +160,148 @@ def set_mode(ec, name, pause=time.sleep):
         raise
 
 
+# This board's factory hysteresis table was read through the OEM F5D/F5E handshake.
+CPU_UP = [48,52,56,60,64,68,72,76,80,85,255,255,255,255,255,255]
+GPU_UP = [46,50,54,58,62,66,70,74,78,81,255,255,255,255,255,255]
+CPU_DOWN = [0,46,50,54,58,62,66,70,74,78,82,255,255,255,255,255]
+GPU_DOWN = [0,44,48,52,56,60,64,68,72,76,80,255,255,255,255,255]
+MIN_DUTY = [40,40,40,40,50,55,60,70,80,90,100]
+OWN_MASKS = {0x726:128, 0x727:64, MODE:255, 0x741:1,
+             0x783:255, 0x784:255, 0x7C5:128, 0x7C6:4}
+STATE = Path('/run/mechrevo-tuning.json')
+
+
+def validate_config(config):
+    if not isinstance(config, dict) or set(config) != {'pl1','pl2','cpu_fan','gpu_fan'}:
+        raise ValueError('自定义设置字段不完整')
+    if any(type(config[k]) is not int for k in ('pl1','pl2')) or not (25 <= config['pl1'] == config['pl2'] <= 75):
+        raise ValueError('已验证 CPU 范围为 25–75 W，持续与短时上限需保持一致')
+    for name in ('cpu_fan','gpu_fan'):
+        curve = config[name]
+        if not isinstance(curve, list) or len(curve) != 11:
+            raise ValueError('风扇曲线需要 11 个节点')
+        if any(type(v) is not int or not MIN_DUTY[i] <= v <= 100 for i,v in enumerate(curve)):
+            raise ValueError('风扇不能低于已验证的出厂冷却基线，高温节点必须为 100%')
+        if curve != sorted(curve):
+            raise ValueError('风扇转速必须随温度单调不减')
+    return config
+
+
+def make_table(config):
+    return (CPU_UP + CPU_DOWN + [2*v for v in config['cpu_fan']] + [200]*5
+            + GPU_UP + GPU_DOWN + [2*v for v in config['gpu_fan']] + [200]*5)
+
+
+def read_state():
+    try:
+        fd = os.open(STATE, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except FileNotFoundError:
+        return None
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != os.geteuid() or st.st_mode & 0o077:
+            raise RuntimeError('自定义恢复记录权限异常')
+        data = json.loads(os.read(fd, 16384))
+        if data.get('version') != 1 or data.get('phase') not in ('preparing','active'):
+            raise RuntimeError('自定义恢复记录格式异常')
+        validate_config(data['config'])
+        expected = set(OWN_MASKS) | set(range(0xF00,0xF60))
+        for field in ('before','target'):
+            data[field] = {int(k):v for k,v in data[field].items()}
+            if set(data[field]) != expected or any(type(v) is not int or not 0<=v<=255 for v in data[field].values()):
+                raise RuntimeError('自定义恢复记录数据异常')
+        return data
+    finally:
+        os.close(fd)
+
+
+def save_state(data):
+    fd, temp_name = tempfile.mkstemp(prefix='.mechrevo-', dir=STATE.parent)
+    temp = Path(temp_name)
+    try:
+        payload = json.dumps(data).encode()
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(payload); stream.flush(); os.fsync(stream.fileno())
+        os.replace(temp, STATE)
+    finally:
+        if temp.exists(): temp.unlink()
+
+
+def matches(ec, state):
+    return all(ec.read(a) & OWN_MASKS.get(a,255) == v & OWN_MASKS.get(a,255)
+               for a,v in state['target'].items())
+
+
+def restore_tuning(ec):
+    state = read_state()
+    if not state: return
+    before, target = state['before'], state['target']
+    # A physical mode key may change mode/custom flags; preserve its chosen mode.
+    restore_mode = mode_name(snapshot(ec)) == 'custom'
+    for a, old in before.items():
+        if a in (MODE,0x726,0x727): continue
+        mask = OWN_MASKS.get(a,255)
+        if ec.read(a) & mask not in (old & mask, target[a] & mask):
+            raise RuntimeError('检测到其他控制器更改自定义设置，保留恢复记录并暂停写入')
+    def put(a, v):
+        mask = OWN_MASKS.get(a,255)
+        ec.write_tuning(a, (ec.read(a) & ~mask) | (v & mask))
+        if ec.read(a) & mask != v & mask: raise RuntimeError('恢复回读失败')
+    # Return power to firmware, then disable RAM fan control before restoring RAM.
+    for a in (0x783,0x784): put(a,before[a])
+    put(0x7C6,0)
+    for a in range(0xF00,0xF60): put(a,before[a])
+    for a in (0x7C5,0x741,0x726,0x727): put(a,before[a])
+    if restore_mode: put(MODE,before[MODE])
+    put(0x7C6,before[0x7C6])
+    STATE.unlink()
+
+
+def apply_tuning(ec, config, pause=time.sleep):
+    validate_config(config)  # Reject before undoing an existing profile.
+    restore_tuning(ec)
+    initial = snapshot(ec)
+    if not standard_state(initial): raise RuntimeError('当前控制状态不允许接管自定义设置')
+    addresses = list(OWN_MASKS) + list(range(0xF00,0xF60))
+    before = {a:ec.read(a) for a in addresses}
+    target = dict(before)
+    for a,mask in ((0x726,128),(0x727,64),(0x741,1),(0x7C5,128),(0x7C6,4)):
+        target[a] |= mask
+    target[MODE] = 0
+    target[0x783], target[0x784] = config['pl1'], config['pl2']
+    target.update({0xF00+i:v for i,v in enumerate(make_table(config))})
+    if snapshot(ec) != initial or any(ec.read(a)!=v for a,v in before.items()):
+        raise RuntimeError('硬件状态变化，请重试')
+    state = {'version':1,'phase':'preparing','before':before,'target':target,'config':config}
+    save_state(state)  # Persist recovery information before the first write.
+    try:
+        set_mode(ec,'custom',pause=pause)
+        for a in (0x741,0x783,0x784,0x7C5):
+            mask=OWN_MASKS[a]
+            ec.write_tuning(a,(ec.read(a)&~mask)|(target[a]&mask))
+        for a in range(0xF00,0xF60): ec.write_tuning(a,target[a])
+        ec.write_tuning(0x7C6,(ec.read(0x7C6)&~4)|(target[0x7C6]&4))
+        pause(0.25)
+        if not matches(ec,state): raise RuntimeError('自定义设置回读不一致')
+        state['phase']='active'; save_state(state)
+        return status(ec)
+    except BaseException as error:
+        try: restore_tuning(ec)
+        except Exception as recovery:
+            raise RuntimeError(str(error)+'；恢复尚未完成：'+str(recovery)) from error
+        raise
+
+
 def main(args):
-    if args != ['status'] and not (len(args) == 2 and args[0] == 'set' and args[1] in MODES):
-        raise ValueError('用法：status | set office|balanced|turbo|custom')
+    valid = args in (['status'],['reset'],['reconcile']) or (len(args)==2 and
+            ((args[0]=='set' and args[1] in MODES) or args[0]=='apply'))
+    if not valid: raise ValueError('用法：status | set office|balanced|turbo|custom | apply JSON | reset')
+    config = validate_config(json.loads(args[1])) if args[0]=='apply' and len(args[1])<4096 else None
+    if args[0]=='apply':
+        if config is None: raise ValueError('设置过长')
+        result = subprocess.run(['/usr/bin/systemctl','is-active','--quiet','mechrevo-profile-guard.service'])
+        if result.returncode: raise RuntimeError('恢复守护服务未运行，拒绝应用自定义设置')
+    if args == ['reconcile'] and not STATE.exists(): return {'idle': True}
     check_machine()
     fd = os.open('/run/mechrevo-profile.lock', os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
     try:
@@ -160,18 +309,34 @@ def main(args):
         if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
             raise RuntimeError('性能控制锁文件权限异常')
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        ec = EC(writable=args[0] == 'set')
+        ec = EC(writable=args[0] != 'status')
         try:
-            return status(ec) if args[0] == 'status' else set_mode(ec, args[1])
-        finally:
-            ec.close()
-    finally:
-        os.close(fd)
+            if args[0]=='apply': return apply_tuning(ec,config)
+            if args[0] in ('set','reset'): restore_tuning(ec)
+            if args[0]=='set': return set_mode(ec,args[1])
+            if args[0]=='reconcile':
+                state=read_state()
+                if state and (state['phase']!='active' or not matches(ec,state)): restore_tuning(ec)
+            return status(ec)
+        finally: ec.close()
+    finally: os.close(fd)
+
+
+def guard():
+    last_error = 0
+    while True:
+        try: main(['reconcile'])
+        except BlockingIOError: pass  # Another helper transaction owns the lock.
+        except Exception as exc:
+            if time.monotonic()-last_error>30:
+                print(str(exc),file=sys.stderr,flush=True); last_error=time.monotonic()
+        time.sleep(1)
 
 
 if __name__ == '__main__':
     try:
-        print(json.dumps(main(sys.argv[1:]), ensure_ascii=False))
+        if sys.argv[1:]==['guard']: guard()
+        else: print(json.dumps(main(sys.argv[1:]), ensure_ascii=False))
     except Exception as exc:
         print(json.dumps({'error': str(exc)}, ensure_ascii=False))
         sys.exit(1)
