@@ -18,6 +18,7 @@ gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from . import devices, effects, protocol, state  # noqa: E402
+from .performance import PerformancePanel  # noqa: E402
 
 
 def _rgba_to_rgb(rgba):
@@ -238,8 +239,8 @@ class App(Gtk.Application):
         if win is not None:       # re-launched: raise the existing window
             win.present()
             return
-        win = Gtk.ApplicationWindow(application=self, title="机械革命灯光 · iteglow")
-        win.set_default_size(580, 440)
+        win = Gtk.ApplicationWindow(application=self, title="机械革命控制 · iteglow")
+        win.set_default_size(620, 460)
         present = devices.available_devices()
         if not present:
             win.set_child(Gtk.Label(
@@ -256,6 +257,7 @@ class App(Gtk.Application):
             except Exception as e:  # noqa: BLE001
                 page = Gtk.Label(label=f"{label} unavailable:\n{e}")
             nb.append_page(page, Gtk.Label(label={"keyboard": "键盘灯", "lightbar": "机身灯带"}[label]))
+        nb.append_page(PerformancePanel(), Gtk.Label(label="性能档位"))
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         outer.append(nb)
         outer.append(self._make_pin_bar())
@@ -266,7 +268,8 @@ class App(Gtk.Application):
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         for fn in ("set_margin_top", "set_margin_bottom", "set_margin_start", "set_margin_end"):
             getattr(bar, fn)(10)
-        hint = Gtk.Label(label="调整后立即生效；灯带显示上次保存值", xalign=0, hexpand=True)
+        hint = Gtk.Label(label="灯光调整立即生效；灯带显示上次保存值", xalign=0, hexpand=True, wrap=True)
+        hint.set_max_width_chars(24)
         hint.add_css_class("dim-label")
         bar.append(hint)
         button = Gtk.Button(label="关闭全部灯光")
