@@ -1,0 +1,30 @@
+[
+  {
+    "file": "WMIEC.cs",
+    "decoded_calls": 456
+  },
+  {
+    "file": "GpuFeatures.cs",
+    "decoded_calls": 42
+  },
+  {
+    "file": "manager-restored.cs",
+    "decoded_calls": 1067
+  },
+  {
+    "file": "fanctrl-restored.cs",
+    "decoded_calls": 12
+  },
+  {
+    "file": "fanmanager-restored.cs",
+    "decoded_calls": 316
+  },
+  {
+    "file": "ec-restored.cs",
+    "decoded_calls": 17
+  },
+  {
+    "file": "sysmanager-restored.cs",
+    "decoded_calls": 159
+  }
+]

@@ -1,0 +1,12 @@
+{
+  "selected_classes": 7,
+  "decoded_string_calls": 2069,
+  "resolved_delegates": 782,
+  "before_after_firmware_equal": true,
+  "local_markdown_links_exist": true,
+  "kernel": "6.8.0-149-generic",
+  "service_active": "active",
+  "temporary_module_absent": true,
+  "gdb_detached": true,
+  "standard_repo_docs_validator": "not applicable to this research record; requires formal walkthrough/source-evidence/change-log package; 7 structure errors, no claim of pass"
+}

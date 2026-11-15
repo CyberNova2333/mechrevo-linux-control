@@ -1,0 +1,22 @@
+[
+  {
+    "phase": "before",
+    "time": 1794728854.4772289,
+    "firmware": "CSTM=0\nGATM=0\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=01\n741=80\n751=10\n783=00\n784=00\n785=00\n786=00\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n"
+  },
+  {
+    "phase": "quiet",
+    "time": 1794728856.6417236,
+    "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=01\n72b=09\n741=80\n751=10\n783=00\n784=00\n785=00\n786=92\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n"
+  },
+  {
+    "phase": "extreme",
+    "time": 1794728861.8006773,
+    "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=09\n741=80\n751=10\n783=00\n784=00\n785=00\n786=8a\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n"
+  },
+  {
+    "phase": "restored",
+    "time": 1794728866.9778957,
+    "firmware": "CSTM=0\nGATM=0\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=01\n741=80\n751=10\n783=00\n784=00\n785=00\n786=0a\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n"
+  }
+]
