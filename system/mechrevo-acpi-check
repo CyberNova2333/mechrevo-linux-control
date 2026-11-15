@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import struct
 import sys
 import time
@@ -43,14 +44,26 @@ def collect(capture=False):
         (folder/'report.json').write_text(json.dumps(report,indent=2))
         temp=DEST/'latest.new';temp.write_text(json.dumps(report,indent=2));temp.replace(DEST/'latest.json')
         report['capture_directory']=str(folder)
+        # Bound private diagnostics, including repeated resume failures.
+        captures=sorted((p for p in DEST.iterdir() if p.is_dir() and not p.is_symlink()
+                         and re.fullmatch(r'[0-9a-f-]{36}-[0-9]+',p.name)),
+                        key=lambda p:int(p.name.rsplit('-',1)[1]))
+        for old in captures[:-8]:shutil.rmtree(old)
     return report
 
 
 if __name__=='__main__':
     try:
-        if sys.argv[1:] not in ([],['--capture']):raise ValueError('Usage: mechrevo-acpi-check [--capture]')
-        result=collect(sys.argv[1:]==['--capture'])
-        print(json.dumps(result,ensure_ascii=False))
+        args=sys.argv[1:]
+        if len(args)!=len(set(args)) or set(args)-{'--capture','--summary'}:
+            raise ValueError('Usage: mechrevo-acpi-check [--capture] [--summary]')
+        result=collect('--capture' in args)
+        output=result
+        if '--summary' in args:
+            output={k:v for k,v in result.items() if k!='tables'}
+            output['table_count']=len(result['tables'])
+            output['invalid_tables']=[r['table'] for r in result['tables'] if not r['valid']]
+        print(json.dumps(output,ensure_ascii=False))
         sys.exit(0 if result['healthy'] else 1)
     except Exception as exc:
         print(json.dumps({'healthy':False,'error':str(exc)},ensure_ascii=False));sys.exit(1)

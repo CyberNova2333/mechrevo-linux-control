@@ -19,7 +19,7 @@ GUI以普通用户运行；固定root助手通过polkit提供固定档位和经�
 [最新功耗、风扇与狂暴策略验证](research/power-fan-validation.md)为当前事实；早期研究记录保留为历史，不代表最新发布状态。
 
 - [灯光修复与界面](research/lighting-fix.md)
-- [官方模式和水冷逻辑](research/official-modes-and-watercooling.md)：水冷未连接，继续暂缓。
+- [官方模式和水冷逻辑](research/official-modes-and-watercooling.md)：历史静态研究；现已接入离线水冷，固件联动未启用。
 - [目标方法哈希与验证摘要](research/custom-turbo-evidence.json)
 - research/experimental-turbo：未发布的临时研究模块，不是运行依赖，不得自动安装。
 
@@ -27,7 +27,7 @@ GUI以普通用户运行；固定root助手通过polkit提供固定档位和经�
 
 ## 测试与维护
 
-`/usr/bin/python3 -m unittest discover -s tests -v`：21项测试。实际GUI与pkexec链路另行验证。
+`/usr/bin/python3 -m unittest discover -s tests -v`：31项测试。实际GUI与pkexec链路另行验证。
 
 永久GUI源码：`~/.local/share/desktop-maintenance/sources/iteglow-0.3.2`。
 永久助手、测试及研究资料：`~/.local/share/desktop-maintenance/sources/mechrevo-profile-1.0`。
@@ -46,4 +46,8 @@ BIOS更新后需重新验证，不能移除机型/BIOS校验。新增轻量恢�
 
 ## 2026-11-15 GPU联动研究进度
 
-已确认休眠恢复后9张ACPI SSDT物理地址上移，运行内核仍持旧指针，导致NPCF查询失败。补齐powerd服务和DBus策略，加入ACPI完整性门槛；powerd尚未开机启用。休眠改shutdown路径作为待验证绕行。需要正常重启后再继续实际GPU负载和模式联动测试，完整子模式GUI仍未开放。见 [powerd/ACPI研究与接续步骤](research/powerd-acpi-resume-20261115.md)。
+正常重启已恢复 ACPI；powerd 两轮开关实测使 GPU 从约65W恢复到约140W，现已开机启用并加入睡眠前停用、唤醒健康检查。静音档虽改变固件平台预算，实际GPU仍约140W；CPU拓扑异常导致AutoFL报错的因果链仍待完成。完整子模式GUI继续不开放。
+
+见 [最新实测、服务恢复与后续路线](research/powerd-coldboot-20261115/README.md)；[之前的ACPI失配诊断](research/powerd-acpi-resume-20261115.md)保留为历史。真实shutdown休眠仍未验收。
+
+内核保持6.8系列；用户明确禁止未经同意跨大版本升级。已撤销本次未启动的7.0 HWE安装。安全更新按具体CVE与Ubuntu包版本核对，见[安全核对](research/powerd-coldboot-20261115/kernel-security.md)。
