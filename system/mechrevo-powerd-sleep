@@ -1,0 +1,46 @@
+#!/usr/bin/python3 -I
+"""Preserve powerd activation across sleep, only with healthy resumed AML."""
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+MARKER=Path('/run/mechrevo-powerd-was-active')
+UNIT='nvidia-powerd.service'
+
+
+def run(args):
+    return subprocess.run(args,check=False,timeout=20).returncode
+
+
+def main(phase):
+    if phase=='pre':
+        if run(['/usr/bin/systemctl','is-active','--quiet',UNIT])==0:
+            # Persist intent before stopping, including an interrupted sleep.
+            fd=os.open(MARKER,os.O_WRONLY|os.O_CREAT|os.O_TRUNC|os.O_NOFOLLOW,0o600)
+            with os.fdopen(fd,'w') as stream:stream.write('active\n')
+            if run(['/usr/bin/systemctl','stop',UNIT]):
+                raise RuntimeError('Failed to stop powerd before sleep')
+        elif not MARKER.exists():
+            print('powerd was inactive; will remain inactive after sleep')
+    elif phase=='post':
+        if not MARKER.exists():return
+        healthy=run(['/usr/local/libexec/mechrevo-acpi-check','--capture','--summary'])==0
+        if not healthy:
+            MARKER.unlink(missing_ok=True)
+            print('ACPI check failed; powerd remains stopped. Normal reboot required.',file=sys.stderr)
+            return
+        # Queue without blocking the sleep transaction; the unit is ordered
+        # after nvidia-resume.service so VRAM restoration can finish first.
+        if run(['/usr/bin/systemctl','--no-block','start',UNIT]):
+            raise RuntimeError('Failed to queue powerd restart')
+        MARKER.unlink(missing_ok=True)
+    else:raise ValueError('Usage: mechrevo-powerd-sleep pre|post')
+
+
+if __name__=='__main__':
+    try:
+        if len(sys.argv)!=2:raise ValueError('Usage: mechrevo-powerd-sleep pre|post')
+        main(sys.argv[1])
+    except Exception as exc:
+        print(str(exc),file=sys.stderr);sys.exit(1)

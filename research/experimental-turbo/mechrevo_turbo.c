@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /* XxAF55xx / N.1.33MRO91 only. Firmware submode, no clock/voltage tuning.
  * OEM 5.56.60.46: 0x728 bit 0 followed by EC0.PMSF().
- * Loading/unloading this bridge never changes hardware state.
+ * Load only snapshots state; unload restores the captured workload flags.
  */
 #include <linux/module.h>
 #include <linux/acpi.h>
@@ -36,7 +36,7 @@ static int refresh_policy(void)
 {
  return ACPI_FAILURE(acpi_evaluate_object(policy, NULL, NULL, NULL)) ? -EIO : 0;
 }
-static const unsigned int regs[] = {0x706,0x726,0x727,0x728,0x72b,0x741,0x751,0x783,0x784,0x785,0x786,0x787,0x7ab,0x7c5,0x7c7,0x7e8};
+static const unsigned int regs[] = {0x706,0x726,0x727,0x728,0x72b,0x741,0x751,0x783,0x784,0x785,0x786,0x787,0x7ab,0x7c5,0x7c7,0x7e8,0x788,0x7c3,0x7d5,0x7f7};
 static int workload_set(const char *path, unsigned long long value)
 {
  union acpi_object a = { .type = ACPI_TYPE_INTEGER };
@@ -59,9 +59,14 @@ static ssize_t status_show(struct kobject *k, struct kobj_attribute *a, char *bu
  int i, ret = 0; ssize_t n = 0; u8 v;
  mutex_lock(&control_lock);
  {
- unsigned long long c, g;
- if (ACPI_SUCCESS(acpi_evaluate_integer(NULL,"\\_SB.INOU.CSTM",NULL,&c)) && ACPI_SUCCESS(acpi_evaluate_integer(NULL,"\\_SB.INOU.GATM",NULL,&g)))
- n += sysfs_emit_at(buf,n,"CSTM=%llu\nGATM=%llu\n",c,g);
+ const char *paths[] = {"\\_SB.INOU.CSTM","\\_SB.INOU.GATM","\\_SB.NPCF.ACBT","\\_SB.NPCF.AMAT","\\_SB.NPCF.AMIT","\\_SB.NPCF.ATPP","\\_SB.NPCF.DBAC","\\_SB.NPCF.DBDC","\\_SB.NPCF.CTGP"};
+ const char *names[] = {"CSTM","GATM","ACBT","AMAT","AMIT","ATPP","DBAC","DBDC","CTGP"};
+ unsigned long long value; int j;
+ for(j=0;j<ARRAY_SIZE(paths);j++) {
+  if(ACPI_SUCCESS(acpi_evaluate_integer(NULL,(char *)paths[j],NULL,&value)))
+   n += sysfs_emit_at(buf,n,"%s=%llu\n",names[j],value);
+ }
+
  }
  for (i = 0; i < ARRAY_SIZE(regs); i++) {
   ret = read_ec(regs[i], &v); if (ret) break;
@@ -74,8 +79,8 @@ static int standard_turbo(void)
 {
  u8 v; int ret, i;
  const unsigned int r[] = {0x706,0x726,0x727,0x751,0x783,0x784,0x785,0x7c5};
- const u8 mask[] = {0xff,0x80,0x40,0xff,0xff,0xff,0xff,0x80};
- const u8 expected[] = {0x40,0,0,0x30,0,0,0,0};
+ const u8 mask[] = {0xff,0x80,0x40,0xdf,0xff,0xff,0xff,0x80};
+ const u8 expected[] = {0x40,0,0,0x10,0,0,0,0};
  for(i = 0; i < ARRAY_SIZE(r); i++) {
   ret = read_ec(r[i], &v); if(ret) return ret;
   if ((v & mask[i]) != expected[i]) return -EBUSY;

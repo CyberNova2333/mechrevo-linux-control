@@ -5,7 +5,8 @@ Before=nvidia-powerd.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/libexec/mechrevo-acpi-check --capture
+RemainAfterExit=yes
+ExecStart=/usr/local/libexec/mechrevo-acpi-check --capture --summary
 UMask=0077
 
 [Install]
