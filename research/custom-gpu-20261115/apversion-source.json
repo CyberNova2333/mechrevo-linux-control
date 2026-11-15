@@ -1,0 +1,287 @@
+{
+  "dll_sha256": "4cfe064827dad6da7bf6fb9fc07dc00b4032f1881331d59bfa8d5937a6d534be",
+  "readuefi_export_rva": "0x2190",
+  "winapi_import_va": "0x18001d090",
+  "winapi": "GetFirmwareEnvironmentVariableW",
+  "buffer_size": 512,
+  "variable_priority": [
+    "OemMagicVariable",
+    "UniWillVariable"
+  ],
+  "guid": "9f33f85c-13ca-4fd1-9c4a-96217722c593",
+  "struct_metadata": {
+    "type_token": "0x02000266",
+    "layout": "Sequential",
+    "classlayout_record": null,
+    "apversion_field_token": "0x04001354",
+    "field_signature": "0605",
+    "apversion_payload_offset": 67,
+    "efivarfs_file_offset": 71,
+    "struct_size_calculated": 188
+  },
+  "calculated_layout": [
+    {
+      "name": "OemBoardSsid",
+      "offset": 0,
+      "size": 4
+    },
+    {
+      "name": "SupportByte",
+      "offset": 4,
+      "size": 2
+    },
+    {
+      "name": "ProjectID",
+      "offset": 6,
+      "size": 1
+    },
+    {
+      "name": "KeyboardType",
+      "offset": 7,
+      "size": 1
+    },
+    {
+      "name": "CustomerList",
+      "offset": 8,
+      "size": 1
+    },
+    {
+      "name": "RGBLightbarMode",
+      "offset": 9,
+      "size": 1
+    },
+    {
+      "name": "RGBLightbarMode_R",
+      "offset": 10,
+      "size": 1
+    },
+    {
+      "name": "RGBLightbarMode_G",
+      "offset": 11,
+      "size": 1
+    },
+    {
+      "name": "RGBLightbarMode_B",
+      "offset": 12,
+      "size": 1
+    },
+    {
+      "name": "ColorCalibrationSupport",
+      "offset": 13,
+      "size": 1
+    },
+    {
+      "name": "TDRdata",
+      "offset": 14,
+      "size": 1
+    },
+    {
+      "name": "RGBKeyboard1A",
+      "offset": 15,
+      "size": 8
+    },
+    {
+      "name": "RGBKeyboard08",
+      "offset": 23,
+      "size": 8
+    },
+    {
+      "name": "SmartLightbar1A",
+      "offset": 31,
+      "size": 8
+    },
+    {
+      "name": "SmartLightbar08",
+      "offset": 39,
+      "size": 8
+    },
+    {
+      "name": "PowerMode",
+      "offset": 47,
+      "size": 1
+    },
+    {
+      "name": "BatteryLimitation",
+      "offset": 48,
+      "size": 1
+    },
+    {
+      "name": "ChargeMaximumLimit",
+      "offset": 49,
+      "size": 1
+    },
+    {
+      "name": "ChargeMinimumLimit",
+      "offset": 50,
+      "size": 1
+    },
+    {
+      "name": "MemoryOverClockSwitch",
+      "offset": 51,
+      "size": 1
+    },
+    {
+      "name": "ICpuCoreVoltageValue",
+      "offset": 52,
+      "size": 2
+    },
+    {
+      "name": "ICpuCoreVoltageMaximum",
+      "offset": 54,
+      "size": 2
+    },
+    {
+      "name": "ICpuCoreVoltageMinimum",
+      "offset": 56,
+      "size": 2
+    },
+    {
+      "name": "ICpuCoreVoltageOffsetValue",
+      "offset": 58,
+      "size": 2
+    },
+    {
+      "name": "ICpuCoreVoltageOffsetMaximum",
+      "offset": 60,
+      "size": 2
+    },
+    {
+      "name": "ICpuCoreVoltageOffsetMinimum",
+      "offset": 62,
+      "size": 2
+    },
+    {
+      "name": "ICpuTauValue",
+      "offset": 64,
+      "size": 2
+    },
+    {
+      "name": "ACpuOverClockSupport",
+      "offset": 66,
+      "size": 1
+    },
+    {
+      "name": "APVersionCheck",
+      "offset": 67,
+      "size": 1
+    },
+    {
+      "name": "ACpuFreqValue",
+      "offset": 68,
+      "size": 4
+    },
+    {
+      "name": "ACpuFreqValueMaximum",
+      "offset": 72,
+      "size": 4
+    },
+    {
+      "name": "ACpuFreqValueMinimum",
+      "offset": 76,
+      "size": 4
+    },
+    {
+      "name": "ACpuVoltageValue",
+      "offset": 80,
+      "size": 4
+    },
+    {
+      "name": "ACpuVoltageValueMaximum",
+      "offset": 84,
+      "size": 4
+    },
+    {
+      "name": "ACpuVoltageValueMinimum",
+      "offset": 88,
+      "size": 4
+    },
+    {
+      "name": "OverClockRecoveryFlag",
+      "offset": 92,
+      "size": 1
+    },
+    {
+      "name": "ApExistFlag",
+      "offset": 93,
+      "size": 1
+    },
+    {
+      "name": "ACRecoverySupport",
+      "offset": 94,
+      "size": 1
+    },
+    {
+      "name": "ACRecoveryStatus",
+      "offset": 95,
+      "size": 1
+    },
+    {
+      "name": "MemoryOverClockSupport",
+      "offset": 96,
+      "size": 1
+    },
+    {
+      "name": "ApUseFlag",
+      "offset": 97,
+      "size": 1
+    },
+    {
+      "name": "OemDisplayMode",
+      "offset": 98,
+      "size": 1
+    },
+    {
+      "name": "ICpuCoreVoltageOffsetNegativeValue",
+      "offset": 100,
+      "size": 2
+    },
+    {
+      "name": "ICpuCoreVoltageOffsetRangeType",
+      "offset": 102,
+      "size": 1
+    },
+    {
+      "name": "FnKeyStatus",
+      "offset": 103,
+      "size": 1
+    },
+    {
+      "name": "AudioCodecID",
+      "offset": 104,
+      "size": 4
+    },
+    {
+      "name": "PowerPhase",
+      "offset": 108,
+      "size": 1
+    },
+    {
+      "name": "ICpuCoreVoltageOffsetSupport",
+      "offset": 109,
+      "size": 1
+    },
+    {
+      "name": "CPUPerformanceAndOverClockMenuSupport",
+      "offset": 110,
+      "size": 1
+    },
+    {
+      "name": "CPUPerformanceAndOverClockMenuSwitch",
+      "offset": 111,
+      "size": 1
+    },
+    {
+      "name": "Reserved",
+      "offset": 112,
+      "size": 76
+    }
+  ],
+  "hardware_read": false,
+  "parent_reported_readonly_observation": {
+    "source": "root agent report, 2026-11-15",
+    "variable": "OemMagicVariable",
+    "payload_size": 180,
+    "APVersionCheck": 25,
+    "UniWillVariable_present": false
+  }
+}

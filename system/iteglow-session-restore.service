@@ -1,0 +1,17 @@
+# Restores only the active graphical user session's last successfully applied lights.
+[Unit]
+Description=Restore saved lighting in the active graphical session
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=/
+Environment=PYTHONPATH=%h/.local/share/desktop-maintenance/sources/iteglow-0.3.2/src
+ExecStart=/usr/bin/python3 -m iteglow.lighting_session --apply
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=7
+
+[Install]
+WantedBy=graphical-session.target

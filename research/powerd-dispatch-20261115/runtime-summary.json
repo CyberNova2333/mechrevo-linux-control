@@ -1,0 +1,11 @@
+{
+  "source_log_sha256": "d4d0fbf583373b80e22590253a1183e04d36cc4a61ea68fbc48dd3c42715c891",
+  "source_firmware_sha256": "faf93b46bb465d7f8d3faa6c617d5bd3771aeeb51a32e8fc96779bd7960b0345",
+  "gdb_detached": true,
+  "before_equals_restored": true,
+  "policy_count": 2,
+  "tpp_mW": [
+    190000,
+    260000
+  ]
+}

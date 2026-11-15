@@ -1,0 +1,109 @@
+{
+  "analysis": "Static CIL restoration + ILSpy rendering + static string/delegate decoding only; no OEM program executed",
+  "files": [
+    {
+      "path": "/home/cybernova/.cache/mechrevo-linux-research/vendor/extracted/app/AiStoneService/MyControlCenter/GCUService.exe",
+      "sha256": "9ee018d42684d02032da642d90376843383223d76d82a6fba6ce42e475a82093"
+    },
+    {
+      "path": "/home/cybernova/.cache/mechrevo-linux-research/vendor/analysis-only-restored.exe",
+      "sha256": "0a429ebca2aa2141d7d22bcda1711df4de6c8b609374b25419bb66562c3fe459"
+    },
+    {
+      "path": "/home/cybernova/.cache/mechrevo-linux-research/firmware-link-20261115/delegate-table.json",
+      "sha256": "1f32c4c09f6dd57d42756ab88c8792fa9f07f6147875fbe29f90ccf487b9b801"
+    },
+    {
+      "path": "/home/cybernova/.cache/mechrevo-linux-research/firmware-link-20261115/decode-source-strings.py",
+      "sha256": "babe540dd285fb519a156fcbe61e522330e49ff1376f12ec9c30c6c13dbb18ce"
+    }
+  ],
+  "methods": [
+    {
+      "token": "0x600055f",
+      "name": "LightingModel.LM_ITE_RGB.GetDeviceSupport",
+      "body_file": "/home/cybernova/.cache/mechrevo-linux-research/vendor/recovered/0x600055f.bin",
+      "sha256": "4c611d75660a3832bb8d140dd6313d15b375d51f858ae9e1449c8a40ca1b41a5",
+      "size": 2072
+    },
+    {
+      "token": "0x60017c0",
+      "name": "MyControlCenter.MyRgbKeyboard.HIDKeyboard.RunEffctEC",
+      "body_file": "/home/cybernova/.cache/mechrevo-linux-research/vendor/recovered/0x60017c0.bin",
+      "sha256": "e244f3e6df504af3c583507a2682d1ae4bf485309265d380fa6f822121cd942d",
+      "size": 2664
+    },
+    {
+      "token": "0x60017c1",
+      "name": "MyControlCenter.MyRgbKeyboard.HIDKeyboard.CloseEffectEC",
+      "body_file": "/home/cybernova/.cache/mechrevo-linux-research/vendor/recovered/0x60017c1.bin",
+      "sha256": "97a0052c82a60f0ed489462799cd1f5d661e27f6458774e4717bc7eeaa8c761a",
+      "size": 272
+    },
+    {
+      "token": "0x60017c2",
+      "name": "MyControlCenter.MyRgbKeyboard.HIDKeyboard.DivideValue",
+      "body_file": "/home/cybernova/.cache/mechrevo-linux-research/vendor/recovered/0x60017c2.bin",
+      "sha256": "448157ed9fa14470fbab822cd2dd41c06f9c2b1354bb6816e4d6ef96c14f6254",
+      "size": 60
+    },
+    {
+      "token": "0x600080b",
+      "name": "MyRGBKeyboard.HIDLightbar_logo.RunEffctECALogo",
+      "body_file": "/home/cybernova/.cache/mechrevo-linux-research/vendor/recovered/0x600080b.bin",
+      "sha256": "7b8988640b6d67154ad0d64ee8844705778e6a41fd016cde2778b7464ceea2f5",
+      "size": 3688
+    },
+    {
+      "token": "0x6000ce0",
+      "name": "MyControlCenter.NvramVariable.isSupportECALogo",
+      "body_file": "/home/cybernova/.cache/mechrevo-linux-research/vendor/recovered/0x6000ce0.bin",
+      "sha256": "1af42721e037e978a867fdfa8d44f1e82db811489e5e271b01dd9089e52dc969",
+      "size": 100
+    },
+    {
+      "token": "0x60011f9",
+      "name": "MyControlCenter.MySettingManager.GetBatteryLogoStatus",
+      "body_file": "/home/cybernova/.cache/mechrevo-linux-research/vendor/recovered/0x60011f9.bin",
+      "sha256": "5ccb85529256c9a2796ebe32acf6a05acb0ea3dbbf4138f59958efa6f60083c8",
+      "size": 108
+    },
+    {
+      "token": "0x60011fa",
+      "name": "MyControlCenter.MySettingManager.SetBatteryLogo",
+      "body_file": "/home/cybernova/.cache/mechrevo-linux-research/vendor/recovered/0x60011fa.bin",
+      "sha256": "bcc60ba1542dcde123e2df241cc4dff2ddaa4407196cab7c12109009785c980b",
+      "size": 176
+    }
+  ],
+  "analysis_views": [
+    {
+      "path": "/home/cybernova/.cache/mechrevo-linux-research/logo-20261115/HIDKeyboard.cs",
+      "sha256": "ffdaa0cab33db10787e7c6a625013656268db9eae3d32ebdcab3d8d483f6ba5d"
+    },
+    {
+      "path": "/home/cybernova/.cache/mechrevo-linux-research/logo-20261115/HIDLightbar_logo.cs",
+      "sha256": "6f246e32e8b309486bff9fccb376f49d5f98537b017cd2d290529130d97cb267"
+    },
+    {
+      "path": "/home/cybernova/.cache/mechrevo-linux-research/logo-20261115/HIDLightbar4_logo.cs",
+      "sha256": "9d0d69b5fcc394e672b173b428c32797f3b205b64cbc4ee3603c4908b208ed38"
+    },
+    {
+      "path": "/home/cybernova/.cache/mechrevo-linux-research/logo-20261115/LM_ITE_RGB.cs",
+      "sha256": "21d51e3d29596b1fc0559c49e9a5ad0a3474f12b85f9f9c92ae14a2c64c629d5"
+    },
+    {
+      "path": "/home/cybernova/.cache/mechrevo-linux-research/logo-20261115/NvramVariable.cs",
+      "sha256": "c1a78208c8a86fe47b3cea2584b7cf1829e6e61d7f600330b2533e36f263d1f8"
+    },
+    {
+      "path": "/home/cybernova/.cache/mechrevo-linux-research/logo-20261115/KeyboardCloseTimer.cs",
+      "sha256": "36e040494b9f72991c8ec5776701004c430eae9702cb1fea4ea628ce7b877772"
+    },
+    {
+      "path": "/home/cybernova/.cache/mechrevo-linux-research/logo-20261115/RGBKB_Effect.cs",
+      "sha256": "bad14e6c60190ed5a4ecb923a9d82952e8726fd3eefed1fe8d13bc8c0781637f"
+    }
+  ]
+}

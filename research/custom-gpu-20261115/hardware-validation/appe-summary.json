@@ -1,0 +1,56 @@
+{
+  "groups": [
+    {
+      "appe": 0,
+      "target_w": 115,
+      "count": 8,
+      "stable_last_5_mean_w": 126.042,
+      "ctwa": [
+        50
+      ],
+      "dbap": [
+        15
+      ]
+    },
+    {
+      "appe": 0,
+      "target_w": 100,
+      "count": 8,
+      "stable_last_5_mean_w": 129.444,
+      "ctwa": [
+        50
+      ],
+      "dbap": [
+        15
+      ]
+    },
+    {
+      "appe": 1,
+      "target_w": 100,
+      "count": 8,
+      "stable_last_5_mean_w": 99.638,
+      "ctwa": [
+        35
+      ],
+      "dbap": [
+        0
+      ]
+    },
+    {
+      "appe": 1,
+      "target_w": 115,
+      "count": 8,
+      "stable_last_5_mean_w": 115.148,
+      "ctwa": [
+        50
+      ],
+      "dbap": [
+        0
+      ]
+    }
+  ],
+  "restoration_complete": true,
+  "parent_eof": true,
+  "actual_sleep": false,
+  "physical_power_transition": false
+}

@@ -1,0 +1,2766 @@
+[
+  {
+    "phase": "quiet",
+    "time": 1794730997.3054264,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 8,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7695,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 1,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 0,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 1,
+        "combined_gpu_count": 2,
+        "game_gpu_count": 0,
+        "combined_reply": 0,
+        "single_gpu_reply": 0,
+        "combined_condition": false,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 70.0,
+    "gpu": "45, 99.93, 96"
+  },
+  {
+    "phase": "quiet",
+    "time": 1794730999.4119182,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 11,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7643,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 1,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 0,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 2,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 0,
+        "single_gpu_reply": 0,
+        "combined_condition": false,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 86.0,
+    "gpu": "47, 100.25, 100"
+  },
+  {
+    "phase": "quiet",
+    "time": 1794731001.5410826,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 16,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7652,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 143,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 78.0,
+    "gpu": "49, 100.55, 99"
+  },
+  {
+    "phase": "quiet",
+    "time": 1794731003.7298744,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 19,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7592,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 143,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 55.0,
+    "gpu": "50, 99.78, 100"
+  },
+  {
+    "phase": "quiet",
+    "time": 1794731005.817066,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 23,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7945,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 143,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 57.0,
+    "gpu": "55, 139.79, 100"
+  },
+  {
+    "phase": "quiet",
+    "time": 1794731007.9822755,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 26,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7517,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 143,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 54.0,
+    "gpu": "56, 139.88, 100"
+  },
+  {
+    "phase": "quiet",
+    "time": 1794731010.1206002,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 29,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7480,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 143,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 54.0,
+    "gpu": "56, 139.76, 100"
+  },
+  {
+    "phase": "quiet",
+    "time": 1794731012.2930994,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 33,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7736,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 143,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 54.0,
+    "gpu": "56, 139.92, 99"
+  },
+  {
+    "phase": "quiet",
+    "time": 1794731014.430276,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 36,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7303,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 143,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 55.0,
+    "gpu": "57, 139.87, 100"
+  },
+  {
+    "phase": "quiet",
+    "time": 1794731016.5749345,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 39,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7198,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 143,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 56.0,
+    "gpu": "57, 139.84, 100"
+  },
+  {
+    "phase": "extreme",
+    "time": 1794731018.7679372,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 44,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7374,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 138,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 58.0,
+    "gpu": "58, 139.88, 100"
+  },
+  {
+    "phase": "extreme",
+    "time": 1794731020.9161363,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 47,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7024,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 138,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 62.0,
+    "gpu": "58, 139.87, 99"
+  },
+  {
+    "phase": "extreme",
+    "time": 1794731023.068591,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 51,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7720,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 138,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 66.0,
+    "gpu": "58, 139.90, 100"
+  },
+  {
+    "phase": "extreme",
+    "time": 1794731025.1577685,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 55,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7946,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 138,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 61.0,
+    "gpu": "59, 139.93, 100"
+  },
+  {
+    "phase": "extreme",
+    "time": 1794731027.264481,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 58,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7915,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 138,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 64.0,
+    "gpu": "59, 139.99, 100"
+  },
+  {
+    "phase": "extreme",
+    "time": 1794731029.3389928,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 62,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7902,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 138,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 62.0,
+    "gpu": "59, 139.85, 99"
+  },
+  {
+    "phase": "extreme",
+    "time": 1794731031.4974034,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 65,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7818,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 138,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 62.0,
+    "gpu": "60, 139.95, 100"
+  },
+  {
+    "phase": "extreme",
+    "time": 1794731033.5880775,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 69,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7939,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 138,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 64.0,
+    "gpu": "60, 139.92, 100"
+  },
+  {
+    "phase": "extreme",
+    "time": 1794731035.6710222,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 72,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7760,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 138,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 67.0,
+    "gpu": "60, 139.93, 100"
+  },
+  {
+    "phase": "extreme",
+    "time": 1794731037.7830596,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 75,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7753,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 3,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 138,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 3,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 187,
+        "single_gpu_reply": 0,
+        "combined_condition": true,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 62.0,
+    "gpu": "60, 139.84, 100"
+  },
+  {
+    "phase": "cpu-load-ended",
+    "time": 1794731040.1074033,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 80,
+        "last_ack": 170,
+        "return_present": true,
+        "return_type": 1,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7718,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 1,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 10,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": -1,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 170,
+        "single_gpu_reply": 0,
+        "combined_condition": false,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 58.0,
+    "gpu": "60, 139.87, 99"
+  },
+  {
+    "phase": "cpu-load-ended",
+    "time": 1794731042.171708,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 83,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7479,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 1,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 10,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": -1,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 170,
+        "single_gpu_reply": 0,
+        "combined_condition": false,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 59.0,
+    "gpu": "60, 139.79, 99"
+  },
+  {
+    "phase": "cpu-load-ended",
+    "time": 1794731044.230726,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 86,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7473,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 1,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 10,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": -1,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 170,
+        "single_gpu_reply": 0,
+        "combined_condition": false,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 57.0,
+    "gpu": "60, 139.90, 99"
+  },
+  {
+    "phase": "cpu-load-ended",
+    "time": 1794731046.2910194,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 90,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7712,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 1,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 10,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": -1,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 170,
+        "single_gpu_reply": 0,
+        "combined_condition": false,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 65.0,
+    "gpu": "60, 139.85, 99"
+  },
+  {
+    "phase": "cpu-load-ended",
+    "time": 1794731048.3488336,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 93,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7480,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 1,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 10,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": -1,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 170,
+        "single_gpu_reply": 0,
+        "combined_condition": false,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 60.0,
+    "gpu": "60, 139.86, 99"
+  },
+  {
+    "phase": "cpu-load-ended",
+    "time": 1794731050.4100494,
+    "state": {
+      "bridge": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 96,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7477,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 1,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 10,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": -1,
+        "combined_gpu_count": 3,
+        "game_gpu_count": 0,
+        "combined_reply": 170,
+        "single_gpu_reply": 0,
+        "combined_condition": false,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": true
+    },
+    "cpu_temp": 59.0,
+    "gpu": "60, 139.92, 99"
+  },
+  {
+    "phase": "restored",
+    "state": {
+      "abi": 1,
+      "active": false,
+      "variant": "extreme",
+      "sequence": 98,
+      "last_ack": null,
+      "return_present": false,
+      "return_type": 0,
+      "last_rc": 0,
+      "acpi_status": 0,
+      "stop_reason": "released",
+      "lease_remaining_ms": 0,
+      "recovery_needed": false,
+      "restore_rc": 0,
+      "restore_skipped": 0,
+      "read_rc": 0,
+      "recovery_attempts": 1,
+      "recovery_pin": false,
+      "combined_supported": true,
+      "game_supported": false,
+      "combined_support_ack": 85,
+      "game_support_ack": 170,
+      "policy_uncertain": false,
+      "cstm": 0,
+      "gatm": 0,
+      "standard_turbo": true,
+      "round_adapter": true,
+      "regs": {
+        "490": 7,
+        "706": 64,
+        "726": 0,
+        "727": 128,
+        "728": 0,
+        "72b": 1,
+        "741": 128,
+        "743": 0,
+        "751": 16,
+        "783": 0,
+        "784": 0,
+        "785": 0,
+        "786": 0,
+        "787": 0,
+        "7ab": 1,
+        "7c5": 0,
+        "7c6": 0,
+        "7c7": 12,
+        "7cc": 129,
+        "7e8": 24,
+        "7f7": 145
+      },
+      "calls": {
+        "ec_read": {
+          "acpi_status": 0,
+          "return_present": true,
+          "return_type": 1,
+          "return_value": 145
+        },
+        "ec_write": {
+          "acpi_status": 0,
+          "return_present": true,
+          "return_type": 1,
+          "return_value": 4294967294
+        },
+        "pmsf": {
+          "acpi_status": 0,
+          "return_present": true,
+          "return_type": 1,
+          "return_value": 0
+        },
+        "ctaf": {
+          "acpi_status": 0,
+          "return_present": true,
+          "return_type": 1,
+          "return_value": 170
+        },
+        "gamm": {
+          "acpi_status": 0,
+          "return_present": false,
+          "return_type": 0,
+          "return_value": 0
+        }
+      }
+    }
+  }
+]

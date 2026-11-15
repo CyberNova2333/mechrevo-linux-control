@@ -1,0 +1,23 @@
+{
+  "quiet": {
+    "n": 16,
+    "cpu_W": 59.98406084335454,
+    "gpu_W": 129.986875,
+    "cpu_temp_max": 66.0,
+    "gpu_temp_max": 59.0
+  },
+  "extreme": {
+    "n": 16,
+    "cpu_W": 59.98708812142052,
+    "gpu_W": 139.83625,
+    "cpu_temp_max": 69.0,
+    "gpu_temp_max": 61.0
+  },
+  "firmware_restored": true,
+  "gpu_set_request_mW": [
+    130007,
+    130017,
+    130242,
+    140000
+  ]
+}

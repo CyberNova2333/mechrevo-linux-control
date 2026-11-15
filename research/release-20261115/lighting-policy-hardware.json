@@ -1,0 +1,107 @@
+{
+  "synthetic_idle_input": true,
+  "physical_power_transition": false,
+  "real_power": "ac",
+  "real_idle_seconds": 70.849,
+  "steps": [
+    {
+      "label": "AC brightness 40 percent",
+      "result": {
+        "status": "enabled",
+        "planned": [
+          {
+            "device": "keyboard",
+            "reason": "power",
+            "brightness": 20
+          }
+        ],
+        "applied": [
+          "keyboard"
+        ],
+        "skipped": [],
+        "errors": []
+      },
+      "keyboard": {
+        "power": 2,
+        "mode": 5,
+        "speed": 1,
+        "brightness": 20,
+        "direction": 0
+      }
+    },
+    {
+      "label": "idle off",
+      "result": {
+        "status": "enabled",
+        "planned": [
+          {
+            "device": "keyboard",
+            "reason": "idle",
+            "brightness": 0
+          }
+        ],
+        "applied": [
+          "keyboard"
+        ],
+        "skipped": [],
+        "errors": []
+      },
+      "keyboard": {
+        "power": 2,
+        "mode": 5,
+        "speed": 1,
+        "brightness": 0,
+        "direction": 0
+      }
+    },
+    {
+      "label": "active restore",
+      "result": {
+        "status": "enabled",
+        "planned": [
+          {
+            "device": "keyboard",
+            "reason": "active",
+            "brightness": 20
+          }
+        ],
+        "applied": [
+          "keyboard"
+        ],
+        "skipped": [],
+        "errors": []
+      },
+      "keyboard": {
+        "power": 2,
+        "mode": 5,
+        "speed": 1,
+        "brightness": 20,
+        "direction": 0
+      }
+    }
+  ],
+  "release": {
+    "status": "disabled",
+    "planned": [
+      {
+        "device": "keyboard",
+        "reason": "disabled",
+        "brightness": 50
+      }
+    ],
+    "applied": [
+      "keyboard"
+    ],
+    "skipped": [],
+    "errors": []
+  },
+  "manual_files_unchanged": true,
+  "final_keyboard": {
+    "power": 2,
+    "mode": 5,
+    "speed": 1,
+    "brightness": 50,
+    "direction": 0
+  },
+  "passed": true
+}

@@ -1,0 +1,47 @@
+{
+  "close_while_off_is_queued": {
+    "pending_before_close": [
+      "logo",
+      "off"
+    ],
+    "application_held_before_close": true,
+    "off_finished": true,
+    "launched_actions": [
+      [
+        "logo-status"
+      ],
+      [
+        "logo",
+        "off"
+      ]
+    ],
+    "off_was_dispatched": true,
+    "hold_released": true
+  },
+  "hardware_succeeded_but_persistence_failed": {
+    "message": "设置已发送，寄存器回读一致；保存恢复设置失败：simulated state disk failure",
+    "current": "当前：常亮 · 25%",
+    "apply_sensitive": true
+  },
+  "editing_keeps_draft": {
+    "mode": "solid",
+    "brightness": 75,
+    "color": [
+      17,
+      43,
+      89
+    ]
+  },
+  "breathing_rejects_custom_color": true,
+  "rainbow_hides_unused_controls": true,
+  "all_off_dispatch": [
+    [
+      "logo",
+      [
+        "logo",
+        "off"
+      ]
+    ]
+  ],
+  "real_hid_panels": 0
+}

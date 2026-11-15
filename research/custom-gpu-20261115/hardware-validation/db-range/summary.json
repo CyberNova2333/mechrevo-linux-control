@@ -1,0 +1,93 @@
+[
+  {
+    "phase": 0,
+    "ctgp": 100,
+    "db": 0,
+    "n": 6,
+    "late_gpu_mean_w": 93.135,
+    "ctwa": [
+      35
+    ],
+    "dbap": [
+      0
+    ]
+  },
+  {
+    "phase": 1,
+    "ctgp": 100,
+    "db": 5,
+    "n": 6,
+    "late_gpu_mean_w": 105.547,
+    "ctwa": [
+      35
+    ],
+    "dbap": [
+      5
+    ]
+  },
+  {
+    "phase": 2,
+    "ctgp": 100,
+    "db": 15,
+    "n": 6,
+    "late_gpu_mean_w": 115.345,
+    "ctwa": [
+      35
+    ],
+    "dbap": [
+      15
+    ]
+  },
+  {
+    "phase": 3,
+    "ctgp": 100,
+    "db": 25,
+    "n": 6,
+    "late_gpu_mean_w": 125.047,
+    "ctwa": [
+      35
+    ],
+    "dbap": [
+      25
+    ]
+  },
+  {
+    "phase": 4,
+    "ctgp": 100,
+    "db": 0,
+    "n": 6,
+    "late_gpu_mean_w": 100.273,
+    "ctwa": [
+      35
+    ],
+    "dbap": [
+      0
+    ]
+  },
+  {
+    "phase": 5,
+    "ctgp": 65,
+    "db": 0,
+    "n": 6,
+    "late_gpu_mean_w": 64.998,
+    "ctwa": [
+      0
+    ],
+    "dbap": [
+      0
+    ]
+  },
+  {
+    "phase": 6,
+    "ctgp": 115,
+    "db": 0,
+    "n": 6,
+    "late_gpu_mean_w": 115.62,
+    "ctwa": [
+      50
+    ],
+    "dbap": [
+      0
+    ]
+  }
+]

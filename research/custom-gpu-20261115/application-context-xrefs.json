@@ -1,0 +1,176 @@
+{
+  "parsed_recovered_bodies": 5765,
+  "targets": {
+    "0x6000644": "MyECIO.MyEcCtrl.Set_APExistToEC",
+    "0x6000cbc": "MyControlCenter.NvramVariable.WriteUefi",
+    "0x60019ff": "MyControlCenter.MyFan.FanTable.FanTable_Manager1p5_CML.FanTable_Init",
+    "0x6001a18": "MyControlCenter.MyFan.FanTable.FanTable_Manager1p5_CML.RefreshDefaultFanTableAll",
+    "0x6001a32": "MyControlCenter.MyFan.FanTable.FanTable_Manager.FanTable_Init",
+    "0x6001a45": "MyControlCenter.MyFan.FanTable.FanTable_Manager1p5.FanTable_Init",
+    "0x6001a61": "MyControlCenter.MyFan.FanTable.FanTable_Manager1p5.RefreshDefaultFanTableAll",
+    "0x6001a72": "MyControlCenter.MyFan.FanTable.FanTable_Manager2.FanTable_Init",
+    "0x6001a8d": "MyControlCenter.MyFan.FanTable.MyFanTableCtrl.FanTable_Init"
+  },
+  "calls": [
+    {
+      "caller_token": "0x6001a00",
+      "caller": "MyControlCenter.MyFan.FanTable.FanTable_Manager1p5_CML.FanTable_Refresh",
+      "il_offset": "0xe",
+      "op": "call",
+      "target": "MyControlCenter.MyFan.FanTable.FanTable_Manager1p5_CML.RefreshDefaultFanTableAll",
+      "target_token": "0x6001a18"
+    },
+    {
+      "caller_token": "0x60014c9",
+      "caller": "MyControlCenter.App.InitalizeStartPerparation",
+      "il_offset": "0x6b",
+      "op": "callvirt",
+      "target": "MyControlCenter.MyFan.FanTable.MyFanTableCtrl.FanTable_Init",
+      "target_token": "0x6001a8d"
+    },
+    {
+      "caller_token": "0x60014c9",
+      "caller": "MyControlCenter.App.InitalizeStartPerparation",
+      "il_offset": "0x86",
+      "op": "callvirt",
+      "target": "MyECIO.MyEcCtrl.Set_APExistToEC",
+      "target_token": "0x6000644"
+    },
+    {
+      "caller_token": "0x6000ccb",
+      "caller": "MyControlCenter.NvramVariable.SetSsidFwVars",
+      "il_offset": "0x11e",
+      "op": "call",
+      "target": "MyControlCenter.NvramVariable.WriteUefi",
+      "target_token": "0x6000cbc"
+    },
+    {
+      "caller_token": "0x6000cd5",
+      "caller": "MyControlCenter.NvramVariable.SetFwVars",
+      "il_offset": "0x14a",
+      "op": "call",
+      "target": "MyControlCenter.NvramVariable.WriteUefi",
+      "target_token": "0x6000cbc"
+    },
+    {
+      "caller_token": "0x6000d2a",
+      "caller": "MyControlCenter.MyFanManager_Intel.Init",
+      "il_offset": "0x18",
+      "op": "callvirt",
+      "target": "MyControlCenter.MyFan.FanTable.FanTable_Manager.FanTable_Init",
+      "target_token": "0x6001a32"
+    },
+    {
+      "caller_token": "0x60014be",
+      "caller": "MyControlCenter.App.Application_Startup",
+      "il_offset": "0x3b6",
+      "op": "callvirt",
+      "target": "MyECIO.MyEcCtrl.Set_APExistToEC",
+      "target_token": "0x6000644"
+    },
+    {
+      "caller_token": "0x6000cce",
+      "caller": "MyControlCenter.NvramVariable.SetFwVarsForUninstall",
+      "il_offset": "0x27e",
+      "op": "call",
+      "target": "MyControlCenter.NvramVariable.WriteUefi",
+      "target_token": "0x6000cbc"
+    },
+    {
+      "caller_token": "0x6000cd2",
+      "caller": "MyControlCenter.NvramVariable.SetFwVars",
+      "il_offset": "0x346",
+      "op": "call",
+      "target": "MyControlCenter.NvramVariable.WriteUefi",
+      "target_token": "0x6000cbc"
+    },
+    {
+      "caller_token": "0x6001a8d",
+      "caller": "MyControlCenter.MyFan.FanTable.MyFanTableCtrl.FanTable_Init",
+      "il_offset": "0x14",
+      "op": "callvirt",
+      "target": "MyControlCenter.MyFan.FanTable.FanTable_Manager1p5.FanTable_Init",
+      "target_token": "0x6001a45"
+    },
+    {
+      "caller_token": "0x6000cef",
+      "caller": ".<SetFwBufferTesting>d__38.MoveNext",
+      "il_offset": "0x19b",
+      "op": "call",
+      "target": "MyControlCenter.NvramVariable.WriteUefi",
+      "target_token": "0x6000cbc"
+    },
+    {
+      "caller_token": "0x60014c8",
+      "caller": "MyControlCenter.App.Application_Exit",
+      "il_offset": "0x382",
+      "op": "callvirt",
+      "target": "MyECIO.MyEcCtrl.Set_APExistToEC",
+      "target_token": "0x6000644"
+    },
+    {
+      "caller_token": "0x60014f0",
+      "caller": ".<ModernOn>d__71.MoveNext",
+      "il_offset": "0x7a",
+      "op": "callvirt",
+      "target": "MyECIO.MyEcCtrl.Set_APExistToEC",
+      "target_token": "0x6000644"
+    },
+    {
+      "caller_token": "0x6001a49",
+      "caller": "MyControlCenter.MyFan.FanTable.FanTable_Manager1p5.FanTable_Refresh",
+      "il_offset": "0xe",
+      "op": "call",
+      "target": "MyControlCenter.MyFan.FanTable.FanTable_Manager1p5.RefreshDefaultFanTableAll",
+      "target_token": "0x6001a61"
+    },
+    {
+      "caller_token": "0x6000cd3",
+      "caller": "MyControlCenter.NvramVariable.CommitFwVars",
+      "il_offset": "0xec",
+      "op": "call",
+      "target": "MyControlCenter.NvramVariable.WriteUefi",
+      "target_token": "0x6000cbc"
+    },
+    {
+      "caller_token": "0x6001a61",
+      "caller": "MyControlCenter.MyFan.FanTable.FanTable_Manager1p5.RefreshDefaultFanTableAll",
+      "il_offset": "0x15",
+      "op": "callvirt",
+      "target": "MyECIO.MyEcCtrl.Set_APExistToEC",
+      "target_token": "0x6000644"
+    },
+    {
+      "caller_token": "0x6001a61",
+      "caller": "MyControlCenter.MyFan.FanTable.FanTable_Manager1p5.RefreshDefaultFanTableAll",
+      "il_offset": "0x103",
+      "op": "callvirt",
+      "target": "MyECIO.MyEcCtrl.Set_APExistToEC",
+      "target_token": "0x6000644"
+    },
+    {
+      "caller_token": "0x6000cd4",
+      "caller": "MyControlCenter.NvramVariable.SetFwVars",
+      "il_offset": "0x19e",
+      "op": "call",
+      "target": "MyControlCenter.NvramVariable.WriteUefi",
+      "target_token": "0x6000cbc"
+    },
+    {
+      "caller_token": "0x6001a18",
+      "caller": "MyControlCenter.MyFan.FanTable.FanTable_Manager1p5_CML.RefreshDefaultFanTableAll",
+      "il_offset": "0x15",
+      "op": "callvirt",
+      "target": "MyECIO.MyEcCtrl.Set_APExistToEC",
+      "target_token": "0x6000644"
+    },
+    {
+      "caller_token": "0x6001a18",
+      "caller": "MyControlCenter.MyFan.FanTable.FanTable_Manager1p5_CML.RefreshDefaultFanTableAll",
+      "il_offset": "0x103",
+      "op": "callvirt",
+      "target": "MyECIO.MyEcCtrl.Set_APExistToEC",
+      "target_token": "0x6000644"
+    }
+  ]
+}

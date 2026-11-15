@@ -8,6 +8,9 @@ gi.require_version('Gdk', '4.0')
 from gi.repository import Gdk, GLib, Gtk
 from . import devices, effects, protocol, state
 from .performance import PerformancePanel
+from .logo import LogoPanel
+from .lighting_policy_gui import LightingPolicyPanel
+from .zone_lock import ZoneTransaction
 
 MODE_TEXT = {
     'off': ('关闭', '关闭当前设备的灯光'),
@@ -293,10 +296,11 @@ class DevicePanel(Gtk.Box):
         self.pending=None
         params=self.params()
         try:
-            self.dev.send(effects.build(self.device,**params))
-            state.save(self.device,params)
+            with ZoneTransaction(self.device):
+                self.dev.send(effects.build(self.device,**params))
+                saved=state.save(self.device,params)
             suffix=' · 按键时亮起' if self.spec().get('trigger') and params['reactive'] else ''
-            self.status.set_text('已应用：'+MODE_TEXT[self.mode][0]+suffix)
+            self.status.set_text(('已应用：'+MODE_TEXT[self.mode][0]+suffix) if saved else '灯光已应用，但恢复设置保存失败')
         except Exception as exc:self.status.set_text('设置未成功：'+str(exc))
         return False
 
@@ -310,10 +314,12 @@ class App(Gtk.Application):
     def __init__(self):
         super().__init__(application_id='org.iteglow.Control')
         self.panels=[]
+        self.logo=None
 
     def do_activate(self):
         window=self.get_active_window()
         if window:window.present();return
+        self.panels=[];self.logo=None
         provider=Gtk.CssProvider()
         provider.load_from_path(str(Path(__file__).with_name('control.css')))
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(),provider,Gtk.STYLE_PROVIDER_PRIORITY_USER + 1)
@@ -331,8 +337,13 @@ class App(Gtk.Application):
         self.stack.set_transition_duration(120)
         self.nav={}
         detected={label for _,_,label in devices.available_devices()}
-        for name,title,icon in [('keyboard','键盘背光','input-keyboard-symbolic'),('lightbar','机身灯带','display-brightness-symbolic'),('performance','性能模式','speedometer-symbolic')]:
+        for name,title,icon in [('keyboard','键盘背光','input-keyboard-symbolic'),('lightbar','机身灯带','display-brightness-symbolic'),('logo','后盖 Logo','starred-symbolic'),('lighting-policy','自动灯光','preferences-system-symbolic'),('performance','性能模式','speedometer-symbolic')]:
             if name=='performance':page=PerformancePanel()
+            elif name=='logo':page=LogoPanel();self.logo=page
+            elif name=='lighting-policy':
+                page=box(spacing=18,css='device-page')
+                page.append(label('灯光策略','page-title'))
+                page.append(LightingPolicyPanel())
             elif name in detected:
                 try:page=DevicePanel(name);self.panels.append(page)
                 except Exception as exc:page=label('设备暂不可用：'+str(exc),wrap=True)
@@ -350,9 +361,10 @@ class App(Gtk.Application):
         right=box();right.set_hexpand(True);root.append(right)
         bar=box(False,12,css='topbar')
         welcome=label('设备个性化','topbar-label');welcome.set_hexpand(True);bar.append(welcome)
-        off=Gtk.Button(label='关闭全部灯光');off.set_tooltip_text('关闭键盘与机身灯带，保留配色设置')
+        off=Gtk.Button(label='关闭全部灯光');off.set_tooltip_text('关闭键盘、机身灯带与后盖 Logo，保留配色设置')
         off.add_css_class('all-off');off.connect('clicked',self.all_off);bar.append(off);right.append(bar)
         right.append(self.stack)
+        window.connect('close-request',self.window_closed,tuple(self.panels),self.logo)
         self.navigate('keyboard');window.present()
 
     def navigate(self,name):
@@ -363,13 +375,31 @@ class App(Gtk.Application):
 
     def all_off(self,*_):
         for panel in self.panels:panel.choose('off')
+        if self.logo:self.logo.set_enabled(False)
+
+    @staticmethod
+    def close_panel(panel):
+        if panel.pending is not None:
+            GLib.source_remove(panel.pending);panel.pending=None;panel.apply()
+        panel.close()
+
+    def window_closed(self,window,panels,logo):
+        for panel in panels:
+            if panel in self.panels:
+                self.close_panel(panel);self.panels.remove(panel)
+        if logo is not None:
+            logo.close()
+            if self.logo is logo:self.logo=None
+        # An old Logo helper retains its own application hold and transaction
+        # until the async callback saves its actual value, independently of UI.
+        return False
 
     def do_shutdown(self):
         for panel in self.panels:
             # Apply a pending user change before closing; never schedule on construction.
-            if panel.pending is not None:
-                GLib.source_remove(panel.pending);panel.pending=None;panel.apply()
-            panel.close()
+            self.close_panel(panel)
+        self.panels=[]
+        if self.logo:self.logo.close();self.logo=None
         Gtk.Application.do_shutdown(self)
 
 
