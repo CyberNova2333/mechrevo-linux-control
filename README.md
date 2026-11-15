@@ -51,3 +51,5 @@ BIOS更新后需重新验证，不能移除机型/BIOS校验。新增轻量恢�
 见 [最新实测、服务恢复与后续路线](research/powerd-coldboot-20261115/README.md)；[之前的ACPI失配诊断](research/powerd-acpi-resume-20261115.md)保留为历史。真实shutdown休眠仍未验收。
 
 内核保持6.8系列；用户明确禁止未经同意跨大版本升级。已撤销本次未启动的7.0 HWE安装。安全更新按具体CVE与Ubuntu包版本核对，见[安全核对](research/powerd-coldboot-20261115/kernel-security.md)。
+
+本轮进一步确认：静音／高能的 75000／145000 mW **TPP偏移**均成功送达 powerd。已解开关键类的字符串和782个间接调用映射；最终预算执行仍待验证。见[固件联动还原与运行证据](research/firmware-link-20261115/README.md)。

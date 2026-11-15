@@ -1,0 +1,37 @@
+{
+  "artifact_only": true,
+  "kernel_unchanged": "6.8.0-149-generic",
+  "gpu_load_test_this_turn": false,
+  "successful_dynamic_offsets_mW": {
+    "145000": 13,
+    "75000": 7
+  },
+  "query_count": 40,
+  "firmware_records": [
+    {
+      "phase": "before",
+      "time": 1794728888.6651025,
+      "firmware": "CSTM=0\nGATM=0\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=01\n741=80\n751=10\n783=00\n784=00\n785=00\n786=00\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n"
+    },
+    {
+      "phase": "quiet",
+      "time": 1794728890.8247843,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=600\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=01\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=92\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=4b\n"
+    },
+    {
+      "phase": "extreme",
+      "time": 1794728895.9847264,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=8a\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n"
+    },
+    {
+      "phase": "restored",
+      "time": 1794728901.6621773,
+      "firmware": "CSTM=0\nGATM=0\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=01\n741=80\n751=10\n783=00\n784=00\n785=00\n786=00\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n"
+    }
+  ],
+  "claims_not_proven": [
+    "final effective total power budget",
+    "quiet GPU power reduction",
+    "complete original source restoration"
+  ]
+}

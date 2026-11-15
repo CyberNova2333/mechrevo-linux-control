@@ -1,0 +1,6258 @@
+[
+  {
+    "index": 0,
+    "target": "0xa000001",
+    "delegate": "0x6001fb3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Object..ctor"
+  },
+  {
+    "index": 1,
+    "target": "0xa000002",
+    "delegate": "0x6001fb5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Object.ToString"
+  },
+  {
+    "index": 2,
+    "target": "0xa000009",
+    "delegate": "0x6001fb7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.Format"
+  },
+  {
+    "index": 3,
+    "target": "0xa00003e",
+    "delegate": "0x6001fb9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IDisposable.Dispose"
+  },
+  {
+    "index": 4,
+    "target": "0xa000065",
+    "delegate": "0x6001fbb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Console.WriteLine"
+  },
+  {
+    "index": 5,
+    "target": "0xa00006d",
+    "delegate": "0x6001fbd",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IntPtr.op_Inequality"
+  },
+  {
+    "index": 6,
+    "target": "0xa000079",
+    "delegate": "0x6001fbf",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Thread.Sleep"
+  },
+  {
+    "index": 7,
+    "target": "0xa00000a",
+    "delegate": "0x6001fc1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.Format"
+  },
+  {
+    "index": 8,
+    "target": "0xa000066",
+    "delegate": "0x6001fc3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Console.WriteLine"
+  },
+  {
+    "index": 9,
+    "target": "0xa00006e",
+    "delegate": "0x6001fc5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IntPtr.op_Explicit"
+  },
+  {
+    "index": 10,
+    "target": "0xa000089",
+    "delegate": "0x6001fc7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.Run"
+  },
+  {
+    "index": 11,
+    "target": "0xa00008a",
+    "delegate": "0x6001fc9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.Run"
+  },
+  {
+    "index": 12,
+    "target": "0xa0002d6",
+    "delegate": "0x6001fcb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Management.Automation.PowerShell.Create"
+  },
+  {
+    "index": 13,
+    "target": "0xa0002d7",
+    "delegate": "0x6001fcd",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.Automation.PowerShell.AddCommand"
+  },
+  {
+    "index": 14,
+    "target": "0xa0002d8",
+    "delegate": "0x6001fcf",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.Automation.PowerShell.AddParameter"
+  },
+  {
+    "index": 15,
+    "target": "0xa0002d9",
+    "delegate": "0x6001fd1",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.Automation.PowerShell.Invoke"
+  },
+  {
+    "index": 16,
+    "target": "0xa0002d5",
+    "delegate": "0x6001fd3",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.Automation.PSObject.get_Members"
+  },
+  {
+    "index": 17,
+    "target": "0xa0002db",
+    "delegate": "0x6001fd5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.Automation.PSMemberInfo.get_Value"
+  },
+  {
+    "index": 18,
+    "target": "0xa00000b",
+    "delegate": "0x6001fd7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.op_Equality"
+  },
+  {
+    "index": 19,
+    "target": "0xa0000a4",
+    "delegate": "0x6001fd9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Collections.IEnumerator.MoveNext"
+  },
+  {
+    "index": 20,
+    "target": "0xa0000a7",
+    "delegate": "0x6001fdb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.CompilerServices.AsyncTaskMethodBuilder.Create"
+  },
+  {
+    "index": 21,
+    "target": "0xa0000a9",
+    "delegate": "0x6001fdd",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.CompilerServices.AsyncTaskMethodBuilder.get_Task"
+  },
+  {
+    "index": 22,
+    "target": "0xa00008b",
+    "delegate": "0x6001fdf",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.Delay"
+  },
+  {
+    "index": 23,
+    "target": "0xa00008c",
+    "delegate": "0x6001fe1",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.GetAwaiter"
+  },
+  {
+    "index": 24,
+    "target": "0xa0000ba",
+    "delegate": "0x6001fe3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.CompilerServices.TaskAwaiter.get_IsCompleted"
+  },
+  {
+    "index": 25,
+    "target": "0xa0000bb",
+    "delegate": "0x6001fe5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.CompilerServices.TaskAwaiter.GetResult"
+  },
+  {
+    "index": 26,
+    "target": "0xa0000ab",
+    "delegate": "0x6001fe7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.CompilerServices.AsyncTaskMethodBuilder.SetException"
+  },
+  {
+    "index": 27,
+    "target": "0xa0000ac",
+    "delegate": "0x6001fe9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.CompilerServices.AsyncTaskMethodBuilder.SetResult"
+  },
+  {
+    "index": 28,
+    "target": "0xa0000ad",
+    "delegate": "0x6001feb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.CompilerServices.AsyncTaskMethodBuilder.SetStateMachine"
+  },
+  {
+    "index": 29,
+    "target": "0xa00000c",
+    "delegate": "0x6001fed",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.Concat"
+  },
+  {
+    "index": 30,
+    "target": "0xa0000c6",
+    "delegate": "0x6001fef",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToDouble"
+  },
+  {
+    "index": 31,
+    "target": "0xa0000c7",
+    "delegate": "0x6001ff1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToString"
+  },
+  {
+    "index": 32,
+    "target": "0xa0000af",
+    "delegate": "0x6001ff3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Type.GetTypeFromHandle"
+  },
+  {
+    "index": 33,
+    "target": "0xa0003cc",
+    "delegate": "0x6001ff5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.Screen.get_Bounds"
+  },
+  {
+    "index": 34,
+    "target": "0xa0003fa",
+    "delegate": "0x6001ff7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Drawing.Rectangle.get_Left"
+  },
+  {
+    "index": 35,
+    "target": "0xa0003fb",
+    "delegate": "0x6001ff9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Drawing.Rectangle.get_Top"
+  },
+  {
+    "index": 36,
+    "target": "0xa0003cd",
+    "delegate": "0x6001ffb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Windows.Forms.Screen.get_PrimaryScreen"
+  },
+  {
+    "index": 37,
+    "target": "0xa0003ce",
+    "delegate": "0x6001ffd",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.Screen.get_WorkingArea"
+  },
+  {
+    "index": 38,
+    "target": "0xa0003fc",
+    "delegate": "0x6001fff",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Drawing.Rectangle.get_Width"
+  },
+  {
+    "index": 39,
+    "target": "0xa0003fd",
+    "delegate": "0x6002001",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Drawing.Rectangle.get_Height"
+  },
+  {
+    "index": 40,
+    "target": "0xa00000d",
+    "delegate": "0x6002003",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.op_Inequality"
+  },
+  {
+    "index": 41,
+    "target": "0xa0003d2",
+    "delegate": "0x6002005",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Windows.Forms.Application.get_StartupPath"
+  },
+  {
+    "index": 42,
+    "target": "0xa0000c8",
+    "delegate": "0x6002007",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToBoolean"
+  },
+  {
+    "index": 43,
+    "target": "0xa0003cf",
+    "delegate": "0x6002009",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Windows.Forms.Screen.get_AllScreens"
+  },
+  {
+    "index": 44,
+    "target": "0xa0000c9",
+    "delegate": "0x600200b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToSingle"
+  },
+  {
+    "index": 45,
+    "target": "0xa0000ca",
+    "delegate": "0x600200d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToDouble"
+  },
+  {
+    "index": 46,
+    "target": "0xa0003d5",
+    "delegate": "0x600200f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.KeyEventArgs.get_KeyData"
+  },
+  {
+    "index": 47,
+    "target": "0xa0000cb",
+    "delegate": "0x6002011",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToInt32"
+  },
+  {
+    "index": 48,
+    "target": "0xa0003d6",
+    "delegate": "0x6002013",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.KeyEventArgs.get_KeyCode"
+  },
+  {
+    "index": 49,
+    "target": "0xa000107",
+    "delegate": "0x6002015",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.EventHandler.Invoke"
+  },
+  {
+    "index": 50,
+    "target": "0xa00041a",
+    "delegate": "0x6002017",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.EventArrivedEventArgs.get_NewEvent"
+  },
+  {
+    "index": 51,
+    "target": "0xa00041b",
+    "delegate": "0x6002019",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementBaseObject.get_SystemProperties"
+  },
+  {
+    "index": 52,
+    "target": "0xa000421",
+    "delegate": "0x600201b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.PropertyDataCollection.get_Item"
+  },
+  {
+    "index": 53,
+    "target": "0xa000425",
+    "delegate": "0x600201d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.PropertyData.get_Value"
+  },
+  {
+    "index": 54,
+    "target": "0xa0000cc",
+    "delegate": "0x600201f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToInt32"
+  },
+  {
+    "index": 55,
+    "target": "0xa00005e",
+    "delegate": "0x6002021",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Int32.ToString"
+  },
+  {
+    "index": 56,
+    "target": "0xa000411",
+    "delegate": "0x6002023",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementEventWatcher.add_EventArrived"
+  },
+  {
+    "index": 57,
+    "target": "0xa000412",
+    "delegate": "0x6002025",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementEventWatcher.Start"
+  },
+  {
+    "index": 58,
+    "target": "0xa000045",
+    "delegate": "0x6002027",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Exception.get_Message"
+  },
+  {
+    "index": 59,
+    "target": "0xa000405",
+    "delegate": "0x6002029",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Drawing.ColorTranslator.FromHtml"
+  },
+  {
+    "index": 60,
+    "target": "0xa000400",
+    "delegate": "0x600202b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Drawing.Color.get_A"
+  },
+  {
+    "index": 61,
+    "target": "0xa000401",
+    "delegate": "0x600202d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Drawing.Color.get_R"
+  },
+  {
+    "index": 62,
+    "target": "0xa000402",
+    "delegate": "0x600202f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Drawing.Color.get_G"
+  },
+  {
+    "index": 63,
+    "target": "0xa000403",
+    "delegate": "0x6002031",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Drawing.Color.get_B"
+  },
+  {
+    "index": 64,
+    "target": "0xa0000cd",
+    "delegate": "0x6002033",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToSingle"
+  },
+  {
+    "index": 65,
+    "target": "0xa000113",
+    "delegate": "0x6002035",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Pow"
+  },
+  {
+    "index": 66,
+    "target": "0xa0003d8",
+    "delegate": "0x6002037",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.Control.get_Handle"
+  },
+  {
+    "index": 67,
+    "target": "0xa000406",
+    "delegate": "0x6002039",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Drawing.Graphics.FromHwnd"
+  },
+  {
+    "index": 68,
+    "target": "0xa000407",
+    "delegate": "0x600203b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Drawing.Graphics.GetHdc"
+  },
+  {
+    "index": 69,
+    "target": "0xa000408",
+    "delegate": "0x600203d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Drawing.Graphics.ReleaseHdc"
+  },
+  {
+    "index": 70,
+    "target": "0xa000126",
+    "delegate": "0x600203f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Monitor.Enter"
+  },
+  {
+    "index": 71,
+    "target": "0xa000127",
+    "delegate": "0x6002041",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Monitor.Exit"
+  },
+  {
+    "index": 72,
+    "target": "0xa00012b",
+    "delegate": "0x6002043",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.File.Exists"
+  },
+  {
+    "index": 73,
+    "target": "0xa000136",
+    "delegate": "0x6002045",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Random.Next"
+  },
+  {
+    "index": 74,
+    "target": "0xa00010e",
+    "delegate": "0x6002047",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Delegate.CreateDelegate"
+  },
+  {
+    "index": 75,
+    "target": "0xa0000ce",
+    "delegate": "0x6002049",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToByte"
+  },
+  {
+    "index": 76,
+    "target": "0xa000139",
+    "delegate": "0x600204b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Environment.get_CurrentManagedThreadId"
+  },
+  {
+    "index": 77,
+    "target": "0xa0003d0",
+    "delegate": "0x600204d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.Screen.get_DeviceName"
+  },
+  {
+    "index": 78,
+    "target": "0xa000143",
+    "delegate": "0x600204f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.UInt32.ToString"
+  },
+  {
+    "index": 79,
+    "target": "0xa00000e",
+    "delegate": "0x6002051",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.Concat"
+  },
+  {
+    "index": 80,
+    "target": "0xa0000a6",
+    "delegate": "0x6002053",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Collections.IEnumerator.get_Current"
+  },
+  {
+    "index": 81,
+    "target": "0xa000138",
+    "delegate": "0x6002055",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Collections.IEnumerable.GetEnumerator"
+  },
+  {
+    "index": 82,
+    "target": "0xa000003",
+    "delegate": "0x6002057",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Object.Finalize"
+  },
+  {
+    "index": 83,
+    "target": "0xa00004b",
+    "delegate": "0x6002059",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.Marshal.PtrToStringAuto"
+  },
+  {
+    "index": 84,
+    "target": "0xa000010",
+    "delegate": "0x600205b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.Format"
+  },
+  {
+    "index": 85,
+    "target": "0xa000334",
+    "delegate": "0x600205d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.GetProcessesByName"
+  },
+  {
+    "index": 86,
+    "target": "0xa000335",
+    "delegate": "0x600205f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.get_SessionId"
+  },
+  {
+    "index": 87,
+    "target": "0xa000336",
+    "delegate": "0x6002061",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.get_Id"
+  },
+  {
+    "index": 88,
+    "target": "0xa00004c",
+    "delegate": "0x6002063",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.Marshal.AllocHGlobal"
+  },
+  {
+    "index": 89,
+    "target": "0xa00004d",
+    "delegate": "0x6002065",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.Marshal.Copy"
+  },
+  {
+    "index": 90,
+    "target": "0xa00004e",
+    "delegate": "0x6002067",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.Marshal.FreeHGlobal"
+  },
+  {
+    "index": 91,
+    "target": "0xa000357",
+    "delegate": "0x6002069",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.ProcessStartInfo.set_WindowStyle"
+  },
+  {
+    "index": 92,
+    "target": "0xa000358",
+    "delegate": "0x600206b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.ProcessStartInfo.set_FileName"
+  },
+  {
+    "index": 93,
+    "target": "0xa000338",
+    "delegate": "0x600206d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.set_StartInfo"
+  },
+  {
+    "index": 94,
+    "target": "0xa000359",
+    "delegate": "0x600206f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.ProcessStartInfo.set_Arguments"
+  },
+  {
+    "index": 95,
+    "target": "0xa00035a",
+    "delegate": "0x6002071",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.ProcessStartInfo.set_RedirectStandardOutput"
+  },
+  {
+    "index": 96,
+    "target": "0xa000149",
+    "delegate": "0x6002073",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Reflection.Assembly.GetExecutingAssembly"
+  },
+  {
+    "index": 97,
+    "target": "0xa00014a",
+    "delegate": "0x6002075",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.Assembly.get_Location"
+  },
+  {
+    "index": 98,
+    "target": "0xa000154",
+    "delegate": "0x6002077",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.FileInfo.get_DirectoryName"
+  },
+  {
+    "index": 99,
+    "target": "0xa00035b",
+    "delegate": "0x6002079",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.ProcessStartInfo.set_WorkingDirectory"
+  },
+  {
+    "index": 100,
+    "target": "0xa000339",
+    "delegate": "0x600207b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.get_StartInfo"
+  },
+  {
+    "index": 101,
+    "target": "0xa00035c",
+    "delegate": "0x600207d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.ProcessStartInfo.set_UseShellExecute"
+  },
+  {
+    "index": 102,
+    "target": "0xa00035d",
+    "delegate": "0x600207f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.ProcessStartInfo.set_CreateNoWindow"
+  },
+  {
+    "index": 103,
+    "target": "0xa00033a",
+    "delegate": "0x6002081",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.Start"
+  },
+  {
+    "index": 104,
+    "target": "0xa00033b",
+    "delegate": "0x6002083",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.get_StandardOutput"
+  },
+  {
+    "index": 105,
+    "target": "0xa000158",
+    "delegate": "0x6002085",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.TextReader.ReadToEnd"
+  },
+  {
+    "index": 106,
+    "target": "0xa00033c",
+    "delegate": "0x6002087",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.WaitForExit"
+  },
+  {
+    "index": 107,
+    "target": "0xa000011",
+    "delegate": "0x6002089",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.Concat"
+  },
+  {
+    "index": 108,
+    "target": "0xa000012",
+    "delegate": "0x600208b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.Contains"
+  },
+  {
+    "index": 109,
+    "target": "0xa000013",
+    "delegate": "0x600208d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.Substring"
+  },
+  {
+    "index": 110,
+    "target": "0xa0000cf",
+    "delegate": "0x600208f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToInt16"
+  },
+  {
+    "index": 111,
+    "target": "0xa0000d0",
+    "delegate": "0x6002091",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToUInt32"
+  },
+  {
+    "index": 112,
+    "target": "0xa00013a",
+    "delegate": "0x6002093",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Environment.get_Is64BitProcess"
+  },
+  {
+    "index": 113,
+    "target": "0xa00006f",
+    "delegate": "0x6002095",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IntPtr..ctor"
+  },
+  {
+    "index": 114,
+    "target": "0xa00004f",
+    "delegate": "0x6002097",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.Marshal.SizeOf"
+  },
+  {
+    "index": 115,
+    "target": "0xa000070",
+    "delegate": "0x6002099",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IntPtr.op_Equality"
+  },
+  {
+    "index": 116,
+    "target": "0xa000014",
+    "delegate": "0x600209b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.Format"
+  },
+  {
+    "index": 117,
+    "target": "0xa00007a",
+    "delegate": "0x600209d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Thread.get_CurrentThread"
+  },
+  {
+    "index": 118,
+    "target": "0xa00007b",
+    "delegate": "0x600209f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Thread.get_ManagedThreadId"
+  },
+  {
+    "index": 119,
+    "target": "0xa000178",
+    "delegate": "0x60020a1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Byte.ToString"
+  },
+  {
+    "index": 120,
+    "target": "0xa000015",
+    "delegate": "0x60020a3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.Concat"
+  },
+  {
+    "index": 121,
+    "target": "0xa000004",
+    "delegate": "0x60020a5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Object.GetType"
+  },
+  {
+    "index": 122,
+    "target": "0xa000596",
+    "delegate": "0x60020a7",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Xml.Serialization.XmlSerializer.Serialize"
+  },
+  {
+    "index": 123,
+    "target": "0xa00017d",
+    "delegate": "0x60020a9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.MemoryStream.ToArray"
+  },
+  {
+    "index": 124,
+    "target": "0xa000179",
+    "delegate": "0x60020ab",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Byte.GetHashCode"
+  },
+  {
+    "index": 125,
+    "target": "0xa0000a2",
+    "delegate": "0x60020ad",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Boolean.GetHashCode"
+  },
+  {
+    "index": 126,
+    "target": "0xa00005f",
+    "delegate": "0x60020af",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Int32.GetHashCode"
+  },
+  {
+    "index": 127,
+    "target": "0xa000005",
+    "delegate": "0x60020b1",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Object.Equals"
+  },
+  {
+    "index": 128,
+    "target": "0xa000187",
+    "delegate": "0x60020b3",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.MemberInfo.get_Name"
+  },
+  {
+    "index": 129,
+    "target": "0xa0000d1",
+    "delegate": "0x60020b5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToUInt64"
+  },
+  {
+    "index": 130,
+    "target": "0xa00010f",
+    "delegate": "0x60020b7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Delegate.Combine"
+  },
+  {
+    "index": 131,
+    "target": "0xa000110",
+    "delegate": "0x60020b9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Delegate.Remove"
+  },
+  {
+    "index": 132,
+    "target": "0xa000060",
+    "delegate": "0x60020bb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Int32.TryParse"
+  },
+  {
+    "index": 133,
+    "target": "0xa000404",
+    "delegate": "0x60020bd",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Drawing.Color.FromArgb"
+  },
+  {
+    "index": 134,
+    "target": "0xa000114",
+    "delegate": "0x60020bf",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Sin"
+  },
+  {
+    "index": 135,
+    "target": "0xa0000d2",
+    "delegate": "0x60020c1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToByte"
+  },
+  {
+    "index": 136,
+    "target": "0xa0000d3",
+    "delegate": "0x60020c3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToUInt64"
+  },
+  {
+    "index": 137,
+    "target": "0xa0000d4",
+    "delegate": "0x60020c5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToUInt32"
+  },
+  {
+    "index": 138,
+    "target": "0xa0000d5",
+    "delegate": "0x60020c7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToInt32"
+  },
+  {
+    "index": 139,
+    "target": "0xa000137",
+    "delegate": "0x60020c9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Random.Next"
+  },
+  {
+    "index": 140,
+    "target": "0xa000016",
+    "delegate": "0x60020cb",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.Trim"
+  },
+  {
+    "index": 141,
+    "target": "0xa000017",
+    "delegate": "0x60020cd",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.ToUpperInvariant"
+  },
+  {
+    "index": 142,
+    "target": "0xa0000d6",
+    "delegate": "0x60020cf",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToInt32"
+  },
+  {
+    "index": 143,
+    "target": "0xa0000d7",
+    "delegate": "0x60020d1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToUInt32"
+  },
+  {
+    "index": 144,
+    "target": "0xa0000d8",
+    "delegate": "0x60020d3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToByte"
+  },
+  {
+    "index": 145,
+    "target": "0xa000128",
+    "delegate": "0x60020d5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Monitor.TryEnter"
+  },
+  {
+    "index": 146,
+    "target": "0xa000495",
+    "delegate": "0x60020d7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Linq.Enumerable.Average"
+  },
+  {
+    "index": 147,
+    "target": "0xa0000a3",
+    "delegate": "0x60020d9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Boolean.ToString"
+  },
+  {
+    "index": 148,
+    "target": "0xa000497",
+    "delegate": "0x60020db",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Linq.Enumerable.Min"
+  },
+  {
+    "index": 149,
+    "target": "0xa00019b",
+    "delegate": "0x60020dd",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Single.IsInfinity"
+  },
+  {
+    "index": 150,
+    "target": "0xa00019c",
+    "delegate": "0x60020df",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Single.IsNaN"
+  },
+  {
+    "index": 151,
+    "target": "0xa0000d9",
+    "delegate": "0x60020e1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToInt32"
+  },
+  {
+    "index": 152,
+    "target": "0xa000499",
+    "delegate": "0x60020e3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Linq.Enumerable.Max"
+  },
+  {
+    "index": 153,
+    "target": "0xa000363",
+    "delegate": "0x60020e5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Stopwatch.Start"
+  },
+  {
+    "index": 154,
+    "target": "0xa0000da",
+    "delegate": "0x60020e7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToByte"
+  },
+  {
+    "index": 155,
+    "target": "0xa000364",
+    "delegate": "0x60020e9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Stopwatch.get_ElapsedMilliseconds"
+  },
+  {
+    "index": 156,
+    "target": "0xa000365",
+    "delegate": "0x60020eb",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Stopwatch.Reset"
+  },
+  {
+    "index": 157,
+    "target": "0xa00019f",
+    "delegate": "0x60020ed",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Text.Encoding.get_Default"
+  },
+  {
+    "index": 158,
+    "target": "0xa00012c",
+    "delegate": "0x60020ef",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.File.AppendAllText"
+  },
+  {
+    "index": 159,
+    "target": "0xa00012d",
+    "delegate": "0x60020f1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.File.Create"
+  },
+  {
+    "index": 160,
+    "target": "0xa00017e",
+    "delegate": "0x60020f3",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.Stream.Write"
+  },
+  {
+    "index": 161,
+    "target": "0xa0000db",
+    "delegate": "0x60020f5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToUInt32"
+  },
+  {
+    "index": 162,
+    "target": "0xa0000dc",
+    "delegate": "0x60020f7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToDouble"
+  },
+  {
+    "index": 163,
+    "target": "0xa000366",
+    "delegate": "0x60020f9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Stopwatch.Restart"
+  },
+  {
+    "index": 164,
+    "target": "0xa000367",
+    "delegate": "0x60020fb",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Stopwatch.Stop"
+  },
+  {
+    "index": 165,
+    "target": "0xa00008e",
+    "delegate": "0x60020fd",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.get_Status"
+  },
+  {
+    "index": 166,
+    "target": "0xa00008f",
+    "delegate": "0x60020ff",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.Start"
+  },
+  {
+    "index": 167,
+    "target": "0xa000192",
+    "delegate": "0x6002101",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.CancellationTokenSource.get_Token"
+  },
+  {
+    "index": 168,
+    "target": "0xa000090",
+    "delegate": "0x6002103",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.Run"
+  },
+  {
+    "index": 169,
+    "target": "0xa000176",
+    "delegate": "0x6002105",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.UInt16.ToString"
+  },
+  {
+    "index": 170,
+    "target": "0xa0001aa",
+    "delegate": "0x6002107",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.get_Now"
+  },
+  {
+    "index": 171,
+    "target": "0xa0001ab",
+    "delegate": "0x6002109",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.ToString"
+  },
+  {
+    "index": 172,
+    "target": "0xa000018",
+    "delegate": "0x600210b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.IsNullOrEmpty"
+  },
+  {
+    "index": 173,
+    "target": "0xa00017a",
+    "delegate": "0x600210d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Byte.ToString"
+  },
+  {
+    "index": 174,
+    "target": "0xa0000dd",
+    "delegate": "0x600210f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToByte"
+  },
+  {
+    "index": 175,
+    "target": "0xa0000de",
+    "delegate": "0x6002111",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToBoolean"
+  },
+  {
+    "index": 176,
+    "target": "0xa000019",
+    "delegate": "0x6002113",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.Format"
+  },
+  {
+    "index": 177,
+    "target": "0xa00019d",
+    "delegate": "0x6002115",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Single.Equals"
+  },
+  {
+    "index": 178,
+    "target": "0xa00007d",
+    "delegate": "0x6002117",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Thread.Start"
+  },
+  {
+    "index": 179,
+    "target": "0xa0000df",
+    "delegate": "0x6002119",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToInt32"
+  },
+  {
+    "index": 180,
+    "target": "0xa0001a7",
+    "delegate": "0x600211b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.CancellationToken.get_IsCancellationRequested"
+  },
+  {
+    "index": 181,
+    "target": "0xa00018d",
+    "delegate": "0x600211d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.SemaphoreSlim.WaitAsync"
+  },
+  {
+    "index": 182,
+    "target": "0xa00018e",
+    "delegate": "0x600211f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.SemaphoreSlim.Release"
+  },
+  {
+    "index": 183,
+    "target": "0xa000050",
+    "delegate": "0x6002121",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.Marshal.GetDelegateForFunctionPointer"
+  },
+  {
+    "index": 184,
+    "target": "0xa000051",
+    "delegate": "0x6002123",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.Marshal.ThrowExceptionForHR"
+  },
+  {
+    "index": 185,
+    "target": "0xa0000b0",
+    "delegate": "0x6002125",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Type.get_GUID"
+  },
+  {
+    "index": 186,
+    "target": "0xa0000e0",
+    "delegate": "0x6002127",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToSingle"
+  },
+  {
+    "index": 187,
+    "target": "0xa000115",
+    "delegate": "0x6002129",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Max"
+  },
+  {
+    "index": 188,
+    "target": "0xa000116",
+    "delegate": "0x600212b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Floor"
+  },
+  {
+    "index": 189,
+    "target": "0xa00049c",
+    "delegate": "0x600212d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Linq.Enumerable.Max"
+  },
+  {
+    "index": 190,
+    "target": "0xa0001ca",
+    "delegate": "0x600212f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.CompilerServices.AsyncVoidMethodBuilder.Create"
+  },
+  {
+    "index": 191,
+    "target": "0xa0001d1",
+    "delegate": "0x6002131",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.BitConverter.ToInt16"
+  },
+  {
+    "index": 192,
+    "target": "0xa000067",
+    "delegate": "0x6002133",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Console.WriteLine"
+  },
+  {
+    "index": 193,
+    "target": "0xa000117",
+    "delegate": "0x6002135",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Cos"
+  },
+  {
+    "index": 194,
+    "target": "0xa0001cd",
+    "delegate": "0x6002137",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.CompilerServices.AsyncVoidMethodBuilder.SetException"
+  },
+  {
+    "index": 195,
+    "target": "0xa0001ce",
+    "delegate": "0x6002139",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.CompilerServices.AsyncVoidMethodBuilder.SetResult"
+  },
+  {
+    "index": 196,
+    "target": "0xa0001cf",
+    "delegate": "0x600213b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.CompilerServices.AsyncVoidMethodBuilder.SetStateMachine"
+  },
+  {
+    "index": 197,
+    "target": "0xa000414",
+    "delegate": "0x600213d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementEventWatcher.Stop"
+  },
+  {
+    "index": 198,
+    "target": "0xa000368",
+    "delegate": "0x600213f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ComponentModel.Component.Dispose"
+  },
+  {
+    "index": 199,
+    "target": "0xa00043c",
+    "delegate": "0x6002141",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementObjectSearcher.Get"
+  },
+  {
+    "index": 200,
+    "target": "0xa00047a",
+    "delegate": "0x6002143",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.DataTable.get_Columns"
+  },
+  {
+    "index": 201,
+    "target": "0xa0000b1",
+    "delegate": "0x6002145",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Type.GetType"
+  },
+  {
+    "index": 202,
+    "target": "0xa00047e",
+    "delegate": "0x6002147",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.DataColumnCollection.Add"
+  },
+  {
+    "index": 203,
+    "target": "0xa000430",
+    "delegate": "0x6002149",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementObjectCollection.GetEnumerator"
+  },
+  {
+    "index": 204,
+    "target": "0xa00047b",
+    "delegate": "0x600214b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.DataTable.NewRow"
+  },
+  {
+    "index": 205,
+    "target": "0xa00041c",
+    "delegate": "0x600214d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementBaseObject.get_Item"
+  },
+  {
+    "index": 206,
+    "target": "0xa00047d",
+    "delegate": "0x600214f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.DataRow.set_Item"
+  },
+  {
+    "index": 207,
+    "target": "0xa00047c",
+    "delegate": "0x6002151",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.DataTable.get_Rows"
+  },
+  {
+    "index": 208,
+    "target": "0xa00047f",
+    "delegate": "0x6002153",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.DataRowCollection.Add"
+  },
+  {
+    "index": 209,
+    "target": "0xa00041d",
+    "delegate": "0x6002155",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementBaseObject.get_ClassPath"
+  },
+  {
+    "index": 210,
+    "target": "0xa000441",
+    "delegate": "0x6002157",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementPath.get_ClassName"
+  },
+  {
+    "index": 211,
+    "target": "0xa00001a",
+    "delegate": "0x6002159",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.CompareTo"
+  },
+  {
+    "index": 212,
+    "target": "0xa000369",
+    "delegate": "0x600215b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Diagnostics.EventLog.WriteEntry"
+  },
+  {
+    "index": 213,
+    "target": "0xa00041e",
+    "delegate": "0x600215d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementBaseObject.GetPropertyValue"
+  },
+  {
+    "index": 214,
+    "target": "0xa000052",
+    "delegate": "0x600215f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.Marshal.Copy"
+  },
+  {
+    "index": 215,
+    "target": "0xa0001da",
+    "delegate": "0x6002161",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.CompilerServices.RuntimeHelpers.InitializeArray"
+  },
+  {
+    "index": 216,
+    "target": "0xa000053",
+    "delegate": "0x6002163",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.Marshal.Copy"
+  },
+  {
+    "index": 217,
+    "target": "0xa0000e1",
+    "delegate": "0x6002165",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToByte"
+  },
+  {
+    "index": 218,
+    "target": "0xa0001d2",
+    "delegate": "0x6002167",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.BitConverter.ToInt32"
+  },
+  {
+    "index": 219,
+    "target": "0xa0001dc",
+    "delegate": "0x6002169",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Collections.BitArray.get_Item"
+  },
+  {
+    "index": 220,
+    "target": "0xa0000e2",
+    "delegate": "0x600216b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToInt32"
+  },
+  {
+    "index": 221,
+    "target": "0xa00001b",
+    "delegate": "0x600216d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.Split"
+  },
+  {
+    "index": 222,
+    "target": "0xa00001c",
+    "delegate": "0x600216f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.Replace"
+  },
+  {
+    "index": 223,
+    "target": "0xa00033d",
+    "delegate": "0x6002171",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.Kill"
+  },
+  {
+    "index": 224,
+    "target": "0xa000118",
+    "delegate": "0x6002173",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Min"
+  },
+  {
+    "index": 225,
+    "target": "0xa0004b2",
+    "delegate": "0x6002175",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.ReaderWriterLockSlim.EnterReadLock"
+  },
+  {
+    "index": 226,
+    "target": "0xa0004b3",
+    "delegate": "0x6002177",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.ReaderWriterLockSlim.ExitReadLock"
+  },
+  {
+    "index": 227,
+    "target": "0xa0004b4",
+    "delegate": "0x6002179",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.ReaderWriterLockSlim.get_IsReadLockHeld"
+  },
+  {
+    "index": 228,
+    "target": "0xa0004b5",
+    "delegate": "0x600217b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.ReaderWriterLockSlim.EnterWriteLock"
+  },
+  {
+    "index": 229,
+    "target": "0xa0004b6",
+    "delegate": "0x600217d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.ReaderWriterLockSlim.ExitWriteLock"
+  },
+  {
+    "index": 230,
+    "target": "0xa0004b7",
+    "delegate": "0x600217f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.ReaderWriterLockSlim.get_IsWriteLockHeld"
+  },
+  {
+    "index": 231,
+    "target": "0xa0001e5",
+    "delegate": "0x6002181",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Path.GetDirectoryName"
+  },
+  {
+    "index": 232,
+    "target": "0xa0001ee",
+    "delegate": "0x6002183",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Directory.CreateDirectory"
+  },
+  {
+    "index": 233,
+    "target": "0xa00017f",
+    "delegate": "0x6002185",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Stream.Dispose"
+  },
+  {
+    "index": 234,
+    "target": "0xa00012e",
+    "delegate": "0x6002187",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.File.ReadAllText"
+  },
+  {
+    "index": 235,
+    "target": "0xa00001d",
+    "delegate": "0x6002189",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.IsNullOrWhiteSpace"
+  },
+  {
+    "index": 236,
+    "target": "0xa00012f",
+    "delegate": "0x600218b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.File.WriteAllText"
+  },
+  {
+    "index": 237,
+    "target": "0xa000130",
+    "delegate": "0x600218d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.File.Delete"
+  },
+  {
+    "index": 238,
+    "target": "0xa000071",
+    "delegate": "0x600218f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IntPtr.op_Addition"
+  },
+  {
+    "index": 239,
+    "target": "0xa000054",
+    "delegate": "0x6002191",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.Marshal.PtrToStructure"
+  },
+  {
+    "index": 240,
+    "target": "0xa000072",
+    "delegate": "0x6002193",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IntPtr.ToString"
+  },
+  {
+    "index": 241,
+    "target": "0xa000055",
+    "delegate": "0x6002195",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.Marshal.ReadInt32"
+  },
+  {
+    "index": 242,
+    "target": "0xa000056",
+    "delegate": "0x6002197",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.Marshal.GetLastWin32Error"
+  },
+  {
+    "index": 243,
+    "target": "0xa00033e",
+    "delegate": "0x6002199",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.GetCurrentProcess"
+  },
+  {
+    "index": 244,
+    "target": "0xa00033f",
+    "delegate": "0x600219b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.get_Handle"
+  },
+  {
+    "index": 245,
+    "target": "0xa00001e",
+    "delegate": "0x600219d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.EndsWith"
+  },
+  {
+    "index": 246,
+    "target": "0xa00036a",
+    "delegate": "0x600219f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Text.RegularExpressions.Regex.Matches"
+  },
+  {
+    "index": 247,
+    "target": "0xa000373",
+    "delegate": "0x60021a1",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.RegularExpressions.MatchCollection.GetEnumerator"
+  },
+  {
+    "index": 248,
+    "target": "0xa000068",
+    "delegate": "0x60021a3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Console.WriteLine"
+  },
+  {
+    "index": 249,
+    "target": "0xa0000e3",
+    "delegate": "0x60021a5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToChar"
+  },
+  {
+    "index": 250,
+    "target": "0xa0001c4",
+    "delegate": "0x60021a7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Char.ToString"
+  },
+  {
+    "index": 251,
+    "target": "0xa00016c",
+    "delegate": "0x60021a9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.StringBuilder.Clear"
+  },
+  {
+    "index": 252,
+    "target": "0xa0001a0",
+    "delegate": "0x60021ab",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Text.Encoding.get_UTF8"
+  },
+  {
+    "index": 253,
+    "target": "0xa0001a1",
+    "delegate": "0x60021ad",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.Encoding.GetString"
+  },
+  {
+    "index": 254,
+    "target": "0xa00016d",
+    "delegate": "0x60021af",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.StringBuilder.Append"
+  },
+  {
+    "index": 255,
+    "target": "0xa000131",
+    "delegate": "0x60021b1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.File.AppendText"
+  },
+  {
+    "index": 256,
+    "target": "0xa000200",
+    "delegate": "0x60021b3",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.TextWriter.WriteLine"
+  },
+  {
+    "index": 257,
+    "target": "0xa0001ac",
+    "delegate": "0x60021b5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.op_Subtraction"
+  },
+  {
+    "index": 258,
+    "target": "0xa000205",
+    "delegate": "0x60021b7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.TimeSpan.get_TotalSeconds"
+  },
+  {
+    "index": 259,
+    "target": "0xa000206",
+    "delegate": "0x60021b9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.TimeSpan.get_TotalMilliseconds"
+  },
+  {
+    "index": 260,
+    "target": "0xa0001ad",
+    "delegate": "0x60021bb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.get_Millisecond"
+  },
+  {
+    "index": 261,
+    "target": "0xa0001ae",
+    "delegate": "0x60021bd",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.get_Second"
+  },
+  {
+    "index": 262,
+    "target": "0xa0001af",
+    "delegate": "0x60021bf",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.get_Hour"
+  },
+  {
+    "index": 263,
+    "target": "0xa0001b0",
+    "delegate": "0x60021c1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.get_Minute"
+  },
+  {
+    "index": 264,
+    "target": "0xa0001b1",
+    "delegate": "0x60021c3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.get_TimeOfDay"
+  },
+  {
+    "index": 265,
+    "target": "0xa000208",
+    "delegate": "0x60021c5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.TimeSpan.op_LessThan"
+  },
+  {
+    "index": 266,
+    "target": "0xa000209",
+    "delegate": "0x60021c7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.TimeSpan.op_LessThanOrEqual"
+  },
+  {
+    "index": 267,
+    "target": "0xa0001b2",
+    "delegate": "0x60021c9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime..ctor"
+  },
+  {
+    "index": 268,
+    "target": "0xa000211",
+    "delegate": "0x60021cb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Buffer.BlockCopy"
+  },
+  {
+    "index": 269,
+    "target": "0xa000046",
+    "delegate": "0x60021cd",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Exception..ctor"
+  },
+  {
+    "index": 270,
+    "target": "0xa000144",
+    "delegate": "0x60021cf",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.UInt32.Equals"
+  },
+  {
+    "index": 271,
+    "target": "0xa0001ef",
+    "delegate": "0x60021d1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Directory.GetParent"
+  },
+  {
+    "index": 272,
+    "target": "0xa000129",
+    "delegate": "0x60021d3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Monitor.TryEnter"
+  },
+  {
+    "index": 273,
+    "target": "0xa000201",
+    "delegate": "0x60021d5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.TextWriter.WriteLine"
+  },
+  {
+    "index": 274,
+    "target": "0xa0001b3",
+    "delegate": "0x60021d7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.ToString"
+  },
+  {
+    "index": 275,
+    "target": "0xa000212",
+    "delegate": "0x60021d9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.FileSystemInfo.get_FullName"
+  },
+  {
+    "index": 276,
+    "target": "0xa00001f",
+    "delegate": "0x60021db",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.Concat"
+  },
+  {
+    "index": 277,
+    "target": "0xa000217",
+    "delegate": "0x60021dd",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.StackFrame.GetMethod"
+  },
+  {
+    "index": 278,
+    "target": "0xa000188",
+    "delegate": "0x60021df",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.MemberInfo.get_ReflectedType"
+  },
+  {
+    "index": 279,
+    "target": "0xa000020",
+    "delegate": "0x60021e1",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.StartsWith"
+  },
+  {
+    "index": 280,
+    "target": "0xa000189",
+    "delegate": "0x60021e3",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.MemberInfo.get_DeclaringType"
+  },
+  {
+    "index": 281,
+    "target": "0xa00021f",
+    "delegate": "0x60021e5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Globalization.CultureInfo.get_InvariantCulture"
+  },
+  {
+    "index": 282,
+    "target": "0xa0001e6",
+    "delegate": "0x60021e7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Path.GetFileNameWithoutExtension"
+  },
+  {
+    "index": 283,
+    "target": "0xa0001f0",
+    "delegate": "0x60021e9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Directory.Exists"
+  },
+  {
+    "index": 284,
+    "target": "0xa0001e7",
+    "delegate": "0x60021eb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Path.Combine"
+  },
+  {
+    "index": 285,
+    "target": "0xa000202",
+    "delegate": "0x60021ed",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.TextWriter.WriteLine"
+  },
+  {
+    "index": 286,
+    "target": "0xa0001f1",
+    "delegate": "0x60021ef",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Directory.GetFiles"
+  },
+  {
+    "index": 287,
+    "target": "0xa000132",
+    "delegate": "0x60021f1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.File.GetCreationTime"
+  },
+  {
+    "index": 288,
+    "target": "0xa0001b4",
+    "delegate": "0x60021f3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.AddDays"
+  },
+  {
+    "index": 289,
+    "target": "0xa0001b5",
+    "delegate": "0x60021f5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.CompareTo"
+  },
+  {
+    "index": 290,
+    "target": "0xa00014b",
+    "delegate": "0x60021f7",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.Assembly.get_ManifestModule"
+  },
+  {
+    "index": 291,
+    "target": "0xa000224",
+    "delegate": "0x60021f9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.Module.get_Name"
+  },
+  {
+    "index": 292,
+    "target": "0xa00013b",
+    "delegate": "0x60021fb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Environment.get_Is64BitOperatingSystem"
+  },
+  {
+    "index": 293,
+    "target": "0xa000073",
+    "delegate": "0x60021fd",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IntPtr.op_Explicit"
+  },
+  {
+    "index": 294,
+    "target": "0xa000021",
+    "delegate": "0x60021ff",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.Split"
+  },
+  {
+    "index": 295,
+    "target": "0xa000022",
+    "delegate": "0x6002201",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.Join"
+  },
+  {
+    "index": 296,
+    "target": "0xa0000c2",
+    "delegate": "0x6002203",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Double.TryParse"
+  },
+  {
+    "index": 297,
+    "target": "0xa000220",
+    "delegate": "0x6002205",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Globalization.CultureInfo.get_CurrentCulture"
+  },
+  {
+    "index": 298,
+    "target": "0xa000024",
+    "delegate": "0x6002207",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.get_Length"
+  },
+  {
+    "index": 299,
+    "target": "0xa000025",
+    "delegate": "0x6002209",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.ToCharArray"
+  },
+  {
+    "index": 300,
+    "target": "0xa000093",
+    "delegate": "0x600220b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.Wait"
+  },
+  {
+    "index": 301,
+    "target": "0xa00041f",
+    "delegate": "0x600220d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementBaseObject.get_Properties"
+  },
+  {
+    "index": 302,
+    "target": "0xa0000e4",
+    "delegate": "0x600220f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToUInt32"
+  },
+  {
+    "index": 303,
+    "target": "0xa000431",
+    "delegate": "0x6002211",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementObjectCollection.Dispose"
+  },
+  {
+    "index": 304,
+    "target": "0xa000435",
+    "delegate": "0x6002213",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementObject.InvokeMethod"
+  },
+  {
+    "index": 305,
+    "target": "0xa0003d3",
+    "delegate": "0x6002215",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Windows.Forms.Application.get_ExecutablePath"
+  },
+  {
+    "index": 306,
+    "target": "0xa00035f",
+    "delegate": "0x6002217",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.ProcessStartInfo.set_RedirectStandardError"
+  },
+  {
+    "index": 307,
+    "target": "0xa000340",
+    "delegate": "0x6002219",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.Start"
+  },
+  {
+    "index": 308,
+    "target": "0xa000341",
+    "delegate": "0x600221b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.WaitForExit"
+  },
+  {
+    "index": 309,
+    "target": "0xa000342",
+    "delegate": "0x600221d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.get_StandardError"
+  },
+  {
+    "index": 310,
+    "target": "0xa000343",
+    "delegate": "0x600221f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.get_ExitCode"
+  },
+  {
+    "index": 311,
+    "target": "0xa000069",
+    "delegate": "0x6002221",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Console.WriteLine"
+  },
+  {
+    "index": 312,
+    "target": "0xa000344",
+    "delegate": "0x6002223",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.Close"
+  },
+  {
+    "index": 313,
+    "target": "0xa000048",
+    "delegate": "0x6002225",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Exception.get_HResult"
+  },
+  {
+    "index": 314,
+    "target": "0xa000419",
+    "delegate": "0x6002227",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.EventArrivedEventHandler.Invoke"
+  },
+  {
+    "index": 315,
+    "target": "0xa000026",
+    "delegate": "0x6002229",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.Equals"
+  },
+  {
+    "index": 316,
+    "target": "0xa000443",
+    "delegate": "0x600222b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ConnectionOptions.set_Username"
+  },
+  {
+    "index": 317,
+    "target": "0xa000444",
+    "delegate": "0x600222d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ConnectionOptions.set_Password"
+  },
+  {
+    "index": 318,
+    "target": "0xa000445",
+    "delegate": "0x600222f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ConnectionOptions.set_Authority"
+  },
+  {
+    "index": 319,
+    "target": "0xa00042c",
+    "delegate": "0x6002231",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementScope.Connect"
+  },
+  {
+    "index": 320,
+    "target": "0xa000049",
+    "delegate": "0x6002233",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Exception.get_StackTrace"
+  },
+  {
+    "index": 321,
+    "target": "0xa0004a1",
+    "delegate": "0x6002235",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Linq.Enumerable.Min"
+  },
+  {
+    "index": 322,
+    "target": "0xa0001b6",
+    "delegate": "0x6002237",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.op_LessThan"
+  },
+  {
+    "index": 323,
+    "target": "0xa000448",
+    "delegate": "0x6002239",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementClass.GetInstances"
+  },
+  {
+    "index": 324,
+    "target": "0xa00007e",
+    "delegate": "0x600223b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Thread.Join"
+  },
+  {
+    "index": 325,
+    "target": "0xa00007f",
+    "delegate": "0x600223d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Thread.Abort"
+  },
+  {
+    "index": 326,
+    "target": "0xa00006a",
+    "delegate": "0x600223f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Console.WriteLine"
+  },
+  {
+    "index": 327,
+    "target": "0xa00036b",
+    "delegate": "0x6002241",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Text.RegularExpressions.Regex.Match"
+  },
+  {
+    "index": 328,
+    "target": "0xa000375",
+    "delegate": "0x6002243",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.RegularExpressions.Group.get_Success"
+  },
+  {
+    "index": 329,
+    "target": "0xa000376",
+    "delegate": "0x6002245",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.RegularExpressions.Capture.get_Value"
+  },
+  {
+    "index": 330,
+    "target": "0xa0001d3",
+    "delegate": "0x6002247",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.BitConverter.ToString"
+  },
+  {
+    "index": 331,
+    "target": "0xa000027",
+    "delegate": "0x6002249",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.ToUpper"
+  },
+  {
+    "index": 332,
+    "target": "0xa0001b7",
+    "delegate": "0x600224b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.AddSeconds"
+  },
+  {
+    "index": 333,
+    "target": "0xa000061",
+    "delegate": "0x600224d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Int32.Parse"
+  },
+  {
+    "index": 334,
+    "target": "0xa000028",
+    "delegate": "0x600224f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.get_Chars"
+  },
+  {
+    "index": 335,
+    "target": "0xa0001d4",
+    "delegate": "0x6002251",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.BitConverter.ToUInt32"
+  },
+  {
+    "index": 336,
+    "target": "0xa0001a2",
+    "delegate": "0x6002253",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Text.Encoding.get_ASCII"
+  },
+  {
+    "index": 337,
+    "target": "0xa000029",
+    "delegate": "0x6002255",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.Trim"
+  },
+  {
+    "index": 338,
+    "target": "0xa0001a3",
+    "delegate": "0x6002257",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Text.Encoding.get_Unicode"
+  },
+  {
+    "index": 339,
+    "target": "0xa00002a",
+    "delegate": "0x6002259",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.StartsWith"
+  },
+  {
+    "index": 340,
+    "target": "0xa0003de",
+    "delegate": "0x600225b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Windows.Forms.SystemInformation.get_PowerStatus"
+  },
+  {
+    "index": 341,
+    "target": "0xa0003d9",
+    "delegate": "0x600225d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.PowerStatus.get_PowerLineStatus"
+  },
+  {
+    "index": 342,
+    "target": "0xa00003f",
+    "delegate": "0x600225f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Enum.Parse"
+  },
+  {
+    "index": 343,
+    "target": "0xa0000e5",
+    "delegate": "0x6002261",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToByte"
+  },
+  {
+    "index": 344,
+    "target": "0xa000345",
+    "delegate": "0x6002263",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.Start"
+  },
+  {
+    "index": 345,
+    "target": "0xa000094",
+    "delegate": "0x6002265",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.WaitAll"
+  },
+  {
+    "index": 346,
+    "target": "0xa000437",
+    "delegate": "0x6002267",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementObject.GetMethodParameters"
+  },
+  {
+    "index": 347,
+    "target": "0xa000420",
+    "delegate": "0x6002269",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementBaseObject.set_Item"
+  },
+  {
+    "index": 348,
+    "target": "0xa000438",
+    "delegate": "0x600226b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementObject.InvokeMethod"
+  },
+  {
+    "index": 349,
+    "target": "0xa000229",
+    "delegate": "0x600226d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.GC.Collect"
+  },
+  {
+    "index": 350,
+    "target": "0xa00022a",
+    "delegate": "0x600226f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.GC.WaitForPendingFinalizers"
+  },
+  {
+    "index": 351,
+    "target": "0xa0001a4",
+    "delegate": "0x6002271",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.Encoding.GetString"
+  },
+  {
+    "index": 352,
+    "target": "0xa00002b",
+    "delegate": "0x6002273",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.Substring"
+  },
+  {
+    "index": 353,
+    "target": "0xa0001f2",
+    "delegate": "0x6002275",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Directory.GetFileSystemEntries"
+  },
+  {
+    "index": 354,
+    "target": "0xa000095",
+    "delegate": "0x6002277",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.Wait"
+  },
+  {
+    "index": 355,
+    "target": "0xa0000bd",
+    "delegate": "0x6002279",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Guid..ctor"
+  },
+  {
+    "index": 356,
+    "target": "0xa0000be",
+    "delegate": "0x600227b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Guid.Equals"
+  },
+  {
+    "index": 357,
+    "target": "0xa0000bf",
+    "delegate": "0x600227d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Guid.op_Equality"
+  },
+  {
+    "index": 358,
+    "target": "0xa00051e",
+    "delegate": "0x600227f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.Http.HttpClient.GetStringAsync"
+  },
+  {
+    "index": 359,
+    "target": "0xa000432",
+    "delegate": "0x6002281",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementObjectCollection.get_Count"
+  },
+  {
+    "index": 360,
+    "target": "0xa0001b8",
+    "delegate": "0x6002283",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.ParseExact"
+  },
+  {
+    "index": 361,
+    "target": "0xa000213",
+    "delegate": "0x6002285",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.FileSystemInfo.get_Exists"
+  },
+  {
+    "index": 362,
+    "target": "0xa0001f8",
+    "delegate": "0x6002287",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.DirectoryInfo.GetFiles"
+  },
+  {
+    "index": 363,
+    "target": "0xa000214",
+    "delegate": "0x6002289",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.FileSystemInfo.Delete"
+  },
+  {
+    "index": 364,
+    "target": "0xa0001f9",
+    "delegate": "0x600228b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.DirectoryInfo.GetDirectories"
+  },
+  {
+    "index": 365,
+    "target": "0xa0001fa",
+    "delegate": "0x600228d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.DirectoryInfo.Delete"
+  },
+  {
+    "index": 366,
+    "target": "0xa0005a1",
+    "delegate": "0x600228f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Compression.ZipFile.ExtractToDirectory"
+  },
+  {
+    "index": 367,
+    "target": "0xa00037a",
+    "delegate": "0x6002291",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.WebClient.DownloadFileTaskAsync"
+  },
+  {
+    "index": 368,
+    "target": "0xa00006b",
+    "delegate": "0x6002293",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Console.WriteLine"
+  },
+  {
+    "index": 369,
+    "target": "0xa00037c",
+    "delegate": "0x6002295",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.WebClient.add_DownloadFileCompleted"
+  },
+  {
+    "index": 370,
+    "target": "0xa00022d",
+    "delegate": "0x6002297",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Version.CompareTo"
+  },
+  {
+    "index": 371,
+    "target": "0xa000346",
+    "delegate": "0x6002299",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.Start"
+  },
+  {
+    "index": 372,
+    "target": "0xa000155",
+    "delegate": "0x600229b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.FileInfo.get_Directory"
+  },
+  {
+    "index": 373,
+    "target": "0xa000159",
+    "delegate": "0x600229d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.TextReader.ReadToEndAsync"
+  },
+  {
+    "index": 374,
+    "target": "0xa000347",
+    "delegate": "0x600229f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.get_MainWindowHandle"
+  },
+  {
+    "index": 375,
+    "target": "0xa000180",
+    "delegate": "0x60022a1",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.Stream.ReadAsync"
+  },
+  {
+    "index": 376,
+    "target": "0xa0004bc",
+    "delegate": "0x60022a3",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.Pipes.PipeSecurity.AddAccessRule"
+  },
+  {
+    "index": 377,
+    "target": "0xa0004be",
+    "delegate": "0x60022a5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.Pipes.NamedPipeServerStream.WaitForConnectionAsync"
+  },
+  {
+    "index": 378,
+    "target": "0xa0004bf",
+    "delegate": "0x60022a7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Pipes.NamedPipeServerStream.Disconnect"
+  },
+  {
+    "index": 379,
+    "target": "0xa000096",
+    "delegate": "0x60022a9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.Delay"
+  },
+  {
+    "index": 380,
+    "target": "0xa0001a5",
+    "delegate": "0x60022ab",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.Encoding.GetBytes"
+  },
+  {
+    "index": 381,
+    "target": "0xa0001d5",
+    "delegate": "0x60022ad",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.BitConverter.GetBytes"
+  },
+  {
+    "index": 382,
+    "target": "0xa000181",
+    "delegate": "0x60022af",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.Stream.WriteAsync"
+  },
+  {
+    "index": 383,
+    "target": "0xa000182",
+    "delegate": "0x60022b1",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.Stream.FlushAsync"
+  },
+  {
+    "index": 384,
+    "target": "0xa0004c1",
+    "delegate": "0x60022b3",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.Pipes.PipeStream.WaitForPipeDrain"
+  },
+  {
+    "index": 385,
+    "target": "0xa0000b2",
+    "delegate": "0x60022b5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Type.get_Assembly"
+  },
+  {
+    "index": 386,
+    "target": "0xa000236",
+    "delegate": "0x60022b7",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Resources.ResourceManager.GetString"
+  },
+  {
+    "index": 387,
+    "target": "0xa000383",
+    "delegate": "0x60022b9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Configuration.ApplicationSettingsBase..ctor"
+  },
+  {
+    "index": 388,
+    "target": "0xa000384",
+    "delegate": "0x60022bb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Configuration.SettingsBase.Synchronized"
+  },
+  {
+    "index": 389,
+    "target": "0xa00037d",
+    "delegate": "0x60022bd",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.WebClient.DownloadFileTaskAsync"
+  },
+  {
+    "index": 390,
+    "target": "0xa00037f",
+    "delegate": "0x60022bf",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ComponentModel.AsyncCompletedEventArgs.get_Error"
+  },
+  {
+    "index": 391,
+    "target": "0xa000156",
+    "delegate": "0x60022c1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.FileInfo.get_Length"
+  },
+  {
+    "index": 392,
+    "target": "0xa000385",
+    "delegate": "0x60022c3",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ComponentModel.PropertyChangedEventHandler.Invoke"
+  },
+  {
+    "index": 393,
+    "target": "0xa000522",
+    "delegate": "0x60022c5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ServiceModel.ICommunicationObject.get_State"
+  },
+  {
+    "index": 394,
+    "target": "0xa000523",
+    "delegate": "0x60022c7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.ServiceModel.OperationContext.get_Current"
+  },
+  {
+    "index": 395,
+    "target": "0xa000532",
+    "delegate": "0x60022c9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IdentityModel.Selectors.UserNamePasswordValidator..ctor"
+  },
+  {
+    "index": 396,
+    "target": "0xa00052a",
+    "delegate": "0x60022cb",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ServiceModel.Channels.Binding.set_OpenTimeout"
+  },
+  {
+    "index": 397,
+    "target": "0xa00052b",
+    "delegate": "0x60022cd",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ServiceModel.Channels.Binding.set_CloseTimeout"
+  },
+  {
+    "index": 398,
+    "target": "0xa00052c",
+    "delegate": "0x60022cf",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ServiceModel.Channels.Binding.set_ReceiveTimeout"
+  },
+  {
+    "index": 399,
+    "target": "0xa00052d",
+    "delegate": "0x60022d1",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ServiceModel.Channels.Binding.set_SendTimeout"
+  },
+  {
+    "index": 400,
+    "target": "0xa000526",
+    "delegate": "0x60022d3",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ServiceModel.ServiceHost.AddServiceEndpoint"
+  },
+  {
+    "index": 401,
+    "target": "0xa000529",
+    "delegate": "0x60022d5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ServiceModel.Description.ServiceMetadataBehavior.set_HttpGetEnabled"
+  },
+  {
+    "index": 402,
+    "target": "0xa00052e",
+    "delegate": "0x60022d7",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ServiceModel.ServiceHostBase.get_Description"
+  },
+  {
+    "index": 403,
+    "target": "0xa00052f",
+    "delegate": "0x60022d9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ServiceModel.Description.ServiceDescription.get_Behaviors"
+  },
+  {
+    "index": 404,
+    "target": "0xa000530",
+    "delegate": "0x60022db",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ServiceModel.Channels.CommunicationObject.Open"
+  },
+  {
+    "index": 405,
+    "target": "0xa000531",
+    "delegate": "0x60022dd",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ServiceModel.Channels.CommunicationObject.Close"
+  },
+  {
+    "index": 406,
+    "target": "0xa000040",
+    "delegate": "0x60022df",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Enum.GetValues"
+  },
+  {
+    "index": 407,
+    "target": "0xa00016e",
+    "delegate": "0x60022e1",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.StringBuilder.get_Capacity"
+  },
+  {
+    "index": 408,
+    "target": "0xa00016f",
+    "delegate": "0x60022e3",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.StringBuilder.set_Capacity"
+  },
+  {
+    "index": 409,
+    "target": "0xa000480",
+    "delegate": "0x60022e5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.Common.DbConnection.Open"
+  },
+  {
+    "index": 410,
+    "target": "0xa000534",
+    "delegate": "0x60022e7",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.SQLite.SQLiteConnection.BeginTransaction"
+  },
+  {
+    "index": 411,
+    "target": "0xa000483",
+    "delegate": "0x60022e9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.Common.DbCommand.ExecuteNonQuery"
+  },
+  {
+    "index": 412,
+    "target": "0xa000487",
+    "delegate": "0x60022eb",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.Common.DbTransaction.Commit"
+  },
+  {
+    "index": 413,
+    "target": "0xa000538",
+    "delegate": "0x60022ed",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.SQLite.SQLiteCommand.get_Parameters"
+  },
+  {
+    "index": 414,
+    "target": "0xa00053a",
+    "delegate": "0x60022ef",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.SQLite.SQLiteParameterCollection.AddWithValue"
+  },
+  {
+    "index": 415,
+    "target": "0xa000484",
+    "delegate": "0x60022f1",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.Common.DbCommand.ExecuteScalar"
+  },
+  {
+    "index": 416,
+    "target": "0xa000539",
+    "delegate": "0x60022f3",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.SQLite.SQLiteCommand.ExecuteReader"
+  },
+  {
+    "index": 417,
+    "target": "0xa000488",
+    "delegate": "0x60022f5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.Common.DbDataReader.Read"
+  },
+  {
+    "index": 418,
+    "target": "0xa000489",
+    "delegate": "0x60022f7",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.Common.DbDataReader.GetInt32"
+  },
+  {
+    "index": 419,
+    "target": "0xa00048a",
+    "delegate": "0x60022f9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.Common.DbDataReader.GetString"
+  },
+  {
+    "index": 420,
+    "target": "0xa000481",
+    "delegate": "0x60022fb",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.Common.DbConnection.get_State"
+  },
+  {
+    "index": 421,
+    "target": "0xa000485",
+    "delegate": "0x60022fd",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.Common.DbCommand.set_CommandText"
+  },
+  {
+    "index": 422,
+    "target": "0xa000486",
+    "delegate": "0x60022ff",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.Common.DbCommand.get_CommandText"
+  },
+  {
+    "index": 423,
+    "target": "0xa000482",
+    "delegate": "0x6002301",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Data.Common.DbConnection.Close"
+  },
+  {
+    "index": 424,
+    "target": "0xa000535",
+    "delegate": "0x6002303",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Data.SQLite.SQLiteConnection.Dispose"
+  },
+  {
+    "index": 425,
+    "target": "0xa000193",
+    "delegate": "0x6002305",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.CancellationTokenSource.Cancel"
+  },
+  {
+    "index": 426,
+    "target": "0xa00042d",
+    "delegate": "0x6002307",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementScope.get_Options"
+  },
+  {
+    "index": 427,
+    "target": "0xa000446",
+    "delegate": "0x6002309",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ConnectionOptions.set_EnablePrivileges"
+  },
+  {
+    "index": 428,
+    "target": "0xa000415",
+    "delegate": "0x600230b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementEventWatcher.add_Stopped"
+  },
+  {
+    "index": 429,
+    "target": "0xa000416",
+    "delegate": "0x600230d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementEventWatcher.remove_EventArrived"
+  },
+  {
+    "index": 430,
+    "target": "0xa00020b",
+    "delegate": "0x600230f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.TimeSpan.FromSeconds"
+  },
+  {
+    "index": 431,
+    "target": "0xa00044e",
+    "delegate": "0x6002311",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementOptions.set_Timeout"
+  },
+  {
+    "index": 432,
+    "target": "0xa00044b",
+    "delegate": "0x6002313",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.EnumerationOptions.set_ReturnImmediately"
+  },
+  {
+    "index": 433,
+    "target": "0xa00044c",
+    "delegate": "0x6002315",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.EnumerationOptions.set_Rewindable"
+  },
+  {
+    "index": 434,
+    "target": "0xa00044d",
+    "delegate": "0x6002317",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.EnumerationOptions.set_DirectRead"
+  },
+  {
+    "index": 435,
+    "target": "0xa000429",
+    "delegate": "0x6002319",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementException.get_ErrorCode"
+  },
+  {
+    "index": 436,
+    "target": "0xa00053c",
+    "delegate": "0x600231b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ServiceProcess.ServiceController.get_Status"
+  },
+  {
+    "index": 437,
+    "target": "0xa000097",
+    "delegate": "0x600231d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.Delay"
+  },
+  {
+    "index": 438,
+    "target": "0xa00020c",
+    "delegate": "0x600231f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.TimeSpan.get_TotalMinutes"
+  },
+  {
+    "index": 439,
+    "target": "0xa0000e6",
+    "delegate": "0x6002321",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToUInt64"
+  },
+  {
+    "index": 440,
+    "target": "0xa00013c",
+    "delegate": "0x6002323",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Environment.get_ProcessorCount"
+  },
+  {
+    "index": 441,
+    "target": "0xa00038a",
+    "delegate": "0x6002325",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Timers.Timer.set_Interval"
+  },
+  {
+    "index": 442,
+    "target": "0xa00038b",
+    "delegate": "0x6002327",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Timers.Timer.add_Elapsed"
+  },
+  {
+    "index": 443,
+    "target": "0xa00038c",
+    "delegate": "0x6002329",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Timers.Timer.Start"
+  },
+  {
+    "index": 444,
+    "target": "0xa00038d",
+    "delegate": "0x600232b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Timers.Timer.Stop"
+  },
+  {
+    "index": 445,
+    "target": "0xa00002c",
+    "delegate": "0x600232d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.Equals"
+  },
+  {
+    "index": 446,
+    "target": "0xa0001dd",
+    "delegate": "0x600232f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Collections.BitArray.set_Item"
+  },
+  {
+    "index": 447,
+    "target": "0xa0001de",
+    "delegate": "0x6002331",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Collections.BitArray.get_Count"
+  },
+  {
+    "index": 448,
+    "target": "0xa0001df",
+    "delegate": "0x6002333",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Collections.BitArray.CopyTo"
+  },
+  {
+    "index": 449,
+    "target": "0xa000062",
+    "delegate": "0x6002335",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Int32.Equals"
+  },
+  {
+    "index": 450,
+    "target": "0xa00020d",
+    "delegate": "0x6002337",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.TimeSpan.get_Days"
+  },
+  {
+    "index": 451,
+    "target": "0xa0000b3",
+    "delegate": "0x6002339",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Type.GetProperties"
+  },
+  {
+    "index": 452,
+    "target": "0xa00002d",
+    "delegate": "0x600233b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.ToLowerInvariant"
+  },
+  {
+    "index": 453,
+    "target": "0xa0000e7",
+    "delegate": "0x600233d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToString"
+  },
+  {
+    "index": 454,
+    "target": "0xa00014c",
+    "delegate": "0x600233f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Reflection.Assembly.op_Equality"
+  },
+  {
+    "index": 455,
+    "target": "0xa00014d",
+    "delegate": "0x6002341",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Reflection.Assembly.GetCallingAssembly"
+  },
+  {
+    "index": 456,
+    "target": "0xa00014e",
+    "delegate": "0x6002343",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.Assembly.GetName"
+  },
+  {
+    "index": 457,
+    "target": "0xa000239",
+    "delegate": "0x6002345",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.AssemblyName.get_Name"
+  },
+  {
+    "index": 458,
+    "target": "0xa000237",
+    "delegate": "0x6002347",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Int64.ToString"
+  },
+  {
+    "index": 459,
+    "target": "0xa0000e8",
+    "delegate": "0x6002349",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToDouble"
+  },
+  {
+    "index": 460,
+    "target": "0xa0000e9",
+    "delegate": "0x600234b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToDouble"
+  },
+  {
+    "index": 461,
+    "target": "0xa0000c3",
+    "delegate": "0x600234d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Double.ToString"
+  },
+  {
+    "index": 462,
+    "target": "0xa00013d",
+    "delegate": "0x600234f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Environment.GetFolderPath"
+  },
+  {
+    "index": 463,
+    "target": "0xa0001e8",
+    "delegate": "0x6002351",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Path.GetTempPath"
+  },
+  {
+    "index": 464,
+    "target": "0xa00038e",
+    "delegate": "0x6002353",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Timers.Timer.set_AutoReset"
+  },
+  {
+    "index": 465,
+    "target": "0xa0000ea",
+    "delegate": "0x6002355",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToInt32"
+  },
+  {
+    "index": 466,
+    "target": "0xa000063",
+    "delegate": "0x6002357",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Int32.ToString"
+  },
+  {
+    "index": 467,
+    "target": "0xa000064",
+    "delegate": "0x6002359",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Int32.Parse"
+  },
+  {
+    "index": 468,
+    "target": "0xa000348",
+    "delegate": "0x600235b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.set_ProcessorAffinity"
+  },
+  {
+    "index": 469,
+    "target": "0xa000349",
+    "delegate": "0x600235d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.set_PriorityClass"
+  },
+  {
+    "index": 470,
+    "target": "0xa000397",
+    "delegate": "0x600235f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Media.SystemSounds.get_Asterisk"
+  },
+  {
+    "index": 471,
+    "target": "0xa000398",
+    "delegate": "0x6002361",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Media.SystemSound.Play"
+  },
+  {
+    "index": 472,
+    "target": "0xa00020e",
+    "delegate": "0x6002363",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.TimeSpan.FromMilliseconds"
+  },
+  {
+    "index": 473,
+    "target": "0xa000098",
+    "delegate": "0x6002365",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.get_Factory"
+  },
+  {
+    "index": 474,
+    "target": "0xa00023e",
+    "delegate": "0x6002367",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Tasks.TaskFactory.StartNew"
+  },
+  {
+    "index": 475,
+    "target": "0xa000081",
+    "delegate": "0x6002369",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Thread.Sleep"
+  },
+  {
+    "index": 476,
+    "target": "0xa000119",
+    "delegate": "0x600236b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Round"
+  },
+  {
+    "index": 477,
+    "target": "0xa000074",
+    "delegate": "0x600236d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IntPtr.Add"
+  },
+  {
+    "index": 478,
+    "target": "0xa00034a",
+    "delegate": "0x600236f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.GetProcesses"
+  },
+  {
+    "index": 479,
+    "target": "0xa00034b",
+    "delegate": "0x6002371",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.get_ProcessName"
+  },
+  {
+    "index": 480,
+    "target": "0xa00034c",
+    "delegate": "0x6002373",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.GetProcessById"
+  },
+  {
+    "index": 481,
+    "target": "0xa00002e",
+    "delegate": "0x6002375",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.ToLower"
+  },
+  {
+    "index": 482,
+    "target": "0xa000088",
+    "delegate": "0x6002377",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Action.Invoke"
+  },
+  {
+    "index": 483,
+    "target": "0xa0001e9",
+    "delegate": "0x6002379",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Path.GetRandomFileName"
+  },
+  {
+    "index": 484,
+    "target": "0xa000215",
+    "delegate": "0x600237b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.FileSystemInfo.set_Attributes"
+  },
+  {
+    "index": 485,
+    "target": "0xa0001ea",
+    "delegate": "0x600237d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Path.GetFileName"
+  },
+  {
+    "index": 486,
+    "target": "0xa000133",
+    "delegate": "0x600237f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.File.Copy"
+  },
+  {
+    "index": 487,
+    "target": "0xa0005a2",
+    "delegate": "0x6002381",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Compression.ZipFile.CreateFromDirectory"
+  },
+  {
+    "index": 488,
+    "target": "0xa0005a3",
+    "delegate": "0x6002383",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Compression.ZipFile.CreateFromDirectory"
+  },
+  {
+    "index": 489,
+    "target": "0xa0001f3",
+    "delegate": "0x6002385",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Directory.Delete"
+  },
+  {
+    "index": 490,
+    "target": "0xa0005a4",
+    "delegate": "0x6002387",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Compression.ZipFile.OpenRead"
+  },
+  {
+    "index": 491,
+    "target": "0xa00055e",
+    "delegate": "0x6002389",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.Compression.ZipArchive.get_Entries"
+  },
+  {
+    "index": 492,
+    "target": "0xa00055f",
+    "delegate": "0x600238b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.Compression.ZipArchiveEntry.get_FullName"
+  },
+  {
+    "index": 493,
+    "target": "0xa0005a5",
+    "delegate": "0x600238d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Compression.ZipFileExtensions.ExtractToFile"
+  },
+  {
+    "index": 494,
+    "target": "0xa0000eb",
+    "delegate": "0x600238f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToInt32"
+  },
+  {
+    "index": 495,
+    "target": "0xa00011a",
+    "delegate": "0x6002391",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Round"
+  },
+  {
+    "index": 496,
+    "target": "0xa00011b",
+    "delegate": "0x6002393",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Sqrt"
+  },
+  {
+    "index": 497,
+    "target": "0xa0000ec",
+    "delegate": "0x6002395",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToDouble"
+  },
+  {
+    "index": 498,
+    "target": "0xa00011c",
+    "delegate": "0x6002397",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Log"
+  },
+  {
+    "index": 499,
+    "target": "0xa0000ed",
+    "delegate": "0x6002399",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToSingle"
+  },
+  {
+    "index": 500,
+    "target": "0xa0000ee",
+    "delegate": "0x600239b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToUInt32"
+  },
+  {
+    "index": 501,
+    "target": "0xa00040a",
+    "delegate": "0x600239d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Drawing.Image.Save"
+  },
+  {
+    "index": 502,
+    "target": "0xa000075",
+    "delegate": "0x600239f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IntPtr.Equals"
+  },
+  {
+    "index": 503,
+    "target": "0xa0003fe",
+    "delegate": "0x60023a1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Drawing.Rectangle.FromLTRB"
+  },
+  {
+    "index": 504,
+    "target": "0xa00002f",
+    "delegate": "0x60023a3",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.TrimEnd"
+  },
+  {
+    "index": 505,
+    "target": "0xa000409",
+    "delegate": "0x60023a5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Drawing.Graphics.FromImage"
+  },
+  {
+    "index": 506,
+    "target": "0xa00023f",
+    "delegate": "0x60023a7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.HandleRef..ctor"
+  },
+  {
+    "index": 507,
+    "target": "0xa000099",
+    "delegate": "0x60023a9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.ContinueWith"
+  },
+  {
+    "index": 508,
+    "target": "0xa0000ef",
+    "delegate": "0x60023ab",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToInt32"
+  },
+  {
+    "index": 509,
+    "target": "0xa00018f",
+    "delegate": "0x60023ad",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.SemaphoreSlim.get_CurrentCount"
+  },
+  {
+    "index": 510,
+    "target": "0xa000240",
+    "delegate": "0x60023af",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTimeOffset.get_Now"
+  },
+  {
+    "index": 511,
+    "target": "0xa000241",
+    "delegate": "0x60023b1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTimeOffset.ToUnixTimeSeconds"
+  },
+  {
+    "index": 512,
+    "target": "0xa0000f0",
+    "delegate": "0x60023b3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToByte"
+  },
+  {
+    "index": 513,
+    "target": "0xa000082",
+    "delegate": "0x60023b5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Thread.get_IsAlive"
+  },
+  {
+    "index": 514,
+    "target": "0xa0000f1",
+    "delegate": "0x60023b7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToInt32"
+  },
+  {
+    "index": 515,
+    "target": "0xa00013e",
+    "delegate": "0x60023b9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Environment.get_CurrentDirectory"
+  },
+  {
+    "index": 516,
+    "target": "0xa000030",
+    "delegate": "0x60023bb",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.Replace"
+  },
+  {
+    "index": 517,
+    "target": "0xa0001fb",
+    "delegate": "0x60023bd",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.DirectoryInfo.Create"
+  },
+  {
+    "index": 518,
+    "target": "0xa000134",
+    "delegate": "0x60023bf",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.File.Copy"
+  },
+  {
+    "index": 519,
+    "target": "0xa000058",
+    "delegate": "0x60023c1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.Marshal.Release"
+  },
+  {
+    "index": 520,
+    "target": "0xa0001eb",
+    "delegate": "0x60023c3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Path.Combine"
+  },
+  {
+    "index": 521,
+    "target": "0xa0001f4",
+    "delegate": "0x60023c5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Directory.EnumerateFiles"
+  },
+  {
+    "index": 522,
+    "target": "0xa000031",
+    "delegate": "0x60023c7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.Equals"
+  },
+  {
+    "index": 523,
+    "target": "0xa000032",
+    "delegate": "0x60023c9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.IndexOf"
+  },
+  {
+    "index": 524,
+    "target": "0xa00010a",
+    "delegate": "0x60023cb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Array.Reverse"
+  },
+  {
+    "index": 525,
+    "target": "0xa00036d",
+    "delegate": "0x60023cd",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.RegularExpressions.Regex.Matches"
+  },
+  {
+    "index": 526,
+    "target": "0xa00036e",
+    "delegate": "0x60023cf",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.RegularExpressions.Regex.Match"
+  },
+  {
+    "index": 527,
+    "target": "0xa000374",
+    "delegate": "0x60023d1",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.RegularExpressions.Match.get_Groups"
+  },
+  {
+    "index": 528,
+    "target": "0xa00039a",
+    "delegate": "0x60023d3",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.RegularExpressions.GroupCollection.get_Item"
+  },
+  {
+    "index": 529,
+    "target": "0xa000361",
+    "delegate": "0x60023d5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.ProcessStartInfo.set_RedirectStandardInput"
+  },
+  {
+    "index": 530,
+    "target": "0xa00034d",
+    "delegate": "0x60023d7",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.get_StandardInput"
+  },
+  {
+    "index": 531,
+    "target": "0xa0001f5",
+    "delegate": "0x60023d9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Directory.GetDirectories"
+  },
+  {
+    "index": 532,
+    "target": "0xa0001ed",
+    "delegate": "0x60023db",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Path.GetExtension"
+  },
+  {
+    "index": 533,
+    "target": "0xa00039b",
+    "delegate": "0x60023dd",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.RegularExpressions.GroupCollection.get_Count"
+  },
+  {
+    "index": 534,
+    "target": "0xa000033",
+    "delegate": "0x60023df",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.Split"
+  },
+  {
+    "index": 535,
+    "target": "0xa0000b4",
+    "delegate": "0x60023e1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Type.op_Equality"
+  },
+  {
+    "index": 536,
+    "target": "0xa0004a7",
+    "delegate": "0x60023e3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Linq.Enumerable.Range"
+  },
+  {
+    "index": 537,
+    "target": "0xa000034",
+    "delegate": "0x60023e5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.String.Join"
+  },
+  {
+    "index": 538,
+    "target": "0xa0000b5",
+    "delegate": "0x60023e7",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Type.Equals"
+  },
+  {
+    "index": 539,
+    "target": "0xa000145",
+    "delegate": "0x60023e9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.UInt32.ToString"
+  },
+  {
+    "index": 540,
+    "target": "0xa000177",
+    "delegate": "0x60023eb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.UInt16.ToString"
+  },
+  {
+    "index": 541,
+    "target": "0xa0000f2",
+    "delegate": "0x60023ed",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToUInt16"
+  },
+  {
+    "index": 542,
+    "target": "0xa0001d6",
+    "delegate": "0x60023ef",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.BitConverter.GetBytes"
+  },
+  {
+    "index": 543,
+    "target": "0xa0001d7",
+    "delegate": "0x60023f1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.BitConverter.GetBytes"
+  },
+  {
+    "index": 544,
+    "target": "0xa000242",
+    "delegate": "0x60023f3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Timer.Change"
+  },
+  {
+    "index": 545,
+    "target": "0xa000243",
+    "delegate": "0x60023f5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Timer.Dispose"
+  },
+  {
+    "index": 546,
+    "target": "0xa00020f",
+    "delegate": "0x60023f7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.TimeSpan.FromHours"
+  },
+  {
+    "index": 547,
+    "target": "0xa0000f3",
+    "delegate": "0x60023f9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToSingle"
+  },
+  {
+    "index": 548,
+    "target": "0xa00011d",
+    "delegate": "0x60023fb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Abs"
+  },
+  {
+    "index": 549,
+    "target": "0xa000035",
+    "delegate": "0x60023fd",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.IndexOf"
+  },
+  {
+    "index": 550,
+    "target": "0xa00011e",
+    "delegate": "0x60023ff",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Round"
+  },
+  {
+    "index": 551,
+    "target": "0xa000041",
+    "delegate": "0x6002401",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Enum.ToString"
+  },
+  {
+    "index": 552,
+    "target": "0xa000146",
+    "delegate": "0x6002403",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.UInt32.Parse"
+  },
+  {
+    "index": 553,
+    "target": "0xa000083",
+    "delegate": "0x6002405",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Thread.SetApartmentState"
+  },
+  {
+    "index": 554,
+    "target": "0xa0003d4",
+    "delegate": "0x6002407",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Windows.Forms.Application.Run"
+  },
+  {
+    "index": 555,
+    "target": "0xa0003e0",
+    "delegate": "0x6002409",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.ApplicationContext.ExitThread"
+  },
+  {
+    "index": 556,
+    "target": "0xa000084",
+    "delegate": "0x600240b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Thread.Join"
+  },
+  {
+    "index": 557,
+    "target": "0xa0003e1",
+    "delegate": "0x600240d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.ApplicationContext.Dispose"
+  },
+  {
+    "index": 558,
+    "target": "0xa000042",
+    "delegate": "0x600240f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Enum.HasFlag"
+  },
+  {
+    "index": 559,
+    "target": "0xa00039e",
+    "delegate": "0x6002411",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.ComponentModel.TypeDescriptor.GetProperties"
+  },
+  {
+    "index": 560,
+    "target": "0xa00039f",
+    "delegate": "0x6002413",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ComponentModel.PropertyDescriptorCollection.GetEnumerator"
+  },
+  {
+    "index": 561,
+    "target": "0xa0003a1",
+    "delegate": "0x6002415",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ComponentModel.MemberDescriptor.get_Name"
+  },
+  {
+    "index": 562,
+    "target": "0xa0003a0",
+    "delegate": "0x6002417",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ComponentModel.PropertyDescriptor.GetValue"
+  },
+  {
+    "index": 563,
+    "target": "0xa0003a8",
+    "delegate": "0x6002419",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.PerformanceCounterCategory.GetInstanceNames"
+  },
+  {
+    "index": 564,
+    "target": "0xa0003a3",
+    "delegate": "0x600241b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.PerformanceCounter.NextValue"
+  },
+  {
+    "index": 565,
+    "target": "0xa00011f",
+    "delegate": "0x600241d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Min"
+  },
+  {
+    "index": 566,
+    "target": "0xa000036",
+    "delegate": "0x600241f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.IndexOf"
+  },
+  {
+    "index": 567,
+    "target": "0xa000111",
+    "delegate": "0x6002421",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Delegate.CreateDelegate"
+  },
+  {
+    "index": 568,
+    "target": "0xa000246",
+    "delegate": "0x6002423",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.Emit.ModuleBuilder.DefineType"
+  },
+  {
+    "index": 569,
+    "target": "0xa0000b6",
+    "delegate": "0x6002425",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Type.GetMethod"
+  },
+  {
+    "index": 570,
+    "target": "0xa00021a",
+    "delegate": "0x6002427",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.MethodBase.GetParameters"
+  },
+  {
+    "index": 571,
+    "target": "0xa00010b",
+    "delegate": "0x6002429",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Array.GetLength"
+  },
+  {
+    "index": 572,
+    "target": "0xa000250",
+    "delegate": "0x600242b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.ParameterInfo.get_ParameterType"
+  },
+  {
+    "index": 573,
+    "target": "0xa000248",
+    "delegate": "0x600242d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.DllImportAttribute.get_Value"
+  },
+  {
+    "index": 574,
+    "target": "0xa00024f",
+    "delegate": "0x600242f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.MethodInfo.get_ReturnType"
+  },
+  {
+    "index": 575,
+    "target": "0xa00024d",
+    "delegate": "0x6002431",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.Emit.TypeBuilder.DefinePInvokeMethod"
+  },
+  {
+    "index": 576,
+    "target": "0xa000251",
+    "delegate": "0x6002433",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.ParameterInfo.get_Position"
+  },
+  {
+    "index": 577,
+    "target": "0xa000252",
+    "delegate": "0x6002435",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.ParameterInfo.get_Attributes"
+  },
+  {
+    "index": 578,
+    "target": "0xa000253",
+    "delegate": "0x6002437",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.ParameterInfo.get_Name"
+  },
+  {
+    "index": 579,
+    "target": "0xa000254",
+    "delegate": "0x6002439",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.Emit.MethodBuilder.DefineParameter"
+  },
+  {
+    "index": 580,
+    "target": "0xa000255",
+    "delegate": "0x600243b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.Emit.MethodBuilder.SetImplementationFlags"
+  },
+  {
+    "index": 581,
+    "target": "0xa00024e",
+    "delegate": "0x600243d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.Emit.TypeBuilder.CreateType"
+  },
+  {
+    "index": 582,
+    "target": "0xa000256",
+    "delegate": "0x600243f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.AppDomain.get_CurrentDomain"
+  },
+  {
+    "index": 583,
+    "target": "0xa000257",
+    "delegate": "0x6002441",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.AppDomain.DefineDynamicAssembly"
+  },
+  {
+    "index": 584,
+    "target": "0xa00025b",
+    "delegate": "0x6002443",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.Emit.AssemblyBuilder.DefineDynamicModule"
+  },
+  {
+    "index": 585,
+    "target": "0xa0000c4",
+    "delegate": "0x6002445",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Double.ToString"
+  },
+  {
+    "index": 586,
+    "target": "0xa000227",
+    "delegate": "0x6002447",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.UInt64.ToString"
+  },
+  {
+    "index": 587,
+    "target": "0xa0003a9",
+    "delegate": "0x6002449",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.PerformanceCounterCategory.GetCounters"
+  },
+  {
+    "index": 588,
+    "target": "0xa0003a5",
+    "delegate": "0x600244b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.PerformanceCounter.get_CounterName"
+  },
+  {
+    "index": 589,
+    "target": "0xa000076",
+    "delegate": "0x600244d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IntPtr.op_Explicit"
+  },
+  {
+    "index": 590,
+    "target": "0xa00038f",
+    "delegate": "0x600244f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Timers.Timer.get_Interval"
+  },
+  {
+    "index": 591,
+    "target": "0xa000112",
+    "delegate": "0x6002451",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Delegate.GetInvocationList"
+  },
+  {
+    "index": 592,
+    "target": "0xa000233",
+    "delegate": "0x6002453",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Security.Principal.IdentityReference.Translate"
+  },
+  {
+    "index": 593,
+    "target": "0xa000234",
+    "delegate": "0x6002455",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Security.Principal.IdentityReference.get_Value"
+  },
+  {
+    "index": 594,
+    "target": "0xa0000f4",
+    "delegate": "0x6002457",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToUInt64"
+  },
+  {
+    "index": 595,
+    "target": "0xa0000f5",
+    "delegate": "0x6002459",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToInt64"
+  },
+  {
+    "index": 596,
+    "target": "0xa000085",
+    "delegate": "0x600245b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Thread.set_Name"
+  },
+  {
+    "index": 597,
+    "target": "0xa000086",
+    "delegate": "0x600245d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Thread.set_Priority"
+  },
+  {
+    "index": 598,
+    "target": "0xa0001b9",
+    "delegate": "0x600245f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.get_Date"
+  },
+  {
+    "index": 599,
+    "target": "0xa0001ba",
+    "delegate": "0x6002461",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.op_GreaterThan"
+  },
+  {
+    "index": 600,
+    "target": "0xa0001bb",
+    "delegate": "0x6002463",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.get_Month"
+  },
+  {
+    "index": 601,
+    "target": "0xa0001bc",
+    "delegate": "0x6002465",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.get_DayOfWeek"
+  },
+  {
+    "index": 602,
+    "target": "0xa0001bd",
+    "delegate": "0x6002467",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.get_Year"
+  },
+  {
+    "index": 603,
+    "target": "0xa0001be",
+    "delegate": "0x6002469",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.get_Day"
+  },
+  {
+    "index": 604,
+    "target": "0xa0001bf",
+    "delegate": "0x600246b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.ToLongDateString"
+  },
+  {
+    "index": 605,
+    "target": "0xa0001c0",
+    "delegate": "0x600246d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.IsLeapYear"
+  },
+  {
+    "index": 606,
+    "target": "0xa0001c1",
+    "delegate": "0x600246f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime..ctor"
+  },
+  {
+    "index": 607,
+    "target": "0xa0001c2",
+    "delegate": "0x6002471",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.AddMinutes"
+  },
+  {
+    "index": 608,
+    "target": "0xa0001c3",
+    "delegate": "0x6002473",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.DateTime.get_DayOfYear"
+  },
+  {
+    "index": 609,
+    "target": "0xa0000f6",
+    "delegate": "0x6002475",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToInt16"
+  },
+  {
+    "index": 610,
+    "target": "0xa0000f7",
+    "delegate": "0x6002477",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToByte"
+  },
+  {
+    "index": 611,
+    "target": "0xa00025c",
+    "delegate": "0x6002479",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.StringComparer.get_OrdinalIgnoreCase"
+  },
+  {
+    "index": 612,
+    "target": "0xa00013f",
+    "delegate": "0x600247b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Environment.GetEnvironmentVariable"
+  },
+  {
+    "index": 613,
+    "target": "0xa0003ac",
+    "delegate": "0x600247d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable"
+  },
+  {
+    "index": 614,
+    "target": "0xa00037e",
+    "delegate": "0x600247f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.WebClient.DownloadFileAsync"
+  },
+  {
+    "index": 615,
+    "target": "0xa000380",
+    "delegate": "0x6002481",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ComponentModel.AsyncCompletedEventArgs.get_UserState"
+  },
+  {
+    "index": 616,
+    "target": "0xa000198",
+    "delegate": "0x6002483",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Interlocked.Increment"
+  },
+  {
+    "index": 617,
+    "target": "0xa0003b6",
+    "delegate": "0x6002485",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.WebException.get_Response"
+  },
+  {
+    "index": 618,
+    "target": "0xa0003b8",
+    "delegate": "0x6002487",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.HttpWebResponse.get_StatusCode"
+  },
+  {
+    "index": 619,
+    "target": "0xa0003b7",
+    "delegate": "0x6002489",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.WebException.get_Status"
+  },
+  {
+    "index": 620,
+    "target": "0xa00009a",
+    "delegate": "0x600248b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.get_AsyncState"
+  },
+  {
+    "index": 621,
+    "target": "0xa000328",
+    "delegate": "0x600248d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Uri.get_AbsoluteUri"
+  },
+  {
+    "index": 622,
+    "target": "0xa0001f6",
+    "delegate": "0x600248f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IO.Directory.GetFiles"
+  },
+  {
+    "index": 623,
+    "target": "0xa000140",
+    "delegate": "0x6002491",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Environment.get_TickCount"
+  },
+  {
+    "index": 624,
+    "target": "0xa00009b",
+    "delegate": "0x6002493",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.Run"
+  },
+  {
+    "index": 625,
+    "target": "0xa000194",
+    "delegate": "0x6002495",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.CancellationTokenSource.Dispose"
+  },
+  {
+    "index": 626,
+    "target": "0xa00034e",
+    "delegate": "0x6002497",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.get_HasExited"
+  },
+  {
+    "index": 627,
+    "target": "0xa000370",
+    "delegate": "0x6002499",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Text.RegularExpressions.Regex.IsMatch"
+  },
+  {
+    "index": 628,
+    "target": "0xa00005b",
+    "delegate": "0x600249b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.Marshal.PtrToStringUni"
+  },
+  {
+    "index": 629,
+    "target": "0xa000371",
+    "delegate": "0x600249d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.RegularExpressions.Regex.IsMatch"
+  },
+  {
+    "index": 630,
+    "target": "0xa0001a6",
+    "delegate": "0x600249f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.Encoding.GetByteCount"
+  },
+  {
+    "index": 631,
+    "target": "0xa00034f",
+    "delegate": "0x60024a1",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.add_ErrorDataReceived"
+  },
+  {
+    "index": 632,
+    "target": "0xa000350",
+    "delegate": "0x60024a3",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.add_OutputDataReceived"
+  },
+  {
+    "index": 633,
+    "target": "0xa000351",
+    "delegate": "0x60024a5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.set_EnableRaisingEvents"
+  },
+  {
+    "index": 634,
+    "target": "0xa000352",
+    "delegate": "0x60024a7",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.BeginOutputReadLine"
+  },
+  {
+    "index": 635,
+    "target": "0xa000353",
+    "delegate": "0x60024a9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.BeginErrorReadLine"
+  },
+  {
+    "index": 636,
+    "target": "0xa0003bb",
+    "delegate": "0x60024ab",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.DataReceivedEventArgs.get_Data"
+  },
+  {
+    "index": 637,
+    "target": "0xa000037",
+    "delegate": "0x60024ad",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.IndexOf"
+  },
+  {
+    "index": 638,
+    "target": "0xa0003da",
+    "delegate": "0x60024af",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.PowerStatus.get_BatteryLifePercent"
+  },
+  {
+    "index": 639,
+    "target": "0xa00019e",
+    "delegate": "0x60024b1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Single.ToString"
+  },
+  {
+    "index": 640,
+    "target": "0xa0003db",
+    "delegate": "0x60024b3",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.PowerStatus.get_BatteryFullLifetime"
+  },
+  {
+    "index": 641,
+    "target": "0xa0003dc",
+    "delegate": "0x60024b5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.PowerStatus.get_BatteryLifeRemaining"
+  },
+  {
+    "index": 642,
+    "target": "0xa0003dd",
+    "delegate": "0x60024b7",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.PowerStatus.get_BatteryChargeStatus"
+  },
+  {
+    "index": 643,
+    "target": "0xa0003bc",
+    "delegate": "0x60024b9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Diagnostics.CounterSample.get_RawValue"
+  },
+  {
+    "index": 644,
+    "target": "0xa0003bd",
+    "delegate": "0x60024bb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Diagnostics.CounterSample.get_TimeStamp100nSec"
+  },
+  {
+    "index": 645,
+    "target": "0xa0003aa",
+    "delegate": "0x60024bd",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Diagnostics.PerformanceCounterCategory.get_CategoryType"
+  },
+  {
+    "index": 646,
+    "target": "0xa0003ab",
+    "delegate": "0x60024bf",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Diagnostics.PerformanceCounterCategory.GetCounters"
+  },
+  {
+    "index": 647,
+    "target": "0xa0003a6",
+    "delegate": "0x60024c1",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.PerformanceCounter.get_InstanceName"
+  },
+  {
+    "index": 648,
+    "target": "0xa000141",
+    "delegate": "0x60024c3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Environment.get_UserName"
+  },
+  {
+    "index": 649,
+    "target": "0xa000422",
+    "delegate": "0x60024c5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.PropertyDataCollection.GetEnumerator"
+  },
+  {
+    "index": 650,
+    "target": "0xa0000c5",
+    "delegate": "0x60024c7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Double.Parse"
+  },
+  {
+    "index": 651,
+    "target": "0xa000199",
+    "delegate": "0x60024c9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Interlocked.Exchange"
+  },
+  {
+    "index": 652,
+    "target": "0xa0003bf",
+    "delegate": "0x60024cb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.NetworkChange.add_NetworkAddressChanged"
+  },
+  {
+    "index": 653,
+    "target": "0xa0003ad",
+    "delegate": "0x60024cd",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces"
+  },
+  {
+    "index": 654,
+    "target": "0xa0003ae",
+    "delegate": "0x60024cf",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.NetworkInterface.get_OperationalStatus"
+  },
+  {
+    "index": 655,
+    "target": "0xa0003af",
+    "delegate": "0x60024d1",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.NetworkInterface.get_NetworkInterfaceType"
+  },
+  {
+    "index": 656,
+    "target": "0xa0003b0",
+    "delegate": "0x60024d3",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.NetworkInterface.GetIPv4Statistics"
+  },
+  {
+    "index": 657,
+    "target": "0xa0003c3",
+    "delegate": "0x60024d5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.IPv4InterfaceStatistics.get_BytesReceived"
+  },
+  {
+    "index": 658,
+    "target": "0xa0003c4",
+    "delegate": "0x60024d7",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.IPv4InterfaceStatistics.get_BytesSent"
+  },
+  {
+    "index": 659,
+    "target": "0xa000120",
+    "delegate": "0x60024d9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Log"
+  },
+  {
+    "index": 660,
+    "target": "0xa00025d",
+    "delegate": "0x60024db",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Decimal.op_Explicit"
+  },
+  {
+    "index": 661,
+    "target": "0xa00025e",
+    "delegate": "0x60024dd",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Decimal.op_Implicit"
+  },
+  {
+    "index": 662,
+    "target": "0xa00025f",
+    "delegate": "0x60024df",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Decimal.op_Division"
+  },
+  {
+    "index": 663,
+    "target": "0xa000121",
+    "delegate": "0x60024e1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Round"
+  },
+  {
+    "index": 664,
+    "target": "0xa000261",
+    "delegate": "0x60024e3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Decimal.op_GreaterThanOrEqual"
+  },
+  {
+    "index": 665,
+    "target": "0xa000262",
+    "delegate": "0x60024e5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Decimal.op_Explicit"
+  },
+  {
+    "index": 666,
+    "target": "0xa0003b1",
+    "delegate": "0x60024e7",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.NetworkInterface.get_Id"
+  },
+  {
+    "index": 667,
+    "target": "0xa0003b2",
+    "delegate": "0x60024e9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.NetworkInterface.get_Name"
+  },
+  {
+    "index": 668,
+    "target": "0xa0003b3",
+    "delegate": "0x60024eb",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.NetworkInterface.get_Description"
+  },
+  {
+    "index": 669,
+    "target": "0xa000170",
+    "delegate": "0x60024ed",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.StringBuilder.AppendFormat"
+  },
+  {
+    "index": 670,
+    "target": "0xa0003b4",
+    "delegate": "0x60024ef",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.NetworkInterface.GetIPProperties"
+  },
+  {
+    "index": 671,
+    "target": "0xa0003c7",
+    "delegate": "0x60024f1",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.IPInterfaceProperties.get_UnicastAddresses"
+  },
+  {
+    "index": 672,
+    "target": "0xa0003c5",
+    "delegate": "0x60024f3",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.UnicastIPAddressInformationCollection.get_Count"
+  },
+  {
+    "index": 673,
+    "target": "0xa0003c6",
+    "delegate": "0x60024f5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.UnicastIPAddressInformationCollection.GetEnumerator"
+  },
+  {
+    "index": 674,
+    "target": "0xa0003c8",
+    "delegate": "0x60024f7",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.IPAddressInformation.get_Address"
+  },
+  {
+    "index": 675,
+    "target": "0xa000171",
+    "delegate": "0x60024f9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.StringBuilder.AppendFormat"
+  },
+  {
+    "index": 676,
+    "target": "0xa0001d8",
+    "delegate": "0x60024fb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.BitConverter.GetBytes"
+  },
+  {
+    "index": 677,
+    "target": "0xa000258",
+    "delegate": "0x60024fd",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.AppDomain.get_BaseDirectory"
+  },
+  {
+    "index": 678,
+    "target": "0xa0000f8",
+    "delegate": "0x60024ff",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToDouble"
+  },
+  {
+    "index": 679,
+    "target": "0xa0003df",
+    "delegate": "0x6002501",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Windows.Forms.SystemInformation.get_PrimaryMonitorSize"
+  },
+  {
+    "index": 680,
+    "target": "0xa00040c",
+    "delegate": "0x6002503",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Drawing.Size.get_Width"
+  },
+  {
+    "index": 681,
+    "target": "0xa00040d",
+    "delegate": "0x6002505",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Drawing.Size.get_Height"
+  },
+  {
+    "index": 682,
+    "target": "0xa0003ba",
+    "delegate": "0x6002507",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.DataReceivedEventHandler.Invoke"
+  },
+  {
+    "index": 683,
+    "target": "0xa000354",
+    "delegate": "0x6002509",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.CloseMainWindow"
+  },
+  {
+    "index": 684,
+    "target": "0xa000355",
+    "delegate": "0x600250b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Process.CancelOutputRead"
+  },
+  {
+    "index": 685,
+    "target": "0xa000203",
+    "delegate": "0x600250d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.TextWriter.Write"
+  },
+  {
+    "index": 686,
+    "target": "0xa000204",
+    "delegate": "0x600250f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.TextWriter.Close"
+  },
+  {
+    "index": 687,
+    "target": "0xa000183",
+    "delegate": "0x6002511",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.Stream.Close"
+  },
+  {
+    "index": 688,
+    "target": "0xa000077",
+    "delegate": "0x6002513",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IntPtr.get_Size"
+  },
+  {
+    "index": 689,
+    "target": "0xa000078",
+    "delegate": "0x6002515",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.IntPtr.ToInt64"
+  },
+  {
+    "index": 690,
+    "target": "0xa000038",
+    "delegate": "0x6002517",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.TrimStart"
+  },
+  {
+    "index": 691,
+    "target": "0xa0000f9",
+    "delegate": "0x6002519",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToUInt16"
+  },
+  {
+    "index": 692,
+    "target": "0xa0003d1",
+    "delegate": "0x600251b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Windows.Forms.Screen.FromHandle"
+  },
+  {
+    "index": 693,
+    "target": "0xa0003e5",
+    "delegate": "0x600251d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.NotifyIcon.set_ContextMenuStrip"
+  },
+  {
+    "index": 694,
+    "target": "0xa0003e6",
+    "delegate": "0x600251f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.NotifyIcon.set_Visible"
+  },
+  {
+    "index": 695,
+    "target": "0xa0003f4",
+    "delegate": "0x6002521",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.Menu.set_Name"
+  },
+  {
+    "index": 696,
+    "target": "0xa0003ef",
+    "delegate": "0x6002523",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.MenuItem.add_Click"
+  },
+  {
+    "index": 697,
+    "target": "0xa0003f0",
+    "delegate": "0x6002525",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.MenuItem.set_Text"
+  },
+  {
+    "index": 698,
+    "target": "0xa0003f5",
+    "delegate": "0x6002527",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.Menu.get_MenuItems"
+  },
+  {
+    "index": 699,
+    "target": "0xa0003e7",
+    "delegate": "0x6002529",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.NotifyIcon.set_ContextMenu"
+  },
+  {
+    "index": 700,
+    "target": "0xa0003e8",
+    "delegate": "0x600252b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.NotifyIcon.set_Text"
+  },
+  {
+    "index": 701,
+    "target": "0xa0003e9",
+    "delegate": "0x600252d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.NotifyIcon.add_Click"
+  },
+  {
+    "index": 702,
+    "target": "0xa0003ea",
+    "delegate": "0x600252f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.NotifyIcon.add_DoubleClick"
+  },
+  {
+    "index": 703,
+    "target": "0xa0003eb",
+    "delegate": "0x6002531",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.NotifyIcon.add_BalloonTipClosed"
+  },
+  {
+    "index": 704,
+    "target": "0xa0003f9",
+    "delegate": "0x6002533",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.MouseEventArgs.get_Button"
+  },
+  {
+    "index": 705,
+    "target": "0xa0000b7",
+    "delegate": "0x6002535",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Type.GetMethod"
+  },
+  {
+    "index": 706,
+    "target": "0xa00021b",
+    "delegate": "0x6002537",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.MethodBase.Invoke"
+  },
+  {
+    "index": 707,
+    "target": "0xa0003ec",
+    "delegate": "0x6002539",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.NotifyIcon.set_Icon"
+  },
+  {
+    "index": 708,
+    "target": "0xa0003f1",
+    "delegate": "0x600253b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.MenuItem.set_Checked"
+  },
+  {
+    "index": 709,
+    "target": "0xa0003f6",
+    "delegate": "0x600253d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.Menu.get_Name"
+  },
+  {
+    "index": 710,
+    "target": "0xa0003f2",
+    "delegate": "0x600253f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Windows.Forms.MenuItem.get_Text"
+  },
+  {
+    "index": 711,
+    "target": "0xa0001d9",
+    "delegate": "0x6002541",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.BitConverter.ToInt64"
+  },
+  {
+    "index": 712,
+    "target": "0xa00012a",
+    "delegate": "0x6002543",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Monitor.TryEnter"
+  },
+  {
+    "index": 713,
+    "target": "0xa000228",
+    "delegate": "0x6002545",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.UInt64.ToString"
+  },
+  {
+    "index": 714,
+    "target": "0xa000426",
+    "delegate": "0x6002547",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.PropertyData.get_Name"
+  },
+  {
+    "index": 715,
+    "target": "0xa0000fa",
+    "delegate": "0x6002549",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToInt16"
+  },
+  {
+    "index": 716,
+    "target": "0xa0000fb",
+    "delegate": "0x600254b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToByte"
+  },
+  {
+    "index": 717,
+    "target": "0xa00019a",
+    "delegate": "0x600254d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Interlocked.CompareExchange"
+  },
+  {
+    "index": 718,
+    "target": "0xa00009c",
+    "delegate": "0x600254f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.get_IsCompleted"
+  },
+  {
+    "index": 719,
+    "target": "0xa00009d",
+    "delegate": "0x6002551",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.get_Exception"
+  },
+  {
+    "index": 720,
+    "target": "0xa00009e",
+    "delegate": "0x6002553",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.Dispose"
+  },
+  {
+    "index": 721,
+    "target": "0xa0001fc",
+    "delegate": "0x6002555",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.DirectoryInfo.get_Parent"
+  },
+  {
+    "index": 722,
+    "target": "0xa000264",
+    "delegate": "0x6002557",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.RuntimeInformation.get_OSDescription"
+  },
+  {
+    "index": 723,
+    "target": "0xa000039",
+    "delegate": "0x6002559",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.LastIndexOf"
+  },
+  {
+    "index": 724,
+    "target": "0xa0002da",
+    "delegate": "0x600255b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.Automation.PowerShell.AddScript"
+  },
+  {
+    "index": 725,
+    "target": "0xa000372",
+    "delegate": "0x600255d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Text.RegularExpressions.Regex.IsMatch"
+  },
+  {
+    "index": 726,
+    "target": "0xa000263",
+    "delegate": "0x600255f",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Decimal.ToString"
+  },
+  {
+    "index": 727,
+    "target": "0xa0003b5",
+    "delegate": "0x6002561",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.NetworkInterface.GetPhysicalAddress"
+  },
+  {
+    "index": 728,
+    "target": "0xa00010c",
+    "delegate": "0x6002563",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Array.GetValue"
+  },
+  {
+    "index": 729,
+    "target": "0xa0003c0",
+    "delegate": "0x6002565",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.NetworkChange.add_NetworkAvailabilityChanged"
+  },
+  {
+    "index": 730,
+    "target": "0xa0003c1",
+    "delegate": "0x6002567",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.NetworkChange.remove_NetworkAvailabilityChanged"
+  },
+  {
+    "index": 731,
+    "target": "0xa0003c2",
+    "delegate": "0x6002569",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Net.NetworkInformation.NetworkChange.remove_NetworkAddressChanged"
+  },
+  {
+    "index": 732,
+    "target": "0xa000108",
+    "delegate": "0x600256b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.EventArgs..ctor"
+  },
+  {
+    "index": 733,
+    "target": "0xa00015a",
+    "delegate": "0x600256d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.TextReader.ReadLine"
+  },
+  {
+    "index": 734,
+    "target": "0xa00043a",
+    "delegate": "0x600256f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Management.ManagementObject.GetRelated"
+  },
+  {
+    "index": 735,
+    "target": "0xa000142",
+    "delegate": "0x6002571",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Environment.get_OSVersion"
+  },
+  {
+    "index": 736,
+    "target": "0xa000267",
+    "delegate": "0x6002573",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.OperatingSystem.get_Platform"
+  },
+  {
+    "index": 737,
+    "target": "0xa00010d",
+    "delegate": "0x6002575",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Array.Copy"
+  },
+  {
+    "index": 738,
+    "target": "0xa000172",
+    "delegate": "0x6002577",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.StringBuilder.Append"
+  },
+  {
+    "index": 739,
+    "target": "0xa00022f",
+    "delegate": "0x6002579",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Version.op_Inequality"
+  },
+  {
+    "index": 740,
+    "target": "0xa000230",
+    "delegate": "0x600257b",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Version.ToString"
+  },
+  {
+    "index": 741,
+    "target": "0xa000173",
+    "delegate": "0x600257d",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.StringBuilder.AppendLine"
+  },
+  {
+    "index": 742,
+    "target": "0xa000174",
+    "delegate": "0x600257f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.StringBuilder.AppendLine"
+  },
+  {
+    "index": 743,
+    "target": "0xa000175",
+    "delegate": "0x6002581",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Text.StringBuilder.Append"
+  },
+  {
+    "index": 744,
+    "target": "0xa0000fc",
+    "delegate": "0x6002583",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToBase64String"
+  },
+  {
+    "index": 745,
+    "target": "0xa000122",
+    "delegate": "0x6002585",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Ceiling"
+  },
+  {
+    "index": 746,
+    "target": "0xa000123",
+    "delegate": "0x6002587",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Abs"
+  },
+  {
+    "index": 747,
+    "target": "0xa0000fd",
+    "delegate": "0x6002589",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToBoolean"
+  },
+  {
+    "index": 748,
+    "target": "0xa0000fe",
+    "delegate": "0x600258b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToBoolean"
+  },
+  {
+    "index": 749,
+    "target": "0xa00017b",
+    "delegate": "0x600258d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Byte.Equals"
+  },
+  {
+    "index": 750,
+    "target": "0xa00003a",
+    "delegate": "0x600258f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.PadLeft"
+  },
+  {
+    "index": 751,
+    "target": "0xa00003b",
+    "delegate": "0x6002591",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.String.PadLeft"
+  },
+  {
+    "index": 752,
+    "target": "0xa0000ff",
+    "delegate": "0x6002593",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToByte"
+  },
+  {
+    "index": 753,
+    "target": "0xa000390",
+    "delegate": "0x6002595",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Timers.Timer.remove_Elapsed"
+  },
+  {
+    "index": 754,
+    "target": "0xa000391",
+    "delegate": "0x6002597",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Timers.Timer.get_Enabled"
+  },
+  {
+    "index": 755,
+    "target": "0xa000124",
+    "delegate": "0x6002599",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Math.Min"
+  },
+  {
+    "index": 756,
+    "target": "0xa00022b",
+    "delegate": "0x600259b",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.GC.SuppressFinalize"
+  },
+  {
+    "index": 757,
+    "target": "0xa000195",
+    "delegate": "0x600259d",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.CancellationTokenSource.CreateLinkedTokenSource"
+  },
+  {
+    "index": 758,
+    "target": "0xa000196",
+    "delegate": "0x600259f",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.CancellationTokenSource.CancelAfter"
+  },
+  {
+    "index": 759,
+    "target": "0xa000190",
+    "delegate": "0x60025a1",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.SemaphoreSlim.WaitAsync"
+  },
+  {
+    "index": 760,
+    "target": "0xa000269",
+    "delegate": "0x60025a3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.Tasks.TaskScheduler.get_Default"
+  },
+  {
+    "index": 761,
+    "target": "0xa00009f",
+    "delegate": "0x60025a5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Threading.Tasks.Task.ContinueWith"
+  },
+  {
+    "index": 762,
+    "target": "0xa0001a8",
+    "delegate": "0x60025a7",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Threading.CancellationToken.get_None"
+  },
+  {
+    "index": 763,
+    "target": "0xa000100",
+    "delegate": "0x60025a9",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToString"
+  },
+  {
+    "index": 764,
+    "target": "0xa000101",
+    "delegate": "0x60025ab",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Convert.ToString"
+  },
+  {
+    "index": 765,
+    "target": "0xa0004c8",
+    "delegate": "0x60025ad",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Eventing.Reader.EventLogReader.ReadEvent"
+  },
+  {
+    "index": 766,
+    "target": "0xa0004c9",
+    "delegate": "0x60025af",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Diagnostics.Eventing.Reader.EventRecord.get_TimeCreated"
+  },
+  {
+    "index": 767,
+    "target": "0xa000043",
+    "delegate": "0x60025b1",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Enum.GetName"
+  },
+  {
+    "index": 768,
+    "target": "0xa00005d",
+    "delegate": "0x60025b3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Runtime.InteropServices.Marshal.GetExceptionForHR"
+  },
+  {
+    "index": 769,
+    "target": "0xa000221",
+    "delegate": "0x60025b5",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Globalization.CultureInfo.get_Name"
+  },
+  {
+    "index": 770,
+    "target": "0xa000259",
+    "delegate": "0x60025b7",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.AppDomain.GetAssemblies"
+  },
+  {
+    "index": 771,
+    "target": "0xa00023b",
+    "delegate": "0x60025b9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.AssemblyName.get_CultureInfo"
+  },
+  {
+    "index": 772,
+    "target": "0xa000184",
+    "delegate": "0x60025bb",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.Stream.Read"
+  },
+  {
+    "index": 773,
+    "target": "0xa00014f",
+    "delegate": "0x60025bd",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.Assembly.GetManifestResourceStream"
+  },
+  {
+    "index": 774,
+    "target": "0xa000185",
+    "delegate": "0x60025bf",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.Stream.set_Position"
+  },
+  {
+    "index": 775,
+    "target": "0xa000186",
+    "delegate": "0x60025c1",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.IO.Stream.get_Length"
+  },
+  {
+    "index": 776,
+    "target": "0xa000150",
+    "delegate": "0x60025c3",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Reflection.Assembly.Load"
+  },
+  {
+    "index": 777,
+    "target": "0xa000151",
+    "delegate": "0x60025c5",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Reflection.Assembly.Load"
+  },
+  {
+    "index": 778,
+    "target": "0xa00026b",
+    "delegate": "0x60025c7",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.ResolveEventArgs.get_Name"
+  },
+  {
+    "index": 779,
+    "target": "0xa00023c",
+    "delegate": "0x60025c9",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.Reflection.AssemblyName.get_Flags"
+  },
+  {
+    "index": 780,
+    "target": "0xa000152",
+    "delegate": "0x60025cb",
+    "flags": 4,
+    "extra": 0,
+    "name": "System.Reflection.Assembly.Load"
+  },
+  {
+    "index": 781,
+    "target": "0xa00025a",
+    "delegate": "0x60025cd",
+    "flags": 2,
+    "extra": 0,
+    "name": "System.AppDomain.add_AssemblyResolve"
+  }
+]

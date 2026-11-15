@@ -1,0 +1,38 @@
+{
+  "source_sha256": "9ee018d42684d02032da642d90376843383223d76d82a6fba6ce42e475a82093",
+  "field_token": "0x04002a28",
+  "fixed_key_rva": "0x8dbd28",
+  "wrapper": {
+    "call_offset": "0x2e",
+    "args": [
+      null,
+      [
+        "currentmethod",
+        100670575
+      ],
+      7572384,
+      75,
+      8743768,
+      32,
+      10677077,
+      8010312,
+      4
+    ],
+    "steps": 17,
+    "visited_instruction_count": 17,
+    "verification": "Reachable bounded prefix only; skipped bytes and full original CFG are not decoded"
+  },
+  "body_hex": "133004003f000000ed040011026f5906000a1f5861d20a732806000a0b160c2b1a0702086f5b06000a1f0a0858580661d16f2d06000a260817580c08026f5906000a32dd076fb705000a2a",
+  "body_sha256": "85e69314158f4e83a98e660fdf50526d19b0c399189e80ef318c0262e72374ae",
+  "bounds": {
+    "format": "fat",
+    "header_size": 12,
+    "code_size": 63,
+    "max_stack": 4,
+    "flags": "0x3013",
+    "locals_token": "0x110004ed",
+    "sections": [],
+    "body_end": 75,
+    "trailing_bytes": 0
+  }
+}

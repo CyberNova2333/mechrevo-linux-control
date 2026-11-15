@@ -1,0 +1,54 @@
+[New LWP 86442]
+[New LWP 86441]
+[New LWP 86440]
+[New LWP 86421]
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+0x00007629a871b75d in __GI___poll (fds=0x7fffc27a6d88, nfds=1, timeout=100) at ../sysdeps/unix/sysv/linux/poll.c:29
+
+warning: 29	../sysdeps/unix/sysv/linux/poll.c: No such file or directory
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 145000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 145000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 145000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 145000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 145000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 145000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 145000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 145000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 145000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 75000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 75000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 75000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 75000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 75000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 75000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 75000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 145000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 145000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 145000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+NVPCF {"subfunction": 4, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 0, "target_tpp_offset_mW": 0, "max_output_offset_mW": 0, "min_output_offset_mW": 0}
+NVPCF {"subfunction": 3, "status": 0, "supported": 0, "tpp": 0, "rated_tgp": 0, "ctgp_offset_mW": 50000, "target_tpp_offset_mW": 145000, "max_output_offset_mW": 25000, "min_output_offset_mW": -15000}
+
+Thread 1 "nvidia-powerd" received signal SIGINT, Interrupt.
+0x00007629a871b75d in __GI___poll (fds=0x7fffc27a6d88, nfds=1, timeout=100) at ../sysdeps/unix/sysv/linux/poll.c:29
+29	in ../sysdeps/unix/sysv/linux/poll.c
+[Inferior 1 (process 86419) detached]
