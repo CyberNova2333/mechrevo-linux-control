@@ -37,7 +37,7 @@
 
 当前 6.8.0-149 内核日志报告 `Max logical packages: 24`。所有 CPU 的 physical_package_id=0，但 package_cpus_list/core_siblings 每个只包含自身，lscpu 因而显示 24 sockets、每 socket 一个 core。`/sys/devices/cpu_core/cpus` 与 cpu_atom/cpus 不存在。
 
-powerd 日志持续报告 `Failed to create AutoFL core: AutoFL: >1 CPU package`。限定文件访问的 strace 确认其子进程读取各 CPU 的 topology/core_siblings。**强关联推断**：异常拓扑阻止了 AutoFL 初始化，可能解释平台预算无法落实；仍需在修正拓扑后做同负载对照才能确认因果。此前“重复 RAPL 接口可能是原因”的猜测没有验证，不作为结论。
+powerd 日志持续报告 `Failed to create AutoFL core: AutoFL: >1 CPU package`。限定文件访问的 strace 确认其子进程读取各 CPU 的 topology/core_siblings。初始推断是拓扑异常可能同时解释预算未落实；下述追加对照已表明它不是充分解释。此前“重复 RAPL 接口可能是原因”的猜测没有验证，不作为结论。
 
 另有 `disable Dynamic Boost DC controller`，属于固件禁用电池控制器的日志；不能把已验证的交流供电 Dynamic Boost 一并判定为失败。停止 powerd 仍可能记录短时间上限错误，进程正常退出；未隐藏日志。
 
@@ -58,3 +58,16 @@ powerd 日志持续报告 `Failed to create AutoFL core: AutoFL: >1 CPU package`
 保持运行 Ubuntu 6.8.0-149.149-generic，APT 刷新后同系列最新候选仍为 6.8.0-149.149。已核对 /proc/version_signature、包完整性、Canonical CVE 状态及发行包 changelog。见 [内核安全核对](kernel-security.md)。不锁死 6.8 安全更新，不安装其他系列，也没有禁用 user namespaces、容器或 VPN 功能。
 
 后续先研究 6.8 拓扑异常的兼容修复，再验证 quiet/extreme 的实际功耗与撤销路径，通过后接入 GUI。水冷仍维持用户离线运行状态；蓝牙控制和真实休眠测试各自尚未完成。
+
+
+## 同日追加：保持6.8的进程内兼容对照
+
+在独立 powerd 进程内，仅将其 `lscpu -p` 输出中的 Socket 列替换为 sysfs 的真实 physical_package_id（24个CPU均为0），其余列保持原样。成功实验的调用标记确认适配实际被使用，AutoFL初始化错误消失。未修改系统/usr/bin/lscpu或全局sysfs拓扑，也没有改变内核。
+
+启用该临时适配后的高能→静音→高能 GPU 测试仍约140W；后段CPU连续达到92/94°C，触发预设停止条件，CPU/GPU负载及EC覆盖均已恢复。这一轮不能记为完整通过。另一次短测在每次切到静音/高能后重启powerd，每档6个样本，仍约140W（静音有一个enforced limit样本137.78W），CPU最高70°C、GPU最高58°C，恢复成功。
+
+由此确认：错误拓扑确实是AutoFL初始化失败的原因，但消除它及在静音档重读配置，仍不足以执行75W平台预算。不能把“错误日志消失”当成“静音GPU功耗生效”。同包 nv-acpi.c 有NPCF 0xC0处理器，不能仅凭PXSX 0xC5的unsupported日志断言整个NPCF通知链不存在。
+
+临时PATH适配、/run下service drop-in和研究模块均已删除/卸载，正式服务恢复原始二进制运行方式。适配未发布，GUI未新增子模式。后续需继续定位驱动对ATPP等预算字段的消费路径；没有证据要求用户为此切换内核大版本。
+
+实验过程中另有两次从/run执行诊断适配被noexec拒绝，空拓扑导致仅该临时powerd进程退出；未将它们当成有效对照。随后改为正常可执行目录验证并完整清理，未放宽/run挂载选项。没有留下coredump文件。
