@@ -1,0 +1,16 @@
+[Unit]
+Description=Unload MECHREVO turbo ACPI bridge before sleep and qualify fresh resume
+Before=sleep.target mechrevo-profile-sleep.service mechrevo-powerd-sleep.service
+StopWhenUnneeded=yes
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/libexec/mechrevo-turbo-lifecycle pre
+ExecStop=/usr/local/libexec/mechrevo-turbo-lifecycle post
+TimeoutStartSec=45
+TimeoutStopSec=20
+UMask=0077
+
+[Install]
+RequiredBy=sleep.target

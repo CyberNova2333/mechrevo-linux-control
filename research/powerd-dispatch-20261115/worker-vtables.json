@@ -1,0 +1,26 @@
+[
+  {
+    "class": "DLSteer",
+    "rtti": "0x64d438",
+    "vtable": "0x64d460",
+    "callback": "0x4b9d50"
+  },
+  {
+    "class": "QBoost",
+    "rtti": "0x64e928",
+    "vtable": "0x64ea50",
+    "callback": "0x4d46c0"
+  },
+  {
+    "class": "AutoFL",
+    "rtti": "0x64f3c0",
+    "vtable": "0x64f408",
+    "callback": "0x4c2bc0"
+  },
+  {
+    "class": "JPAC",
+    "rtti": "0x64fe60",
+    "vtable": "0x64fee0",
+    "callback": "0x512c90"
+  }
+]

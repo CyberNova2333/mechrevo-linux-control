@@ -1,0 +1,786 @@
+[
+  {
+    "command": [
+      "status"
+    ],
+    "result": {
+      "mode": "turbo",
+      "switchable": true,
+      "reason": "",
+      "ec_mode": "0x10",
+      "custom_supported": true,
+      "custom_tuning_supported": true,
+      "tuning_active": false,
+      "tuning_recovery_pending": false,
+      "tuning": null,
+      "cpu_limits_w": [
+        25,
+        75
+      ],
+      "turbo_variants_supported": true,
+      "turbo_variant": "extreme",
+      "turbo": {
+        "available": true,
+        "abi": 1,
+        "active": false,
+        "variant": "extreme",
+        "sequence": 98,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "released",
+        "lease_remaining_ms": 0,
+        "recovery_needed": false,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 1,
+        "recovery_pin": false,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 1,
+          "741": 128,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 0,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        },
+        "scheduler": {
+          "cpu_count": 0,
+          "combined_gpu_count": 0,
+          "game_gpu_count": 0,
+          "combined_reply": 0,
+          "single_gpu_reply": 0,
+          "combined_condition": false,
+          "game_on": false,
+          "game_launch_condition": -1
+        }
+      }
+    }
+  },
+  {
+    "command": [
+      "turbo",
+      "quiet"
+    ],
+    "result": {
+      "mode": "turbo",
+      "switchable": true,
+      "reason": "",
+      "ec_mode": "0x10",
+      "custom_supported": true,
+      "custom_tuning_supported": true,
+      "tuning_active": false,
+      "tuning_recovery_pending": false,
+      "tuning": null,
+      "cpu_limits_w": [
+        25,
+        75
+      ],
+      "turbo_variants_supported": true,
+      "turbo_variant": "quiet",
+      "turbo": {
+        "available": true,
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 100,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7969,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 1,
+          "741": 129,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 0,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        },
+        "scheduler": {
+          "cpu_count": 0,
+          "combined_gpu_count": 0,
+          "game_gpu_count": 0,
+          "combined_reply": 0,
+          "single_gpu_reply": 0,
+          "combined_condition": false,
+          "game_on": false,
+          "game_launch_condition": -1
+        }
+      }
+    }
+  },
+  {
+    "command": [
+      "set",
+      "balanced"
+    ],
+    "result": {
+      "mode": "balanced",
+      "switchable": true,
+      "reason": "",
+      "ec_mode": "0x20",
+      "custom_supported": true,
+      "custom_tuning_supported": true,
+      "tuning_active": false,
+      "tuning_recovery_pending": false,
+      "tuning": null,
+      "cpu_limits_w": [
+        25,
+        75
+      ],
+      "turbo_variants_supported": false,
+      "turbo_variant": "extreme"
+    }
+  },
+  {
+    "command": [
+      "turbo-status"
+    ],
+    "result": {
+      "available": true,
+      "abi": 1,
+      "active": false,
+      "variant": "quiet",
+      "sequence": 101,
+      "last_ack": null,
+      "return_present": false,
+      "return_type": 0,
+      "last_rc": 0,
+      "acpi_status": 0,
+      "stop_reason": "released",
+      "lease_remaining_ms": 0,
+      "recovery_needed": false,
+      "restore_rc": 0,
+      "restore_skipped": 0,
+      "read_rc": 0,
+      "recovery_attempts": 1,
+      "recovery_pin": false,
+      "combined_supported": true,
+      "game_supported": false,
+      "combined_support_ack": 85,
+      "game_support_ack": 170,
+      "policy_uncertain": false,
+      "cstm": 0,
+      "gatm": 0,
+      "standard_turbo": false,
+      "round_adapter": true,
+      "regs": {
+        "490": 7,
+        "706": 64,
+        "726": 0,
+        "727": 128,
+        "728": 0,
+        "72b": 1,
+        "741": 128,
+        "743": 0,
+        "751": 32,
+        "783": 0,
+        "784": 0,
+        "785": 0,
+        "786": 0,
+        "787": 0,
+        "7ab": 1,
+        "7c5": 0,
+        "7c6": 0,
+        "7c7": 12,
+        "7cc": 129,
+        "7e8": 8,
+        "7f7": 55
+      },
+      "calls": {
+        "ec_read": {
+          "acpi_status": 0,
+          "return_present": true,
+          "return_type": 1,
+          "return_value": 55
+        },
+        "ec_write": {
+          "acpi_status": 0,
+          "return_present": true,
+          "return_type": 1,
+          "return_value": 4294967294
+        },
+        "pmsf": {
+          "acpi_status": 0,
+          "return_present": true,
+          "return_type": 1,
+          "return_value": 0
+        },
+        "ctaf": {
+          "acpi_status": 0,
+          "return_present": true,
+          "return_type": 1,
+          "return_value": 170
+        },
+        "gamm": {
+          "acpi_status": 0,
+          "return_present": false,
+          "return_type": 0,
+          "return_value": 0
+        }
+      },
+      "scheduler": {
+        "cpu_count": 0,
+        "combined_gpu_count": 0,
+        "game_gpu_count": 0,
+        "combined_reply": 0,
+        "single_gpu_reply": 0,
+        "combined_condition": false,
+        "game_on": false,
+        "game_launch_condition": -1
+      }
+    }
+  },
+  {
+    "command": [
+      "set",
+      "turbo"
+    ],
+    "result": {
+      "mode": "turbo",
+      "switchable": true,
+      "reason": "",
+      "ec_mode": "0x30",
+      "custom_supported": true,
+      "custom_tuning_supported": true,
+      "tuning_active": false,
+      "tuning_recovery_pending": false,
+      "tuning": null,
+      "cpu_limits_w": [
+        25,
+        75
+      ],
+      "turbo_variants_supported": false,
+      "turbo_variant": "extreme"
+    }
+  },
+  {
+    "command": [
+      "turbo",
+      "quiet"
+    ],
+    "result": {
+      "mode": "turbo",
+      "switchable": true,
+      "reason": "",
+      "ec_mode": "0x30",
+      "custom_supported": true,
+      "custom_tuning_supported": true,
+      "tuning_active": false,
+      "tuning_recovery_pending": false,
+      "tuning": null,
+      "cpu_limits_w": [
+        25,
+        75
+      ],
+      "turbo_variants_supported": true,
+      "turbo_variant": "quiet",
+      "turbo": {
+        "available": true,
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 103,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7966,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 1,
+          "741": 129,
+          "743": 0,
+          "751": 48,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 0,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        },
+        "scheduler": {
+          "cpu_count": 0,
+          "combined_gpu_count": 0,
+          "game_gpu_count": 0,
+          "combined_reply": 0,
+          "single_gpu_reply": 0,
+          "combined_condition": false,
+          "game_on": false,
+          "game_launch_condition": -1
+        }
+      }
+    }
+  },
+  {
+    "command": [
+      "apply",
+      "{\"pl1\": 25, \"pl2\": 25, \"cpu_fan\": [40, 40, 40, 40, 50, 55, 60, 70, 80, 90, 100], \"gpu_fan\": [40, 40, 40, 40, 50, 55, 60, 70, 80, 90, 100]}"
+    ],
+    "result": {
+      "mode": "custom",
+      "switchable": true,
+      "reason": "",
+      "ec_mode": "0x0",
+      "custom_supported": true,
+      "custom_tuning_supported": true,
+      "tuning_active": true,
+      "tuning_recovery_pending": false,
+      "tuning": {
+        "pl1": 25,
+        "pl2": 25,
+        "cpu_fan": [
+          40,
+          40,
+          40,
+          40,
+          50,
+          55,
+          60,
+          70,
+          80,
+          90,
+          100
+        ],
+        "gpu_fan": [
+          40,
+          40,
+          40,
+          40,
+          50,
+          55,
+          60,
+          70,
+          80,
+          90,
+          100
+        ]
+      },
+      "cpu_limits_w": [
+        25,
+        75
+      ],
+      "turbo_variants_supported": false,
+      "turbo_variant": "extreme"
+    }
+  },
+  {
+    "command": [
+      "turbo-status"
+    ],
+    "result": {
+      "available": true,
+      "abi": 1,
+      "active": false,
+      "variant": "quiet",
+      "sequence": 104,
+      "last_ack": null,
+      "return_present": false,
+      "return_type": 0,
+      "last_rc": 0,
+      "acpi_status": 0,
+      "stop_reason": "released",
+      "lease_remaining_ms": 0,
+      "recovery_needed": false,
+      "restore_rc": 0,
+      "restore_skipped": 0,
+      "read_rc": 0,
+      "recovery_attempts": 1,
+      "recovery_pin": false,
+      "combined_supported": true,
+      "game_supported": false,
+      "combined_support_ack": 85,
+      "game_support_ack": 170,
+      "policy_uncertain": false,
+      "cstm": 0,
+      "gatm": 0,
+      "standard_turbo": false,
+      "round_adapter": true,
+      "regs": {
+        "490": 7,
+        "706": 64,
+        "726": 128,
+        "727": 192,
+        "728": 0,
+        "72b": 1,
+        "741": 129,
+        "743": 0,
+        "751": 0,
+        "783": 25,
+        "784": 25,
+        "785": 0,
+        "786": 0,
+        "787": 0,
+        "7ab": 1,
+        "7c5": 128,
+        "7c6": 4,
+        "7c7": 12,
+        "7cc": 129,
+        "7e8": 40,
+        "7f7": 0
+      },
+      "calls": {
+        "ec_read": {
+          "acpi_status": 0,
+          "return_present": true,
+          "return_type": 1,
+          "return_value": 0
+        },
+        "ec_write": {
+          "acpi_status": 0,
+          "return_present": true,
+          "return_type": 1,
+          "return_value": 4294967294
+        },
+        "pmsf": {
+          "acpi_status": 0,
+          "return_present": true,
+          "return_type": 1,
+          "return_value": 0
+        },
+        "ctaf": {
+          "acpi_status": 0,
+          "return_present": true,
+          "return_type": 1,
+          "return_value": 170
+        },
+        "gamm": {
+          "acpi_status": 0,
+          "return_present": false,
+          "return_type": 0,
+          "return_value": 0
+        }
+      },
+      "scheduler": {
+        "cpu_count": 0,
+        "combined_gpu_count": 0,
+        "game_gpu_count": 0,
+        "combined_reply": 0,
+        "single_gpu_reply": 0,
+        "combined_condition": false,
+        "game_on": false,
+        "game_launch_condition": -1
+      }
+    }
+  },
+  {
+    "command": [
+      "reset"
+    ],
+    "result": {
+      "mode": "turbo",
+      "switchable": true,
+      "reason": "",
+      "ec_mode": "0x30",
+      "custom_supported": true,
+      "custom_tuning_supported": true,
+      "tuning_active": false,
+      "tuning_recovery_pending": false,
+      "tuning": null,
+      "cpu_limits_w": [
+        25,
+        75
+      ],
+      "turbo_variants_supported": false,
+      "turbo_variant": "extreme"
+    }
+  },
+  {
+    "command": [
+      "status"
+    ],
+    "result": {
+      "mode": "turbo",
+      "switchable": true,
+      "reason": "",
+      "ec_mode": "0x30",
+      "custom_supported": true,
+      "custom_tuning_supported": true,
+      "tuning_active": false,
+      "tuning_recovery_pending": false,
+      "tuning": null,
+      "cpu_limits_w": [
+        25,
+        75
+      ],
+      "turbo_variants_supported": true,
+      "turbo_variant": "extreme",
+      "turbo": {
+        "available": true,
+        "abi": 1,
+        "active": false,
+        "variant": "quiet",
+        "sequence": 105,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "released",
+        "lease_remaining_ms": 0,
+        "recovery_needed": false,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": false,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 1,
+          "741": 128,
+          "743": 0,
+          "751": 48,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 0,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        },
+        "scheduler": {
+          "cpu_count": 0,
+          "combined_gpu_count": 0,
+          "game_gpu_count": 0,
+          "combined_reply": 0,
+          "single_gpu_reply": 0,
+          "combined_condition": false,
+          "game_on": false,
+          "game_launch_condition": -1
+        }
+      }
+    }
+  }
+]

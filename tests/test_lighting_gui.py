@@ -55,4 +55,19 @@ class LightingTest(unittest.TestCase):
             self.assertEqual(panel.effect_buttons['runner'].get_label(),'追光')
         finally:panel.close()
 
+class LogoGuiTest(unittest.TestCase):
+    @patch('iteglow.logo.Gio.Subprocess.new')
+    def test_construction_and_editing_never_write(self,process):
+        from iteglow.logo import LogoPanel
+        panel=LogoPanel()
+        try:
+            panel.mode.set_selected(1);panel.palette.set_selected(7)
+            self.assertEqual(panel.config()['color'],[255,255,255])
+            panel.mode.set_selected(0);panel.palette.set_selected(7)
+            for spin,value in zip(panel.rgb,[17,43,89]):spin.set_value(value)
+            panel.brightness.set_selected(3)
+            self.assertEqual(panel.config(),{'mode':'solid','brightness':75,'color':[17,43,89]})
+            process.assert_not_called()
+        finally:panel.close()
+
 if __name__=='__main__':unittest.main()

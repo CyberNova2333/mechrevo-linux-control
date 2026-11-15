@@ -1,0 +1,57 @@
+
+/home/cybernova/.cache/mechrevo-linux-research/vendor/extracted/app/AiStoneService/MyControlCenter/UEFI_Firmware.dll:     file format pei-x86-64
+
+
+Disassembly of section .text:
+
+0000000180002190 <.text+0x1190>:
+   180002190:	48 83 ec 28          	sub    rsp,0x28
+   180002194:	e8 77 0d 00 00       	call   0x180002f10
+   180002199:	85 c0                	test   eax,eax
+   18000219b:	0f 84 9d 00 00 00    	je     0x18000223e
+   1800021a1:	33 d2                	xor    edx,edx
+   1800021a3:	48 89 7c 24 20       	mov    QWORD PTR [rsp+0x20],rdi
+   1800021a8:	41 b8 00 02 00 00    	mov    r8d,0x200
+   1800021ae:	48 8d 0d bb 9c 02 00 	lea    rcx,[rip+0x29cbb]        # 0x18002be70
+   1800021b5:	e8 96 93 01 00       	call   0x18001b550
+   1800021ba:	41 b9 00 02 00 00    	mov    r9d,0x200
+   1800021c0:	4c 8d 05 a9 9c 02 00 	lea    r8,[rip+0x29ca9]        # 0x18002be70
+   1800021c7:	48 8d 15 32 3e 02 00 	lea    rdx,[rip+0x23e32]        # 0x180026000
+   1800021ce:	48 8d 0d 7b 3e 02 00 	lea    rcx,[rip+0x23e7b]        # 0x180026050
+   1800021d5:	ff 15 b5 ae 01 00    	call   QWORD PTR [rip+0x1aeb5]        # 0x18001d090
+   1800021db:	33 ff                	xor    edi,edi
+   1800021dd:	48 8d 0d 8c 9c 02 00 	lea    rcx,[rip+0x29c8c]        # 0x18002be70
+   1800021e4:	85 c0                	test   eax,eax
+   1800021e6:	48 0f 44 cf          	cmove  rcx,rdi
+   1800021ea:	48 85 c9             	test   rcx,rcx
+   1800021ed:	75 42                	jne    0x180002231
+   1800021ef:	33 d2                	xor    edx,edx
+   1800021f1:	48 8d 0d 78 9c 02 00 	lea    rcx,[rip+0x29c78]        # 0x18002be70
+   1800021f8:	41 b8 00 02 00 00    	mov    r8d,0x200
+   1800021fe:	e8 4d 93 01 00       	call   0x18001b550
+   180002203:	41 b9 00 02 00 00    	mov    r9d,0x200
+   180002209:	4c 8d 05 60 9c 02 00 	lea    r8,[rip+0x29c60]        # 0x18002be70
+   180002210:	48 8d 15 69 3e 02 00 	lea    rdx,[rip+0x23e69]        # 0x180026080
+   180002217:	48 8d 0d b2 3e 02 00 	lea    rcx,[rip+0x23eb2]        # 0x1800260d0
+   18000221e:	ff 15 6c ae 01 00    	call   QWORD PTR [rip+0x1ae6c]        # 0x18001d090
+   180002224:	85 c0                	test   eax,eax
+   180002226:	48 8d 0d 43 9c 02 00 	lea    rcx,[rip+0x29c43]        # 0x18002be70
+   18000222d:	48 0f 44 cf          	cmove  rcx,rdi
+   180002231:	48 8b 7c 24 20       	mov    rdi,QWORD PTR [rsp+0x20]
+   180002236:	48 8b c1             	mov    rax,rcx
+   180002239:	48 83 c4 28          	add    rsp,0x28
+   18000223d:	c3                   	ret
+   18000223e:	33 c0                	xor    eax,eax
+   180002240:	48 83 c4 28          	add    rsp,0x28
+   180002244:	c3                   	ret
+   180002245:	cc                   	int3
+   180002246:	cc                   	int3
+   180002247:	cc                   	int3
+   180002248:	cc                   	int3
+   180002249:	cc                   	int3
+   18000224a:	cc                   	int3
+   18000224b:	cc                   	int3
+   18000224c:	cc                   	int3
+   18000224d:	cc                   	int3
+   18000224e:	cc                   	int3
+   18000224f:	cc                   	int3

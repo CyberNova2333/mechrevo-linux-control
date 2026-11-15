@@ -1,0 +1,11 @@
+{
+  "samples": 12,
+  "cpu_w": 34.981,
+  "gpu_w": 115.026,
+  "max_cpu_c": 51.0,
+  "max_gpu_c": 51.0,
+  "restored": true,
+  "legacy_gpu_owned": [],
+  "final_journal": null,
+  "legacy_all_owned_restored": true
+}

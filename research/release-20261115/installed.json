@@ -1,0 +1,33 @@
+{
+  "date": "2026-11-15",
+  "kernel": "6.8.0-149-generic",
+  "helper_sha256": "c241582401674b3c03469504f6b73c7d467651b89be0f2e8b4b656f16b788177",
+  "driver_sha256": "803853479e5f28ce8cf2420f2dc05f7b07483c15809e3664bc961d1b4fa250d0",
+  "gui_source_installed": true,
+  "logo_visual_confirmations": [
+    "white/red/blue/off",
+    "breathing/rainbow"
+  ],
+  "turbo_scheduler": "installed, enabled service, no startup policy selection",
+  "custom_gpu_range": [
+    65,
+    115
+  ],
+  "dynamic_boost_range": [
+    5,
+    25
+  ],
+  "lighting_policy": "installed, disabled by default",
+  "offline_suite": {
+    "tests": 316,
+    "result": "passed"
+  },
+  "foreground_lock_followup": {
+    "tests": 19,
+    "result": "passed"
+  },
+  "patch_clean_reconstruction": true,
+  "actual_sleep_tested": false,
+  "physical_ac_unplug_tested": false,
+  "watercooler_bluetooth_control": false
+}

@@ -14,6 +14,7 @@ from typing import Iterable, List, Optional, Tuple
 
 from . import protocol
 from .protocol import Report
+from .zone_lock import ZoneTransaction
 
 # (led node, USB vendor:product, friendly label)
 KEYBOARD = ("rgb:kbd_backlight", "048d:600b", "keyboard")
@@ -76,6 +77,14 @@ class HidLed:
         self.fd = os.open(path, os.O_RDWR)
 
     def send(self, reports: Iterable[Report]) -> None:
+        with self.transaction():
+            self._send(reports)
+
+    def transaction(self):
+        label = next(label for led, _, label in KNOWN if led == self.led_name)
+        return ZoneTransaction(label)
+
+    def _send(self, reports: Iterable[Report]) -> None:
         for kind, data in reports:
             if kind == "feature":
                 fcntl.ioctl(self.fd, _HIDIOCSFEATURE(len(data)), data)
@@ -89,10 +98,11 @@ class HidLed:
     def query(self, command: int) -> bytes:
         """Send a query command (``protocol.QUERY_*``) and return the 8-byte
         reply, starting with an echo of the command byte."""
-        self.send(protocol.query_report(command))
-        buf = bytearray(_REPLY_LEN)     # buf[0] = report number 0 (unnumbered)
-        fcntl.ioctl(self.fd, _HIDIOCGFEATURE(_REPLY_LEN), buf)
-        return bytes(buf[1:])
+        with self.transaction():
+            self._send(protocol.query_report(command))
+            buf = bytearray(_REPLY_LEN)     # buf[0] = report number 0 (unnumbered)
+            fcntl.ioctl(self.fd, _HIDIOCGFEATURE(_REPLY_LEN), buf)
+            return bytes(buf[1:])
 
     def close(self) -> None:
         try:

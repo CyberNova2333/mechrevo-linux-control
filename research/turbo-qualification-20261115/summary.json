@@ -1,0 +1,79 @@
+{
+  "driver_sha256": "803853479e5f28ce8cf2420f2dc05f7b07483c15809e3664bc961d1b4fa250d0",
+  "kernel": "6.8.0-149-generic",
+  "oem_support": {
+    "combined_ack": 85,
+    "game_ack": 170
+  },
+  "lease_rows": 15,
+  "restoration_checks": [
+    {
+      "phase": "release",
+      "active": false,
+      "recovery_needed": false,
+      "reason": "released",
+      "owned_bits_equal_baseline": true,
+      "workload_equal_baseline": true,
+      "observed_logo_shared_bits_equal": true
+    },
+    {
+      "phase": "fd-close",
+      "active": false,
+      "recovery_needed": false,
+      "reason": "owner_closed",
+      "owned_bits_equal_baseline": true,
+      "workload_equal_baseline": true,
+      "observed_logo_shared_bits_equal": true
+    },
+    {
+      "phase": "expired",
+      "active": false,
+      "recovery_needed": false,
+      "reason": "lease_expired",
+      "owned_bits_equal_baseline": true,
+      "workload_equal_baseline": true,
+      "observed_logo_shared_bits_equal": true
+    },
+    {
+      "phase": "release",
+      "active": false,
+      "recovery_needed": false,
+      "reason": "released",
+      "owned_bits_equal_baseline": true,
+      "workload_equal_baseline": true,
+      "observed_logo_shared_bits_equal": true
+    }
+  ],
+  "auto_samples": 26,
+  "auto_first_combined_on_sample": 2,
+  "auto_combined_off_after_cpu_load": true,
+  "auto_game_never_enabled": true,
+  "auto_restored": true,
+  "kill_samples": 12,
+  "kill_all_released": true,
+  "profile_commands": [
+    "status",
+    "turbo",
+    "set",
+    "turbo-status",
+    "set",
+    "turbo",
+    "apply",
+    "turbo-status",
+    "reset",
+    "status"
+  ],
+  "lifecycle_rehearsal_passed": true,
+  "physical_sleep_tested": false,
+  "physical_ac_unplug_tested": false,
+  "new_bridge_physical_mode_key_test_in_this_bundle": false,
+  "runtime_powerd_stop_live_test_in_this_bundle": true,
+  "auto_temperature_max_c": {
+    "cpu": 86.0,
+    "gpu": 60.0
+  },
+  "powerd_loss_sample_count": 2,
+  "powerd_loss_last_sample_released": true,
+  "powerd_loss_after_restart_inactive": true,
+  "powerd_loss_owned_and_logo_fields_equal": true
+}

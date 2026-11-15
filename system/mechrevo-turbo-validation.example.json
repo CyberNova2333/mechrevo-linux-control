@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "identity": {
+    "kernel_release": "6.8.0-149-generic",
+    "dmi": {
+      "sys_vendor": "MECHREVO",
+      "board_name": "YAOSHI Series-XxAF55xx",
+      "bios_version": "N.1.33MRO91"
+    }
+  },
+  "driver_sha256": "REPLACE_ONLY_AFTER_BUILD_AND_VALIDATION",
+  "combined_budget_verified": false,
+  "lease_recovery_verified": false,
+  "oem_ack_verified": false
+}

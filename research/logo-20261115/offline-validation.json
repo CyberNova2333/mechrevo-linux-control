@@ -1,0 +1,10 @@
+{
+  "checked_at": "2026-11-15T07:59:11.610880+00:00",
+  "method": "offline unit tests only; fake EC and mocked pwrite; no hardware access",
+  "command": "python3 -m unittest discover -s tests -p test_logo.py -v",
+  "result": "14 tests passed",
+  "files": {
+    "tests/test_logo.py": "af996652330b7dd9b59f49fe248b62919016c11c6d435d5be568d42ab9ece47b",
+    "system/mechrevo-profile-helper": "d3258f973dac2519f9d219276730bfa07b8061394629890d51379e0b5a1f7257"
+  }
+}

@@ -1,0 +1,61 @@
+
+/home/cybernova/.cache/mechrevo-linux-research/vendor/extracted/app/AiStoneService/MyControlCenter/GPUInfoDLL.dll:     file format pei-x86-64
+
+
+Disassembly of section .text:
+
+00000001800021c0 <.text+0x11c0>:
+   1800021c0:	48 89 74 24 10       	mov    QWORD PTR [rsp+0x10],rsi
+   1800021c5:	57                   	push   rdi
+   1800021c6:	48 83 ec 20          	sub    rsp,0x20
+   1800021ca:	48 8b fa             	mov    rdi,rdx
+   1800021cd:	48 8b f1             	mov    rsi,rcx
+   1800021d0:	f0 83 05 dc b2 24 00 	lock add DWORD PTR [rip+0x24b2dc],0x1        # 0x18024d4b4
+   1800021d7:	01 
+   1800021d8:	33 d2                	xor    edx,edx
+   1800021da:	33 c9                	xor    ecx,ecx
+   1800021dc:	e8 9f f0 ff ff       	call   0x180001280
+   1800021e1:	85 c0                	test   eax,eax
+   1800021e3:	0f 85 87 00 00 00    	jne    0x180002270
+   1800021e9:	48 89 5c 24 30       	mov    QWORD PTR [rsp+0x30],rbx
+   1800021ee:	48 8b 1d 8b b8 24 00 	mov    rbx,QWORD PTR [rip+0x24b88b]        # 0x18024da80
+   1800021f5:	48 85 db             	test   rbx,rbx
+   1800021f8:	75 29                	jne    0x180002223
+   1800021fa:	48 8b 05 d7 b2 24 00 	mov    rax,QWORD PTR [rip+0x24b2d7]        # 0x18024d4d8
+   180002201:	48 85 c0             	test   rax,rax
+   180002204:	74 16                	je     0x18000221c
+   180002206:	b9 ed d2 de 60       	mov    ecx,0x60ded2ed
+   18000220b:	ff d0                	call   rax
+   18000220d:	48 8b d8             	mov    rbx,rax
+   180002210:	48 89 05 69 b8 24 00 	mov    QWORD PTR [rip+0x24b869],rax        # 0x18024da80
+   180002217:	48 85 c0             	test   rax,rax
+   18000221a:	75 07                	jne    0x180002223
+   18000221c:	b8 fd ff ff ff       	mov    eax,0xfffffffd
+   180002221:	eb 48                	jmp    0x18000226b
+   180002223:	48 8b 05 be b2 24 00 	mov    rax,QWORD PTR [rip+0x24b2be]        # 0x18024d4e8
+   18000222a:	48 c7 44 24 40 00 00 	mov    QWORD PTR [rsp+0x40],0x0
+   180002231:	00 00 
+   180002233:	48 85 c0             	test   rax,rax
+   180002236:	74 0c                	je     0x180002244
+   180002238:	48 8d 54 24 40       	lea    rdx,[rsp+0x40]
+   18000223d:	b9 ed d2 de 60       	mov    ecx,0x60ded2ed
+   180002242:	ff d0                	call   rax
+   180002244:	48 8b d7             	mov    rdx,rdi
+   180002247:	48 8b ce             	mov    rcx,rsi
+   18000224a:	ff d3                	call   rbx
+   18000224c:	8b d8                	mov    ebx,eax
+   18000224e:	48 8b 05 9b b2 24 00 	mov    rax,QWORD PTR [rip+0x24b29b]        # 0x18024d4f0
+   180002255:	48 85 c0             	test   rax,rax
+   180002258:	74 0f                	je     0x180002269
+   18000225a:	48 8b 54 24 40       	mov    rdx,QWORD PTR [rsp+0x40]
+   18000225f:	44 8b c3             	mov    r8d,ebx
+   180002262:	b9 ed d2 de 60       	mov    ecx,0x60ded2ed
+   180002267:	ff d0                	call   rax
+   180002269:	8b c3                	mov    eax,ebx
+   18000226b:	48 8b 5c 24 30       	mov    rbx,QWORD PTR [rsp+0x30]
+   180002270:	f0 83 05 3c b2 24 00 	lock add DWORD PTR [rip+0x24b23c],0xffffffff        # 0x18024d4b4
+   180002277:	ff 
+   180002278:	48 8b 74 24 38       	mov    rsi,QWORD PTR [rsp+0x38]
+   18000227d:	48 83 c4 20          	add    rsp,0x20
+   180002281:	5f                   	pop    rdi
+   180002282:	c3                   	ret

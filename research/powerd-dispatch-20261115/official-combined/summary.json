@@ -1,0 +1,191 @@
+{
+  "version": 1,
+  "source_directory": "/home/cybernova/.cache/mechrevo-linux-research/control-replica-20261115",
+  "powerd_sha256": "db2643c4c37360e183230ea7f9c5da3e28c39ff79d08eba6ddb0f4f057d7bc74",
+  "kernel_release": "6.8.0-149-generic",
+  "sources": {
+    "qboost-official-combined-samples.json": {
+      "sha256": "c028f6e53e4cd6918583aa8e0e3e09e98acc5244e12895f9efdbf6879477fc27",
+      "bytes": 9383
+    },
+    "qboost-official-combined.txt": {
+      "sha256": "67684b9d147c31099c42058fdd5365078246d49d0fcca5374a9d6963d78bb737",
+      "bytes": 6351
+    },
+    "official-cpu-util.json": {
+      "sha256": "6886bcf0f4bf699e2dfa18eca3deefd0c9d74185a2ecdedcca702cbe631ab373",
+      "bytes": 332
+    },
+    "official-combined-load.py": {
+      "sha256": "86538e1fcfd3122faef1403fb4069fa3bb09a8f0dc6aab5cc9706e09d3d8b1d6",
+      "bytes": 4847
+    },
+    "cpu-load-full.py": {
+      "sha256": "2045538c36998a0ca5b11bd7cf415c349918f3c5c2f489f7d5bd8188ba70af81",
+      "bytes": 319
+    }
+  },
+  "steady_selection": "sample >= 2 within each 10-sample phase; no other points excluded",
+  "phases": {
+    "quiet": {
+      "all_sample_count": 20,
+      "steady_sample_count": 16,
+      "steady": {
+        "cpu_W": {
+          "min": 44.84074374340815,
+          "mean": 44.99118491438577,
+          "max": 45.07927749473108
+        },
+        "gpu_W": {
+          "min": 139.74,
+          "mean": 139.943125,
+          "max": 140.47
+        },
+        "cpu_plus_gpu_W": {
+          "min": 184.69074374340815,
+          "mean": 184.93430991438578,
+          "max": 185.5492774947311
+        }
+      }
+    },
+    "extreme": {
+      "all_sample_count": 20,
+      "steady_sample_count": 16,
+      "steady": {
+        "cpu_W": {
+          "min": 74.8905761127114,
+          "mean": 74.99943601103836,
+          "max": 75.118304199302
+        },
+        "gpu_W": {
+          "min": 139.72,
+          "mean": 139.891875,
+          "max": 139.99
+        },
+        "cpu_plus_gpu_W": {
+          "min": 214.6545760745244,
+          "mean": 214.89131101103837,
+          "max": 215.018304199302
+        }
+      }
+    }
+  },
+  "rounds": {
+    "0": {
+      "phase": "quiet",
+      "steady_sample_count": 8,
+      "cpu_W": {
+        "min": 44.949626702402234,
+        "mean": 44.99886055553429,
+        "max": 45.07927749473108
+      },
+      "gpu_W": {
+        "min": 139.82,
+        "mean": 139.99,
+        "max": 140.47
+      },
+      "cpu_plus_gpu_W": {
+        "min": 184.785636869217,
+        "mean": 184.9888605555343,
+        "max": 185.5492774947311
+      }
+    },
+    "1": {
+      "phase": "extreme",
+      "steady_sample_count": 8,
+      "cpu_W": {
+        "min": 74.8905761127114,
+        "mean": 74.9936555426577,
+        "max": 75.118304199302
+      },
+      "gpu_W": {
+        "min": 139.85,
+        "mean": 139.90125,
+        "max": 139.96
+      },
+      "cpu_plus_gpu_W": {
+        "min": 214.81147554279772,
+        "mean": 214.8949055426577,
+        "max": 215.018304199302
+      }
+    },
+    "2": {
+      "phase": "quiet",
+      "steady_sample_count": 8,
+      "cpu_W": {
+        "min": 44.84074374340815,
+        "mean": 44.983509273237246,
+        "max": 45.07144152025593
+      },
+      "gpu_W": {
+        "min": 139.74,
+        "mean": 139.89625,
+        "max": 140.02
+      },
+      "cpu_plus_gpu_W": {
+        "min": 184.69074374340815,
+        "mean": 184.87975927323726,
+        "max": 185.09144152025596
+      }
+    },
+    "3": {
+      "phase": "extreme",
+      "steady_sample_count": 8,
+      "cpu_W": {
+        "min": 74.93457607452441,
+        "mean": 75.005216479419,
+        "max": 75.07971207145515
+      },
+      "gpu_W": {
+        "min": 139.72,
+        "mean": 139.8825,
+        "max": 139.99
+      },
+      "cpu_plus_gpu_W": {
+        "min": 214.6545760745244,
+        "mean": 214.887716479419,
+        "max": 214.98614489389
+      }
+    }
+  },
+  "sample_count": 40,
+  "firmware_snapshot_count": 6,
+  "firmware_restored_exactly": true,
+  "firmware_checked_field_count": 29,
+  "gdb_detached": true,
+  "event_counts": {
+    "dispatch": 12,
+    "worker": 4,
+    "policy": 4,
+    "gpu_set": 7
+  },
+  "cpu_utilization_window": {
+    "count": 5,
+    "start_time": 1794730499.0852587,
+    "end_time": 1794730503.0872855,
+    "percent": {
+      "min": 98.33,
+      "mean": 99.092,
+      "max": 99.58
+    },
+    "coverage": "independent 5-sample window during first extreme phase, not every phase"
+  },
+  "max_temperatures_C": {
+    "cpu": 68.0,
+    "gpu": 61.0
+  },
+  "gpu_utilization_percent": {
+    "min": 97.0,
+    "mean": 99.325,
+    "max": 100.0
+  },
+  "steady_tpp_budget_mW": {
+    "quiet": 190000,
+    "extreme": 260000
+  },
+  "steady_gpu_maxOutput_mW": 140000,
+  "constant_firmware_workload": {
+    "CSTM": "1",
+    "GATM": "0"
+  }
+}

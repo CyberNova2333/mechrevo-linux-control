@@ -1,0 +1,1311 @@
+{
+  "driver_sha256": "803853479e5f28ce8cf2420f2dc05f7b07483c15809e3664bc961d1b4fa250d0",
+  "rows": [
+    {
+      "phase": "before",
+      "time": 1794730758.579825,
+      "state": {
+        "abi": 1,
+        "active": false,
+        "variant": "extreme",
+        "sequence": 0,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "idle",
+        "lease_remaining_ms": 0,
+        "recovery_needed": false,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": false,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 1,
+          "741": 132,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 0,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      }
+    },
+    {
+      "phase": "acquire quiet",
+      "time": 1794730758.5839982,
+      "state": {
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 1,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 8000,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 1,
+          "741": 133,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 0,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      }
+    },
+    {
+      "phase": "combined 1",
+      "time": 1794730758.589142,
+      "state": {
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 2,
+        "last_ack": 187,
+        "return_present": true,
+        "return_type": 1,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7995,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 3,
+          "741": 133,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 143,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      }
+    },
+    {
+      "phase": "heartbeat",
+      "time": 1794730758.5905874,
+      "state": {
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 3,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 8000,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 3,
+          "741": 133,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 143,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      }
+    },
+    {
+      "phase": "variant extreme",
+      "time": 1794730758.5940835,
+      "state": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 4,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7996,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 3,
+          "741": 133,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 138,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      }
+    },
+    {
+      "phase": "combined 0",
+      "time": 1794730758.5987024,
+      "state": {
+        "abi": 1,
+        "active": true,
+        "variant": "extreme",
+        "sequence": 5,
+        "last_ack": 170,
+        "return_present": true,
+        "return_type": 1,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7992,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 1,
+          "741": 133,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 10,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      }
+    },
+    {
+      "phase": "release",
+      "time": 1794730758.605345,
+      "state": {
+        "abi": 1,
+        "active": false,
+        "variant": "extreme",
+        "sequence": 6,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "released",
+        "lease_remaining_ms": 0,
+        "recovery_needed": false,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 1,
+        "recovery_pin": false,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 1,
+          "741": 132,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 0,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      }
+    },
+    {
+      "phase": "acquire quiet",
+      "time": 1794730758.6093123,
+      "state": {
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 7,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 8000,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 1,
+          "741": 133,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 0,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      }
+    },
+    {
+      "phase": "combined 1",
+      "time": 1794730758.613094,
+      "state": {
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 8,
+        "last_ack": 187,
+        "return_present": true,
+        "return_type": 1,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7996,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 3,
+          "741": 133,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 143,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      }
+    },
+    {
+      "phase": "fd-close",
+      "time": 1794730758.6209404,
+      "state": {
+        "abi": 1,
+        "active": false,
+        "variant": "quiet",
+        "sequence": 8,
+        "last_ack": 187,
+        "return_present": true,
+        "return_type": 1,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "owner_closed",
+        "lease_remaining_ms": 0,
+        "recovery_needed": false,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 1,
+        "recovery_pin": false,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 1,
+          "741": 132,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 0,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      }
+    },
+    {
+      "phase": "acquire quiet",
+      "time": 1794730758.6248,
+      "state": {
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 9,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 8000,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 1,
+          "741": 133,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 0,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      }
+    },
+    {
+      "phase": "combined 1",
+      "time": 1794730758.628525,
+      "state": {
+        "abi": 1,
+        "active": true,
+        "variant": "quiet",
+        "sequence": 10,
+        "last_ack": 187,
+        "return_present": true,
+        "return_type": 1,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "none",
+        "lease_remaining_ms": 7996,
+        "recovery_needed": true,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": true,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 1,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 1,
+          "72b": 3,
+          "741": 133,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 143,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 75
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 75
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 187
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      }
+    },
+    {
+      "phase": "expired",
+      "time": 1794730767.629335,
+      "state": {
+        "abi": 1,
+        "active": false,
+        "variant": "quiet",
+        "sequence": 11,
+        "last_ack": 187,
+        "return_present": true,
+        "return_type": 1,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "lease_expired",
+        "lease_remaining_ms": 0,
+        "recovery_needed": false,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 1,
+        "recovery_pin": false,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 1,
+          "741": 128,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 0,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      }
+    },
+    {
+      "phase": "release",
+      "time": 1794730767.630147,
+      "state": {
+        "abi": 1,
+        "active": false,
+        "variant": "quiet",
+        "sequence": 12,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "released",
+        "lease_remaining_ms": 0,
+        "recovery_needed": false,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": false,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 1,
+          "741": 128,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 0,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      }
+    },
+    {
+      "phase": "final",
+      "state": {
+        "abi": 1,
+        "active": false,
+        "variant": "quiet",
+        "sequence": 12,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "released",
+        "lease_remaining_ms": 0,
+        "recovery_needed": false,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": false,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 1,
+          "741": 128,
+          "743": 0,
+          "751": 16,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 0,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 4294967294
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 170
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      }
+    }
+  ],
+  "physical_sleep_tested": false,
+  "physical_ac_unplug_tested": false
+}

@@ -8,4 +8,4 @@ ExecStart=/usr/local/libexec/mechrevo-profile-helper reset
 TimeoutStartSec=10
 
 [Install]
-WantedBy=sleep.target
+RequiredBy=sleep.target

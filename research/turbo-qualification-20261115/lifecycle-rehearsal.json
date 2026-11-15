@@ -1,0 +1,136 @@
+{
+  "actual_sleep": false,
+  "steps": [
+    {
+      "args": [
+        "/usr/local/libexec/mechrevo-turbo-helper",
+        "select",
+        "quiet"
+      ],
+      "rc": 0,
+      "stdout": "{\"ok\": true, \"result\": {\"abi\": 1, \"active\": true, \"variant\": \"quiet\", \"sequence\": 1, \"last_ack\": null, \"return_present\": false, \"return_type\": 0, \"last_rc\": 0, \"acpi_status\": 0, \"stop_reason\": \"none\", \"lease_remaining_ms\": 8000, \"recovery_needed\": true, \"restore_rc\": 0, \"restore_skipped\": 0, \"read_rc\": 0, \"recovery_attempts\": 0, \"recovery_pin\": true, \"combined_supported\": true, \"game_supported\": false, \"combined_support_ack\": 85, \"game_support_ack\": 170, \"policy_uncertain\": false, \"cstm\": 0, \"gatm\": 0, \"standard_turbo\": true, \"round_adapter\": true, \"regs\": {\"490\": 7, \"706\": 64, \"726\": 0, \"727\": 128, \"728\": 1, \"72b\": 1, \"741\": 129, \"743\": 0, \"751\": 48, \"783\": 0, \"784\": 0, \"785\": 0, \"786\": 0, \"787\": 0, \"7ab\": 1, \"7c5\": 0, \"7c6\": 0, \"7c7\": 12, \"7cc\": 129, \"7e8\": 24, \"7f7\": 145}, \"calls\": {\"ec_read\": {\"acpi_status\": 0, \"return_present\": true, \"return_type\": 1, \"return_value\": 145}, \"ec_write\": {\"acpi_status\": 0, \"return_present\": true, \"return_type\": 1, \"return_value\": 4294967294}, \"pmsf\": {\"acpi_status\": 0, \"return_present\": true, \"return_type\": 1, \"return_value\": 0}, \"ctaf\": {\"acpi_status\": 0, \"return_present\": false, \"return_type\": 0, \"return_value\": 0}, \"gamm\": {\"acpi_status\": 0, \"return_present\": false, \"return_type\": 0, \"return_value\": 0}}}}",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "/usr/local/libexec/mechrevo-turbo-lifecycle",
+        "pre"
+      ],
+      "rc": 0,
+      "stdout": "{\"ok\": true, \"result\": {\"quiesced\": true, \"was_active\": true, \"warnings\": []}}",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "/usr/local/libexec/mechrevo-turbo-lifecycle",
+        "post"
+      ],
+      "rc": 0,
+      "stdout": "{\"ok\": true, \"result\": {\"resumed\": \"queued\", \"policy_selected\": false}}",
+      "stderr": ""
+    }
+  ],
+  "pre_module_absent": true,
+  "pre_socket_absent": true,
+  "post_status": {
+    "ok": true,
+    "result": {
+      "bridge": {
+        "abi": 1,
+        "active": false,
+        "variant": "extreme",
+        "sequence": 0,
+        "last_ack": null,
+        "return_present": false,
+        "return_type": 0,
+        "last_rc": 0,
+        "acpi_status": 0,
+        "stop_reason": "idle",
+        "lease_remaining_ms": 0,
+        "recovery_needed": false,
+        "restore_rc": 0,
+        "restore_skipped": 0,
+        "read_rc": 0,
+        "recovery_attempts": 0,
+        "recovery_pin": false,
+        "combined_supported": true,
+        "game_supported": false,
+        "combined_support_ack": 85,
+        "game_support_ack": 170,
+        "policy_uncertain": false,
+        "cstm": 0,
+        "gatm": 0,
+        "standard_turbo": true,
+        "round_adapter": true,
+        "regs": {
+          "490": 7,
+          "706": 64,
+          "726": 0,
+          "727": 128,
+          "728": 0,
+          "72b": 1,
+          "741": 128,
+          "743": 0,
+          "751": 48,
+          "783": 0,
+          "784": 0,
+          "785": 0,
+          "786": 0,
+          "787": 0,
+          "7ab": 1,
+          "7c5": 0,
+          "7c6": 0,
+          "7c7": 12,
+          "7cc": 129,
+          "7e8": 24,
+          "7f7": 145
+        },
+        "calls": {
+          "ec_read": {
+            "acpi_status": 0,
+            "return_present": true,
+            "return_type": 1,
+            "return_value": 145
+          },
+          "ec_write": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          },
+          "pmsf": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          },
+          "ctaf": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          },
+          "gamm": {
+            "acpi_status": 0,
+            "return_present": false,
+            "return_type": 0,
+            "return_value": 0
+          }
+        }
+      },
+      "scheduler": {
+        "cpu_count": 0,
+        "combined_gpu_count": 0,
+        "game_gpu_count": 0,
+        "combined_reply": 0,
+        "single_gpu_reply": 0,
+        "combined_condition": false,
+        "game_on": false,
+        "game_launch_condition": -1
+      },
+      "suspended": false,
+      "managed": false
+    }
+  },
+  "passed": true
+}

@@ -1,0 +1,257 @@
+{
+  "performance-top": {
+    "window": [
+      1040,
+      760
+    ],
+    "scroll": {
+      "position": 0.0,
+      "upper": 1221.0,
+      "page": 693.0
+    },
+    "gpu_checked": false,
+    "db_checked": false,
+    "gpu_spin_sensitive": false,
+    "db_spin_sensitive": false,
+    "policy_checked": false,
+    "turbo_caption": "当前：由固件控制，尚未启用子模式调度"
+  },
+  "gpu-default": {
+    "window": [
+      1040,
+      760
+    ],
+    "scroll": {
+      "position": 528.0,
+      "upper": 1221.0,
+      "page": 693.0
+    },
+    "gpu_checked": false,
+    "db_checked": false,
+    "gpu_spin_sensitive": false,
+    "db_spin_sensitive": false,
+    "policy_checked": false,
+    "turbo_caption": "当前：由固件控制，尚未启用子模式调度"
+  },
+  "gpu-db-edit": {
+    "window": [
+      1040,
+      760
+    ],
+    "scroll": {
+      "position": 528.0,
+      "upper": 1221.0,
+      "page": 693.0
+    },
+    "gpu_checked": true,
+    "db_checked": true,
+    "gpu_spin_sensitive": true,
+    "db_spin_sensitive": true,
+    "policy_checked": false,
+    "turbo_caption": "当前：由固件控制，尚未启用子模式调度"
+  },
+  "fan-expanded": {
+    "window": [
+      1040,
+      760
+    ],
+    "scroll": {
+      "position": 528.0,
+      "upper": 1658.0,
+      "page": 693.0
+    },
+    "gpu_checked": true,
+    "db_checked": true,
+    "gpu_spin_sensitive": true,
+    "db_spin_sensitive": true,
+    "policy_checked": false,
+    "turbo_caption": "当前：由固件控制，尚未启用子模式调度"
+  },
+  "fan-bottom": {
+    "window": [
+      1040,
+      760
+    ],
+    "scroll": {
+      "position": 965.0,
+      "upper": 1658.0,
+      "page": 693.0
+    },
+    "gpu_checked": true,
+    "db_checked": true,
+    "gpu_spin_sensitive": true,
+    "db_spin_sensitive": true,
+    "policy_checked": false,
+    "turbo_caption": "当前：由固件控制，尚未启用子模式调度"
+  },
+  "turbo-quiet": {
+    "window": [
+      1040,
+      760
+    ],
+    "scroll": {
+      "position": 528.0,
+      "upper": 1221.0,
+      "page": 693.0
+    },
+    "gpu_checked": true,
+    "db_checked": true,
+    "gpu_spin_sensitive": true,
+    "db_spin_sensitive": true,
+    "policy_checked": false,
+    "turbo_caption": "当前：静音狂暴 · 自动分配 CPU / GPU 功耗"
+  },
+  "turbo-extreme": {
+    "window": [
+      1040,
+      760
+    ],
+    "scroll": {
+      "position": 528.0,
+      "upper": 1221.0,
+      "page": 693.0
+    },
+    "gpu_checked": true,
+    "db_checked": true,
+    "gpu_spin_sensitive": true,
+    "db_spin_sensitive": true,
+    "policy_checked": false,
+    "turbo_caption": "当前：高能狂暴 · 自动分配 CPU / GPU 功耗"
+  },
+  "turbo-recovery": {
+    "window": [
+      1040,
+      760
+    ],
+    "scroll": {
+      "position": 528.0,
+      "upper": 1221.0,
+      "page": 693.0
+    },
+    "gpu_checked": true,
+    "db_checked": true,
+    "gpu_spin_sensitive": true,
+    "db_spin_sensitive": true,
+    "policy_checked": false,
+    "turbo_caption": "恢复尚未完成，请点击“交还固件控制”重试"
+  },
+  "turbo-offline": {
+    "window": [
+      1040,
+      760
+    ],
+    "scroll": {
+      "position": 528.0,
+      "upper": 1221.0,
+      "page": 693.0
+    },
+    "gpu_checked": true,
+    "db_checked": true,
+    "gpu_spin_sensitive": true,
+    "db_spin_sensitive": true,
+    "policy_checked": false,
+    "turbo_caption": "调度服务未就绪，当前保持固件控制"
+  },
+  "policy-default": {
+    "window": [
+      1040,
+      760
+    ],
+    "scroll": {
+      "position": 0.0,
+      "upper": 693.0,
+      "page": 693.0
+    },
+    "gpu_checked": true,
+    "db_checked": true,
+    "gpu_spin_sensitive": true,
+    "db_spin_sensitive": true,
+    "policy_checked": false,
+    "turbo_caption": "调度服务未就绪，当前保持固件控制"
+  },
+  "policy-edit-unsaved": {
+    "window": [
+      1040,
+      760
+    ],
+    "scroll": {
+      "position": 0.0,
+      "upper": 693.0,
+      "page": 693.0
+    },
+    "gpu_checked": true,
+    "db_checked": true,
+    "gpu_spin_sensitive": true,
+    "db_spin_sensitive": true,
+    "policy_checked": true,
+    "turbo_caption": "调度服务未就绪，当前保持固件控制"
+  },
+  "compact-gpu": {
+    "window": [
+      900,
+      640
+    ],
+    "scroll": {
+      "position": 528.0,
+      "upper": 1221.0,
+      "page": 573.0
+    },
+    "gpu_checked": true,
+    "db_checked": true,
+    "gpu_spin_sensitive": true,
+    "db_spin_sensitive": true,
+    "policy_checked": true,
+    "turbo_caption": "调度服务未就绪，当前保持固件控制"
+  },
+  "compact-bottom": {
+    "window": [
+      900,
+      640
+    ],
+    "scroll": {
+      "position": 648.0,
+      "upper": 1221.0,
+      "page": 573.0
+    },
+    "gpu_checked": true,
+    "db_checked": true,
+    "gpu_spin_sensitive": true,
+    "db_spin_sensitive": true,
+    "policy_checked": true,
+    "turbo_caption": "调度服务未就绪，当前保持固件控制"
+  },
+  "compact-policy": {
+    "window": [
+      900,
+      640
+    ],
+    "scroll": {
+      "position": 0.0,
+      "upper": 573.0,
+      "page": 573.0
+    },
+    "gpu_checked": true,
+    "db_checked": true,
+    "gpu_spin_sensitive": true,
+    "db_spin_sensitive": true,
+    "policy_checked": true,
+    "turbo_caption": "调度服务未就绪，当前保持固件控制"
+  },
+  "requests": [
+    [
+      "status"
+    ],
+    [
+      "status"
+    ],
+    [
+      "status"
+    ],
+    [
+      "status"
+    ]
+  ],
+  "no_writes": true,
+  "horizontal_clipping": [],
+  "errors": []
+}
