@@ -1,6 +1,248 @@
+--- a/src/iteglow/cli.py
++++ b/src/iteglow/cli.py
+@@ -8,6 +8,7 @@
+ 
+ from . import __version__, devices, effects, protocol, state
+ from .protocol import RGB
++from .zone_lock import ZoneTransaction
+ 
+ 
+ def _parse_color(s: str) -> RGB:
+@@ -37,7 +38,8 @@
+ # --------------------------------------------------------------------- commands
+ 
+ def cmd_doctor(_args) -> int:
+-    print(f"iteglow {__version__}\n")
++    print(f"iteglow {__version__} (MECHREVO 本机适配)\n")
++    print('本机使用已有 hid-generic/hidraw 接口；不要求加载 tuxedo-drivers。')
+     mods = ""
+     try:
+         with open("/proc/modules") as f:
+@@ -63,18 +65,18 @@
+                     extra = f"  fw {fw[0]}.{fw[1]}"
+                     if label == "keyboard":
+                         st = protocol.parse_keyboard_state(dev.query(protocol.QUERY_EFFECT))
+-                        onoff = "off" if st["power"] == 0x01 else "on"
++                        onoff = "off" if st["power"] == 0x01 or st["brightness"] == 0 else "on"
+                         extra += (f"  [{onoff}, mode 0x{st['mode']:02x}, "
+                                   f"brightness {st['brightness']}]")
+             except OSError:
+                 pass
+         print(f"  {label:9s} ({usb}): {path}  "
+-              f"[{'read/write OK' if access else 'NO ACCESS -- install udev rule or use sudo'}]"
++              f"[{'read/write OK' if access else 'NO ACCESS -- install the udev rule for your desktop user'}]"
+               f"{extra}")
+         ok = ok and access
+     if not ok:
+         print("\nFixes:")
+-        print("  * modules NOT loaded   -> install tuxedo-drivers (see README)")
++        print("  * 本机设备缺失 -> 检查 USB 设备和维护记录，不要为此强装平台驱动")
+         print("  * NO ACCESS            -> sudo install -m644 data/60-iteglow.rules "
+               "/etc/udev/rules.d/ && sudo udevadm control --reload && reboot")
+     return 0 if ok else 1
+@@ -93,28 +95,46 @@
+     return devices.HidLed(devices.led_for_label(label))
+ 
+ 
++def _user_lighting_only() -> bool:
++    if os.geteuid() == 0:
++        print('Run lighting commands as your normal desktop user, without sudo. '
++              'The installed udev rule grants HID access; user-session locks must share that identity. '
++              'Only "iteglow pin" needs sudo for exporting state.', file=sys.stderr)
++        return False
++    return True
++
++
+ def cmd_set(args) -> int:
++    if not _user_lighting_only():
++        return 1
+     # default: first direction of the device's own table (forward / ltr)
+     direction = _resolve_direction(args.device, args.direction) if args.direction else 1
+     params = dict(color=args.color, colors=args.palette or None,
+-                  brightness=args.brightness, speed=args.speed, direction=direction)
++                  brightness=args.brightness, speed=args.speed, direction=direction,
++                  reactive=args.reactive)
+     reports = effects.build(args.device, args.mode, **params)
+-    with _open(args.device) as dev:
++    with ZoneTransaction(args.device), _open(args.device) as dev:
+         dev.send(reports)
+-    state.save(args.device, dict(mode=args.mode, **params))
++        saved = state.save(args.device, dict(mode=args.mode, **params))
++    if not saved:
++        print(f"warning: {args.device} lighting applied, but restore settings could not be saved", file=sys.stderr)
+     return 0
+ 
+ 
+ def cmd_off(args) -> int:
++    if not _user_lighting_only():
++        return 1
+     targets = [args.device] if args.device else \
+         [lbl for _led, _usb, lbl in devices.available_devices()]
+     if not targets:
+         print("no devices detected", file=sys.stderr)
+         return 1
+     for label in targets:
+-        with _open(label) as dev:
++        with ZoneTransaction(label), _open(label) as dev:
+             dev.send(effects.build(label, "off"))
+-        state.save(label, dict(mode="off"))
++            saved = state.save(label, dict(mode="off"))
++        if not saved:
++            print(f"warning: {label} lighting turned off, but restore settings could not be saved", file=sys.stderr)
+     return 0
+ 
+ 
+@@ -127,31 +147,53 @@
+         brightness=params.get("brightness"),
+         speed=params.get("speed", 5),
+         direction=params.get("direction", 1),
++        reactive=params.get("reactive", False),
+     )
+ 
+ 
+ def cmd_restore(args) -> int:
++    if not _user_lighting_only():
++        return 1
++    from .lighting_session import validate_hid
+     path = state.SYSTEM_STATE_PATH if args.system else state.user_state_path()
+     data = state.load(path)
+     if not data:
+         print(f"no saved state at {path}", file=sys.stderr)
+-        # absence is not an error for the boot/resume service
++        # An absent optional system export is a no-op for scripted restores.
+         return 0 if args.system else 1
++    if not isinstance(data, dict):
++        print("invalid saved lighting state: expected an object", file=sys.stderr)
++        return 1
+     present = {lbl for _led, _usb, lbl in devices.available_devices()}
+     restored = []
++    invalid = False
+     for label, params in data.items():
+         if label not in present:
+             continue
+-        reports = _build_from_params(label, params)
+-        if label == "lightbar":
+-            # re-enable the controller: lost on suspend and never restored by
+-            # the kernel driver (tuxedo-drivers issue #371)
+-            reports = protocol.lightbar_power_on() + reports
+-        with _open(label) as dev:
+-            dev.send(reports)
++        try:
++            reports = validate_hid(label, params).reports
++        except (ValueError, TypeError) as error:
++            print(f"invalid saved {label} state: {error}", file=sys.stderr)
++            invalid = True
++            continue
++        with ZoneTransaction(label):
++            # Another cooperating client may have saved a newer manual value
++            # while this restore was waiting for the transaction.
++            fresh = state.load(path)
++            params = fresh.get(label) if isinstance(fresh, dict) else None
++            if params is None:
++                continue
++            try:
++                reports = validate_hid(label, params).reports
++            except (ValueError, TypeError) as error:
++                print(f"invalid saved {label} state: {error}", file=sys.stderr)
++                invalid = True
++                continue
++            with _open(label) as dev:
++                dev.send(reports)
+         restored.append(f"{label}={params.get('mode', 'off')}")
+     print("restored: " + (", ".join(restored) if restored else "nothing (no saved devices present)"))
+-    return 0
++    return 1 if invalid else 0
+ 
+ 
+ def cmd_pin(args) -> int:
+@@ -174,7 +216,8 @@
+         return 1
+     state.write(state.SYSTEM_STATE_PATH, data)
+     print(f"pinned {', '.join(sorted(data))} -> {state.SYSTEM_STATE_PATH}")
+-    print("iteglow-restore.service will re-apply this on every boot and resume.")
++    print("Export only; restore it manually with `iteglow restore --system`.")
++    print("Automatic restore uses your user state via iteglow-session-restore.service when configured.")
+     return 0
+ 
+ 
+@@ -197,6 +240,7 @@
+                    help="up to 7 colours for multi-colour effects")
+     s.add_argument("--brightness", type=int, default=None, help="0..100 (lightbar) / 0..50 (keyboard)")
+     s.add_argument("--speed", type=int, default=5, help="1 (fast) .. 10 (slow)")
++    s.add_argument("--reactive", action="store_true", help="按键触发（随机闪烁/涟漪/极光/烟花）；默认自动播放")
+     s.add_argument("--direction", default=None,
+                    help="lightbar: forward/reverse; keyboard: ltr/rtl/btt/ttb "
+                         "(default: forward / ltr)")
+@@ -208,11 +252,11 @@
+ 
+     r = sub.add_parser("restore", help="re-apply the last saved state")
+     r.add_argument("--system", action="store_true",
+-                   help="use the pinned system state (what boot/resume applies)")
++                   help="manually restore the exported system state")
+     r.set_defaults(func=cmd_restore)
+ 
+     pin = sub.add_parser(
+-        "pin", help="pin your last-set state for every boot and resume (sudo)")
++        "pin", help="export your saved state system-wide; does not enable automatic restore (sudo)")
+     pin.set_defaults(func=cmd_pin)
+ 
+     g = sub.add_parser("gui", help="launch the graphical control panel")
+--- /dev/null
++++ b/src/iteglow/control.css
+@@ -0,0 +1,50 @@
++.mechrevo-shell { background: #f4f6fa; color: #1d2940; font-size: 13px; }
++.mechrevo-shell .sidebar { background: #eaf0f7; padding: 28px 16px 20px; border-right: 1px solid #dfe6f0; }
++.mechrevo-shell .brand-mark { font-size: 28px; font-weight: 900; letter-spacing: 3px; color: #2f63db; margin-bottom: 6px; }
++.mechrevo-shell .brand-title { font-size: 20px; font-weight: 700; letter-spacing: 2px; }
++.mechrevo-shell .subtitle { color: #66758a; font-size: 12px; }
++.mechrevo-shell .small-note { color: #718096; font-size: 11px; }
++.mechrevo-shell .nav-section { color: #7b879b; font-size: 11px; margin: 32px 10px 8px; }
++.mechrevo-shell button { background: #fff; background-image: none; color: #34435a; border: 1px solid #dbe3ee; border-radius: 9px; box-shadow: none; text-shadow: none; padding: 8px 12px; min-height: 20px; font-weight: 500; }
++.mechrevo-shell button:hover { background: #f0f5ff; border-color: #afc6ef; }
++.mechrevo-shell button:focus-visible { outline: 2px solid #719cf0; outline-offset: 2px; }
++.mechrevo-shell button.selected { background: #eaf2ff; color: #2459c4; border-color: #81a8f2; }
++.mechrevo-shell button:disabled { opacity: .55; }
++.mechrevo-shell .nav-button { background: transparent; border: 1px solid transparent; padding: 13px 12px; font-weight: 600; }
++.mechrevo-shell .nav-button.selected { background: #fff; border-color: #d9e5fa; color: #275dc6; box-shadow: 0 3px 8px alpha(#315b9c,.06); }
++.mechrevo-shell .device-name { font-size: 12px; font-weight: 600; color: #4c5e77; }
++.mechrevo-shell .topbar { background: #fff; padding: 14px 24px; border-bottom: 1px solid #e4eaf2; }
++.mechrevo-shell .topbar-label { color: #8290a5; font-size: 12px; }
++.mechrevo-shell .all-off { font-size: 12px; }
++.mechrevo-shell .device-page, .mechrevo-shell .performance-page { padding: 22px 24px; }
++.mechrevo-shell .page-title { font-size: 24px; font-weight: 750; color: #1d2c44; }
++.mechrevo-shell .connection-pill { color: #20815d; background: #e8f5ef; border-radius: 20px; padding: 7px 12px; font-size: 11px; }
++.mechrevo-shell .control-card { background: #fff; border: 1px solid #e1e7f0; border-radius: 14px; padding: 16px; }
++.mechrevo-shell .section-title { font-size: 14px; font-weight: 700; color: #24344e; }
++.mechrevo-shell .effect-tile { min-height: 35px; padding: 7px 8px; font-size: 12px; font-weight: 600; }
++.mechrevo-shell .value-label { font-size: 11px; color: #5874a1; }
++.mechrevo-shell .status-text { font-size: 11px; color: #526f93; min-height: 16px; }
++.mechrevo-shell .small-button { padding: 2px 8px; font-size: 10px; min-height: 16px; }
++.mechrevo-shell .color-swatch { padding: 3px; min-width: 24px; min-height: 23px; border-radius: 7px; }
++.mechrevo-shell colorswatch { border-radius: 5px; }
++.mechrevo-shell scale { padding: 10px 0; }
++.mechrevo-shell scale trough { background: #e7edf6; min-height: 5px; border: none; border-radius: 8px; }
++.mechrevo-shell scale highlight { background: #477ce5; border: none; border-radius: 8px; }
++.mechrevo-shell scale slider { background: #fff; border: 2px solid #477ce5; box-shadow: 0 1px 3px alpha(#1b3f80,.15); min-width: 12px; min-height: 12px; margin: -6px 0; }
++.mechrevo-shell dropdown button { padding: 5px 8px; font-size: 11px; }
++.mechrevo-shell .mode-card { min-height: 90px; padding: 18px 12px; }
++.mechrevo-shell .mode-name { font-size: 17px; font-weight: 700; }
++.mechrevo-shell .mode-led { font-size: 12px; }
++.mechrevo-shell .green-led { color: #20966c; }
++.mechrevo-shell .blue-led { color: #4074df; }
++.mechrevo-shell .purple-led { color: #9660db; }
++.mechrevo-shell .performance-current { background: #142238; color: #edf4ff; border-radius: 15px; padding: 26px; font-size: 21px; font-weight: 700; }
++
++.mechrevo-shell .page-scroll > viewport { background: #f4f6fa; }
++.mechrevo-shell scale highlight { min-width: 1px; min-height: 5px; padding: 0; margin: 0; }
++.mechrevo-shell scale trough { padding: 0; margin: 0; }
++.mechrevo-shell .mode-card.selected:disabled { opacity: 1; color: #2459c4; background: #eaf2ff; border-color: #81a8f2; }
++
++.mechrevo-shell scale:disabled { opacity: .4; }
++
++.mechrevo-shell .white-led { color: #64748b; }
 --- a/src/iteglow/devices.py
 +++ b/src/iteglow/devices.py
-@@ -8,6 +8,7 @@
+@@ -8,11 +8,13 @@
  
  import fcntl
  import os
@@ -8,7 +250,13 @@
  import time
  from typing import Iterable, List, Optional, Tuple
  
-@@ -43,8 +44,20 @@
+ from . import protocol
+ from .protocol import Report
++from .zone_lock import ZoneTransaction
+ 
+ # (led node, USB vendor:product, friendly label)
+ KEYBOARD = ("rgb:kbd_backlight", "048d:600b", "keyboard")
+@@ -43,8 +45,20 @@
      try:
          nodes = os.listdir(base)
      except OSError:
@@ -30,6 +278,37 @@
  
  
  class HidLed:
+@@ -63,6 +77,14 @@
+         self.fd = os.open(path, os.O_RDWR)
+ 
+     def send(self, reports: Iterable[Report]) -> None:
++        with self.transaction():
++            self._send(reports)
++
++    def transaction(self):
++        label = next(label for led, _, label in KNOWN if led == self.led_name)
++        return ZoneTransaction(label)
++
++    def _send(self, reports: Iterable[Report]) -> None:
+         for kind, data in reports:
+             if kind == "feature":
+                 fcntl.ioctl(self.fd, _HIDIOCSFEATURE(len(data)), data)
+@@ -76,10 +98,11 @@
+     def query(self, command: int) -> bytes:
+         """Send a query command (``protocol.QUERY_*``) and return the 8-byte
+         reply, starting with an echo of the command byte."""
+-        self.send(protocol.query_report(command))
+-        buf = bytearray(_REPLY_LEN)     # buf[0] = report number 0 (unnumbered)
+-        fcntl.ioctl(self.fd, _HIDIOCGFEATURE(_REPLY_LEN), buf)
+-        return bytes(buf[1:])
++        with self.transaction():
++            self._send(protocol.query_report(command))
++            buf = bytearray(_REPLY_LEN)     # buf[0] = report number 0 (unnumbered)
++            fcntl.ioctl(self.fd, _HIDIOCGFEATURE(_REPLY_LEN), buf)
++            return bytes(buf[1:])
+ 
+     def close(self) -> None:
+         try:
 --- a/src/iteglow/effects.py
 +++ b/src/iteglow/effects.py
 @@ -31,13 +31,13 @@
@@ -70,65 +349,9 @@
 +    behavior = int(bool(reactive)) if spec.get("trigger") else direction if spec.get("direction") else 0
 +    return protocol.keyboard_effect(spec["code"], pal, bright, speed, behavior,
                                      use_palette=bool(spec.get("palette")))
---- a/src/iteglow/cli.py
-+++ b/src/iteglow/cli.py
-@@ -37,7 +37,8 @@
- # --------------------------------------------------------------------- commands
- 
- def cmd_doctor(_args) -> int:
--    print(f"iteglow {__version__}\n")
-+    print(f"iteglow {__version__} (MECHREVO 本机适配)\n")
-+    print('本机使用已有 hid-generic/hidraw 接口；不要求加载 tuxedo-drivers。')
-     mods = ""
-     try:
-         with open("/proc/modules") as f:
-@@ -63,7 +64,7 @@
-                     extra = f"  fw {fw[0]}.{fw[1]}"
-                     if label == "keyboard":
-                         st = protocol.parse_keyboard_state(dev.query(protocol.QUERY_EFFECT))
--                        onoff = "off" if st["power"] == 0x01 else "on"
-+                        onoff = "off" if st["power"] == 0x01 or st["brightness"] == 0 else "on"
-                         extra += (f"  [{onoff}, mode 0x{st['mode']:02x}, "
-                                   f"brightness {st['brightness']}]")
-             except OSError:
-@@ -74,7 +75,7 @@
-         ok = ok and access
-     if not ok:
-         print("\nFixes:")
--        print("  * modules NOT loaded   -> install tuxedo-drivers (see README)")
-+        print("  * 本机设备缺失 -> 检查 USB 设备和维护记录，不要为此强装平台驱动")
-         print("  * NO ACCESS            -> sudo install -m644 data/60-iteglow.rules "
-               "/etc/udev/rules.d/ && sudo udevadm control --reload && reboot")
-     return 0 if ok else 1
-@@ -97,7 +98,8 @@
-     # default: first direction of the device's own table (forward / ltr)
-     direction = _resolve_direction(args.device, args.direction) if args.direction else 1
-     params = dict(color=args.color, colors=args.palette or None,
--                  brightness=args.brightness, speed=args.speed, direction=direction)
-+                  brightness=args.brightness, speed=args.speed, direction=direction,
-+                  reactive=args.reactive)
-     reports = effects.build(args.device, args.mode, **params)
-     with _open(args.device) as dev:
-         dev.send(reports)
-@@ -127,6 +129,7 @@
-         brightness=params.get("brightness"),
-         speed=params.get("speed", 5),
-         direction=params.get("direction", 1),
-+        reactive=params.get("reactive", False),
-     )
- 
- 
-@@ -197,6 +200,7 @@
-                    help="up to 7 colours for multi-colour effects")
-     s.add_argument("--brightness", type=int, default=None, help="0..100 (lightbar) / 0..50 (keyboard)")
-     s.add_argument("--speed", type=int, default=5, help="1 (fast) .. 10 (slow)")
-+    s.add_argument("--reactive", action="store_true", help="按键触发（随机闪烁/涟漪/极光/烟花）；默认自动播放")
-     s.add_argument("--direction", default=None,
-                    help="lightbar: forward/reverse; keyboard: ltr/rtl/btt/ttb "
-                         "(default: forward / ltr)")
 --- a/src/iteglow/gui.py
 +++ b/src/iteglow/gui.py
-@@ -1,308 +1,380 @@
+@@ -1,308 +1,410 @@
 -"""GTK4 control panel. Optional front-end; the CLI/library has no GUI deps.
 -
 -Uses the system PyGObject (python3-gi + gir1.2-gtk-4.0). One tab per detected
@@ -171,6 +394,9 @@
 +from gi.repository import Gdk, GLib, Gtk
 +from . import devices, effects, protocol, state
 +from .performance import PerformancePanel
++from .logo import LogoPanel
++from .lighting_policy_gui import LightingPolicyPanel
++from .zone_lock import ZoneTransaction
 +
 +MODE_TEXT = {
 +    'off': ('关闭', '关闭当前设备的灯光'),
@@ -630,10 +856,11 @@
 -            self.status.set_text("")
 -        except Exception as e:  # noqa: BLE001
 -            self.status.set_text(f"error: {e}")
-+            self.dev.send(effects.build(self.device,**params))
-+            state.save(self.device,params)
++            with ZoneTransaction(self.device):
++                self.dev.send(effects.build(self.device,**params))
++                saved=state.save(self.device,params)
 +            suffix=' · 按键时亮起' if self.spec().get('trigger') and params['reactive'] else ''
-+            self.status.set_text('已应用：'+MODE_TEXT[self.mode][0]+suffix)
++            self.status.set_text(('已应用：'+MODE_TEXT[self.mode][0]+suffix) if saved else '灯光已应用，但恢复设置保存失败')
 +        except Exception as exc:self.status.set_text('设置未成功：'+str(exc))
          return False
  
@@ -660,6 +887,7 @@
 -        super().__init__(application_id="org.iteglow.Control")
 +        super().__init__(application_id='org.iteglow.Control')
 +        self.panels=[]
++        self.logo=None
  
      def do_activate(self):
 -        win = self.get_active_window()
@@ -731,6 +959,7 @@
 -def main() -> int:
 +        window=self.get_active_window()
 +        if window:window.present();return
++        self.panels=[];self.logo=None
 +        provider=Gtk.CssProvider()
 +        provider.load_from_path(str(Path(__file__).with_name('control.css')))
 +        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(),provider,Gtk.STYLE_PROVIDER_PRIORITY_USER + 1)
@@ -748,8 +977,13 @@
 +        self.stack.set_transition_duration(120)
 +        self.nav={}
 +        detected={label for _,_,label in devices.available_devices()}
-+        for name,title,icon in [('keyboard','键盘背光','input-keyboard-symbolic'),('lightbar','机身灯带','display-brightness-symbolic'),('performance','性能模式','speedometer-symbolic')]:
++        for name,title,icon in [('keyboard','键盘背光','input-keyboard-symbolic'),('lightbar','机身灯带','display-brightness-symbolic'),('logo','后盖 Logo','starred-symbolic'),('lighting-policy','自动灯光','preferences-system-symbolic'),('performance','性能模式','speedometer-symbolic')]:
 +            if name=='performance':page=PerformancePanel()
++            elif name=='logo':page=LogoPanel();self.logo=page
++            elif name=='lighting-policy':
++                page=box(spacing=18,css='device-page')
++                page.append(label('灯光策略','page-title'))
++                page.append(LightingPolicyPanel())
 +            elif name in detected:
 +                try:page=DevicePanel(name);self.panels.append(page)
 +                except Exception as exc:page=label('设备暂不可用：'+str(exc),wrap=True)
@@ -767,9 +1001,10 @@
 +        right=box();right.set_hexpand(True);root.append(right)
 +        bar=box(False,12,css='topbar')
 +        welcome=label('设备个性化','topbar-label');welcome.set_hexpand(True);bar.append(welcome)
-+        off=Gtk.Button(label='关闭全部灯光');off.set_tooltip_text('关闭键盘与机身灯带，保留配色设置')
++        off=Gtk.Button(label='关闭全部灯光');off.set_tooltip_text('关闭键盘、机身灯带与后盖 Logo，保留配色设置')
 +        off.add_css_class('all-off');off.connect('clicked',self.all_off);bar.append(off);right.append(bar)
 +        right.append(self.stack)
++        window.connect('close-request',self.window_closed,tuple(self.panels),self.logo)
 +        self.navigate('keyboard');window.present()
 +
 +    def navigate(self,name):
@@ -780,13 +1015,31 @@
 +
 +    def all_off(self,*_):
 +        for panel in self.panels:panel.choose('off')
++        if self.logo:self.logo.set_enabled(False)
++
++    @staticmethod
++    def close_panel(panel):
++        if panel.pending is not None:
++            GLib.source_remove(panel.pending);panel.pending=None;panel.apply()
++        panel.close()
++
++    def window_closed(self,window,panels,logo):
++        for panel in panels:
++            if panel in self.panels:
++                self.close_panel(panel);self.panels.remove(panel)
++        if logo is not None:
++            logo.close()
++            if self.logo is logo:self.logo=None
++        # An old Logo helper retains its own application hold and transaction
++        # until the async callback saves its actual value, independently of UI.
++        return False
 +
 +    def do_shutdown(self):
 +        for panel in self.panels:
 +            # Apply a pending user change before closing; never schedule on construction.
-+            if panel.pending is not None:
-+                GLib.source_remove(panel.pending);panel.pending=None;panel.apply()
-+            panel.close()
++            self.close_panel(panel)
++        self.panels=[]
++        if self.logo:self.logo.close();self.logo=None
 +        Gtk.Application.do_shutdown(self)
 +
 +
@@ -800,15 +1053,1627 @@
 -    raise SystemExit(main())
 +if __name__=='__main__':raise SystemExit(main())
 --- /dev/null
++++ b/src/iteglow/lighting_policy.py
+@@ -0,0 +1,228 @@
++"""Pure AC/DC brightness and shared idle-light policy; never performs I/O.
++
++``saved`` contains the user's last *manually applied* records, never temporary
++policy outputs. Only acknowledge actions after the existing device backend has
++successfully applied them. Keep this memory in the session, not in saved state.
++"""
++from __future__ import annotations
++
++from dataclasses import dataclass, replace
++import json
++import math
++from typing import Optional, Tuple
++
++from . import effects, protocol
++
++DEVICES = ("keyboard", "lightbar", "logo")
++LOGO_COLORS = ((255, 255, 255), (255, 0, 0), (0, 255, 0), (0, 0, 255),
++               (255, 255, 0), (136, 0, 255), (0, 255, 255))
++
++
++def default_config():
++    return {"version": 1, "enabled": False, "power_enabled": False,
++            "idle_minutes": 0,
++            "brightness": {device: {"ac": 100, "dc": 100} for device in DEVICES}}
++
++
++def _integer(value, low, high, field):
++    if type(value) is not int or not low <= value <= high:
++        raise ValueError(f"{field}: 需要 {low}–{high} 的整数")
++    return value
++
++
++def validate_config(config):
++    """Return a detached, canonical config; reject unknown fields, not clamp."""
++    if not isinstance(config, dict) or set(config) != set(default_config()):
++        raise ValueError("灯光策略配置字段不完整或包含未知字段")
++    if type(config["version"]) is not int or config["version"] != 1:
++        raise ValueError("不支持的灯光策略版本")
++    for key in ("enabled", "power_enabled"):
++        if type(config[key]) is not bool:
++            raise ValueError(f"{key}: 需要布尔值")
++    _integer(config["idle_minutes"], 0, 1440, "空闲分钟数")
++    brightness = config["brightness"]
++    if not isinstance(brightness, dict) or set(brightness) != set(DEVICES):
++        raise ValueError("需要键盘、灯带和 Logo 三个灯区的亮度")
++    for device, values in brightness.items():
++        if not isinstance(values, dict) or set(values) != {"ac", "dc"}:
++            raise ValueError(f"{device}: 需要独立 AC / DC 亮度")
++        for source, value in values.items():
++            _integer(value, 0, 100, f"{device} {source} 亮度")
++            if device == "logo" and value % 25:
++                raise ValueError("Logo 亮度仅支持 0、25、50、75、100%")
++    return json.loads(_encode(config))
++
++
++def _encode(value):
++    return json.dumps(value, sort_keys=True, separators=(",", ":"))
++
++
++def _color(value):
++    if not isinstance(value, (list, tuple)) or len(value) != 3:
++        raise ValueError("RGB 颜色需要三个通道")
++    return [_integer(channel, 0, 255, "颜色") for channel in value]
++
++
++def _baseline(device, saved):
++    """Validate source records without importing the execution backend."""
++    if not isinstance(saved, dict):
++        raise ValueError("已应用灯光记录必须是对象")
++    saved = dict(saved)
++    if device == "logo":
++        if set(saved) != {"mode", "brightness", "color"}:
++            raise ValueError("Logo 记录字段错误")
++        if saved["mode"] not in ("solid", "breathing", "rainbow"):
++            raise ValueError("未知 Logo 灯效")
++        if _integer(saved["brightness"], 0, 100, "Logo 亮度") % 25:
++            raise ValueError("Logo 亮度必须是 25% 的倍数")
++        saved["color"] = _color(saved["color"])
++        if saved["mode"] == "breathing" and tuple(saved["color"]) not in LOGO_COLORS:
++            raise ValueError("不支持的 Logo 呼吸颜色")
++    else:
++        if set(saved) - {"mode", "brightness", "color", "colors", "speed", "direction", "reactive"}:
++            raise ValueError("灯光记录包含未知字段")
++        if not isinstance(saved.get("mode"), str) or saved["mode"] not in effects.MODES_BY_LABEL[device]:
++            raise ValueError("未知灯效")
++        maximum = protocol.KBD_BRIGHTNESS_MAX if device == "keyboard" else protocol.LB_BRIGHTNESS_MAX
++        if saved.get("brightness") is not None:
++            _integer(saved["brightness"], 0, maximum, "亮度")
++        if "color" in saved:
++            saved["color"] = _color(saved["color"])
++        if saved.get("colors") is not None:
++            if not isinstance(saved["colors"], (tuple, list)) or not 1 <= len(saved["colors"]) <= 7:
++                raise ValueError("颜色列表需要 1–7 项")
++            saved["colors"] = [_color(color) for color in saved["colors"]]
++        if "speed" in saved:
++            _integer(saved["speed"], 1, 10, "速度")
++        if "direction" in saved:
++            _integer(saved["direction"], 1, 4 if device == "keyboard" else 2, "方向")
++        if "reactive" in saved and type(saved["reactive"]) is not bool:
++            raise ValueError("按键响应需要布尔值")
++    return saved
++
++
++def brightness_value(device, percent):
++    """Nearest hardware step; integer half-up rounding (keyboard has 50 steps)."""
++    _integer(percent, 0, 100, "亮度百分比")
++    if device not in DEVICES:
++        raise ValueError("未知灯区")
++    if device == "logo" and percent % 25:
++        raise ValueError("Logo 亮度必须是 25% 的倍数")
++    maximum = protocol.KBD_BRIGHTNESS_MAX if device == "keyboard" else 100
++    return (percent * maximum + 50) // 100
++
++
++@dataclass(frozen=True)
++class AppliedZone:
++    device: str
++    baseline_json: str
++    params_json: str
++    active_json: str
++    idle: bool
++
++
++@dataclass(frozen=True)
++class PolicyMemory:
++    zones: Tuple[AppliedZone, ...] = ()
++
++
++@dataclass(frozen=True)
++class PolicyAction(AppliedZone):
++    reason: str
++    release: bool = False
++
++    @property
++    def params(self):
++        return json.loads(self.params_json)
++
++
++@dataclass(frozen=True)
++class PolicyPlan:
++    actions: Tuple[PolicyAction, ...]
++    memory: PolicyMemory
++    errors: Tuple[str, ...] = ()
++    status: str = "disabled"
++
++
++def action_matches(action, saved):
++    """Recheck manual state immediately before executing a queued action."""
++    try:
++        return _encode(_baseline(action.device, saved[action.device])) == action.baseline_json
++    except (KeyError, ValueError, TypeError):
++        return False
++
++
++def acknowledge(memory, action):
++    """Only call on successful writes; failed zones remain eligible for retry."""
++    zones = [zone for zone in memory.zones if zone.device != action.device]
++    if not action.release:
++        zones.append(AppliedZone(action.device, action.baseline_json, action.params_json,
++                                 action.active_json, action.idle))
++    return PolicyMemory(tuple(sorted(zones, key=lambda zone: DEVICES.index(zone.device))))
++
++
++def plan(config, *, power, idle_seconds, saved, memory=None):
++    """Calculate changes without reading files, clocks, D-Bus or hardware.
++
++    ``power`` is 'ac', 'dc', or None; ``idle_seconds`` is nonnegative or None.
++    Unknown inputs retain the last known policy output rather than guessing.
++    Assign ``plan.memory`` first (it forgets stale ownership), execute each
++    action only while ``action_matches`` and the session gate still hold, and
++    acknowledge each successful action independently.
++    """
++    config = validate_config(config)
++    if power not in ("ac", "dc", None):
++        raise ValueError("power 必须是 ac、dc 或 None")
++    if idle_seconds is not None and (type(idle_seconds) not in (int, float)
++                                    or not math.isfinite(idle_seconds) or idle_seconds < 0):
++        raise ValueError("idle_seconds 必须是非负秒数或 None")
++    if not isinstance(saved, dict) or set(saved) - set(DEVICES):
++        raise ValueError("已应用记录包含未知灯区")
++    memory = memory or PolicyMemory()
++    previous = {zone.device: zone for zone in memory.zones}
++    owned, actions, errors = [], [], []
++    for device in DEVICES:
++        if device not in saved:
++            continue
++        try:
++            baseline = _baseline(device, saved[device])
++        except (ValueError, TypeError) as error:
++            errors.append(f"{device}: {error}")
++            continue
++        baseline_json = _encode(baseline)
++        old = previous.get(device)
++        if old and old.baseline_json != baseline_json:
++            old = None  # A manual edit takes ownership; never resurrect old effects.
++        if old:
++            owned.append(old)
++        if not config["enabled"]:
++            if old and old.params_json != baseline_json:
++                actions.append(PolicyAction(device, baseline_json, baseline_json,
++                                            baseline_json, False, "disabled", True))
++            continue
++        manually_off = (baseline.get("mode") == "off" or baseline.get("brightness") == 0
++                        or (device == "logo" and baseline["mode"] == "solid"
++                            and all(value * 10 // 51 == 0 for value in baseline["color"])))
++        active = dict(baseline)
++        if config["power_enabled"] and not manually_off:
++            if power is not None:
++                active["brightness"] = brightness_value(device, config["brightness"][device][power])
++            elif old:
++                active = json.loads(old.active_json)
++        active_json = _encode(active)
++        idle = (idle_seconds >= config["idle_minutes"] * 60 if idle_seconds is not None
++                else bool(old and old.idle)) if config["idle_minutes"] else False
++        effective = dict(active)
++        if idle and not manually_off:
++            effective["brightness"] = 0
++        effective_json = _encode(effective)
++        current_json = old.params_json if old else baseline_json
++        if effective_json != current_json:
++            actions.append(PolicyAction(device, baseline_json, effective_json, active_json,
++                                        idle, "idle" if idle else "active" if old and old.idle else "power",
++                                        effective_json == baseline_json))
++        elif old:
++            # An AC/DC change while idle updates only the future restore target.
++            owned[owned.index(old)] = replace(old, active_json=active_json, idle=idle)
++    return PolicyPlan(tuple(actions), PolicyMemory(tuple(owned)), tuple(errors),
++                      "enabled" if config["enabled"] else "disabled")
+--- /dev/null
++++ b/src/iteglow/lighting_policy_gui.py
+@@ -0,0 +1,149 @@
++"""Small policy settings card. Saves preferences; never applies device writes."""
++import json
++import os
++from pathlib import Path
++import tempfile
++
++from gi.repository import Gtk
++
++from .lighting_policy import DEVICES, default_config, validate_config
++
++CONFIG_PATH = Path.home() / ".config/iteglow/lighting-policy.json"
++
++
++def load_config(path):
++    try:
++        with Path(path).open("rb") as stream:
++            raw = stream.read(65537)
++    except FileNotFoundError:
++        return default_config()
++    if len(raw) > 65536:
++        raise ValueError("灯光策略配置超过大小限制")
++    return validate_config(json.loads(raw))
++
++
++def save_config(path, config):
++    """Atomic user preference write; validation failure leaves the old file."""
++    config = validate_config(config)
++    path = Path(path)
++    path.parent.mkdir(parents=True, exist_ok=True)
++    temporary = None
++    try:
++        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
++                                         prefix=".lighting-policy-", delete=False) as stream:
++            temporary = Path(stream.name)
++            json.dump(config, stream, ensure_ascii=False, indent=2)
++            stream.write("\n")
++            stream.flush()
++            os.fsync(stream.fileno())
++        os.replace(temporary, path)
++    finally:
++        if temporary is not None:
++            temporary.unlink(missing_ok=True)
++    return config
++
++
++class LightingPolicyPanel(Gtk.Box):
++    """Embed beside existing lighting controls; on_saved receives valid config.
++
++    Constructing/editing never saves. Saving only writes this preference file;
++    the session watcher owns eligibility checks, policy planning and execution.
++    """
++
++    def __init__(self, path=None, on_saved=None):
++        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=12)
++        self.add_css_class("control-card")
++        self.path = Path(path) if path is not None else CONFIG_PATH
++        self.on_saved = on_saved
++        row = Gtk.Box(spacing=12)
++        title = Gtk.Label(label="自动灯光", xalign=0)
++        title.add_css_class("section-title"); title.set_hexpand(True); row.append(title)
++        self.enabled = Gtk.Switch(); self.enabled.set_valign(Gtk.Align.CENTER)
++        self.enabled.set_tooltip_text("启用自动灯光策略")
++        row.append(self.enabled); self.append(row)
++        note = Gtk.Label(label="按供电方式设置亮度，空闲时自动熄灯；键鼠恢复活动后还原灯效。", xalign=0, wrap=True)
++        note.add_css_class("small-note"); self.append(note)
++        self.power_enabled = Gtk.CheckButton(label="分别设置插电与电池亮度")
++        self.append(self.power_enabled)
++        self.grid = Gtk.Grid(column_spacing=18, row_spacing=10)
++        for column, caption in enumerate(("灯区", "插电", "电池")):
++            label = Gtk.Label(label=caption, xalign=0)
++            label.add_css_class("small-note"); self.grid.attach(label, column, 0, 1, 1)
++        self.brightness = {}
++        for row_index, (device, caption) in enumerate(zip(DEVICES, ("键盘背光", "机身灯带", "后盖 Logo")), 1):
++            label = Gtk.Label(label=caption, xalign=0); label.set_hexpand(True)
++            self.grid.attach(label, 0, row_index, 1, 1)
++            self.brightness[device] = {}
++            for column, source in enumerate(("ac", "dc"), 1):
++                box = Gtk.Box(spacing=6)
++                if device == "logo":
++                    widget = Gtk.DropDown.new_from_strings(["0", "25", "50", "75", "100"])
++                else:
++                    widget = Gtk.SpinButton.new_with_range(0, 100, 1); widget.set_numeric(True)
++                widget.set_tooltip_text(caption + ("插电亮度" if source == "ac" else "电池亮度"))
++                self.brightness[device][source] = widget
++                box.append(widget); box.append(Gtk.Label(label="%"))
++                self.grid.attach(box, column, row_index, 1, 1)
++        self.append(self.grid)
++        row = Gtk.Box(spacing=12)
++        label = Gtk.Label(label="空闲后熄灯", xalign=0); label.set_hexpand(True); row.append(label)
++        self.idle_minutes = Gtk.SpinButton.new_with_range(0, 1440, 1)
++        self.idle_minutes.set_numeric(True); row.append(self.idle_minutes)
++        row.append(Gtk.Label(label="分钟（0 = 不熄灯）")); self.append(row)
++        note = Gtk.Label(label="保留现有灯效，手动关闭的灯区不会自动点亮。自动策略的临时亮度不会覆盖手动设置。", xalign=0, wrap=True)
++        note.add_css_class("small-note"); self.append(note)
++        actions = Gtk.Box(spacing=12)
++        self.save_button = Gtk.Button(label="保存自动灯光设置")
++        self.save_button.add_css_class("suggested-action"); self.save_button.connect("clicked", self.save)
++        actions.append(self.save_button); self.append(actions)
++        self.message = Gtk.Label(xalign=0, wrap=True); self.message.add_css_class("status-text")
++        self.append(self.message)
++        self.enabled.connect("notify::active", self.refresh)
++        self.power_enabled.connect("toggled", self.refresh)
++        try:
++            config = load_config(self.path)
++        except (OSError, ValueError, TypeError) as error:
++            config = default_config()
++            self.message.set_text("现有配置无法读取；尚未改动文件：" + str(error))
++        else:
++            self.message.set_text("自动策略默认关闭；编辑后保存生效。" if not config["enabled"] else "已载入自动灯光设置。")
++        self.load_values(config)
++
++    def load_values(self, config):
++        config = validate_config(config)
++        self.enabled.set_active(config["enabled"])
++        self.power_enabled.set_active(config["power_enabled"])
++        self.idle_minutes.set_value(config["idle_minutes"])
++        for device in DEVICES:
++            for source, widget in self.brightness[device].items():
++                value = config["brightness"][device][source]
++                if device == "logo": widget.set_selected(value // 25)
++                else: widget.set_value(value)
++        self.refresh()
++
++    def refresh(self, *_):
++        enabled = self.enabled.get_active()
++        self.power_enabled.set_sensitive(enabled)
++        self.grid.set_sensitive(enabled and self.power_enabled.get_active())
++        self.idle_minutes.set_sensitive(enabled)
++
++    def config(self):
++        brightness = {device: {source: widget.get_selected() * 25 if device == "logo"
++                              else widget.get_value_as_int()
++                              for source, widget in self.brightness[device].items()}
++                      for device in DEVICES}
++        return validate_config({"version": 1, "enabled": self.enabled.get_active(),
++                                "power_enabled": self.power_enabled.get_active(),
++                                "idle_minutes": self.idle_minutes.get_value_as_int(),
++                                "brightness": brightness})
++
++    def save(self, *_):
++        try:
++            config = save_config(self.path, self.config())
++        except (OSError, ValueError, TypeError) as error:
++            self.message.set_text("保存失败：" + str(error)); return
++        self.message.set_text("已保存；自动策略已启用。" if config["enabled"] else "已保存；自动策略已关闭。")
++        if self.on_saved:
++            try: self.on_saved(config)
++            except Exception as error:
++                self.message.set_text("配置已保存，但通知会话服务失败：" + str(error))
+--- /dev/null
++++ b/src/iteglow/lighting_policy_session.py
+@@ -0,0 +1,208 @@
++"""Session-only policy runner; temporary outputs never update manual state files.
++
++All sampling, session checks and writes are injectable. Importing this module
++does not access D-Bus, configuration files or lighting hardware.
++"""
++from __future__ import annotations
++
++from dataclasses import asdict, dataclass
++from contextlib import nullcontext
++import json
++import math
++from pathlib import Path
++
++from .lighting_policy import (PolicyMemory, acknowledge, action_matches,
++                              default_config, plan, validate_config)
++from .lighting_session import _read_saved, apply_action, validate_hid, validate_logo
++from .zone_lock import ZoneTransaction
++
++CONFIG_PATH = Path.home() / '.config/iteglow/lighting-policy.json'
++
++
++@dataclass(frozen=True)
++class ManualState:
++    records: dict
++    errors: tuple = ()
++
++
++def read_config(path, uid):
++    saved = _read_saved(Path(path), uid)
++    return default_config() if saved is None else validate_config(saved)
++
++
++def read_manual(directory, uid):
++    """Only successful manual application records; no preference or pin data."""
++    records, errors = {}, []
++    directory = Path(directory)
++    try:
++        saved = _read_saved(directory / 'state.json', uid)
++        if saved is not None:
++            if not isinstance(saved, dict) or set(saved) - {'keyboard', 'lightbar'}:
++                raise ValueError('state.json contains unknown devices')
++            records.update(saved)
++    except (OSError, ValueError, TypeError) as error:
++        errors.append(f'state.json: {error}')
++    try:
++        saved = _read_saved(directory / 'logo.json', uid)
++        if saved is not None:
++            records['logo'] = saved
++    except (OSError, ValueError, TypeError) as error:
++        errors.append(f'logo.json: {error}')
++    return ManualState(records, tuple(errors))
++
++
++class SessionInputs:
++    """Known D-Bus contracts, independent of Gio so malformed replies are testable."""
++    def __init__(self, system_call, user_call, variant):
++        self.system_call, self.user_call, self.variant = system_call, user_call, variant
++
++    @staticmethod
++    def single(reply):
++        if not isinstance(reply, (tuple, list)) or len(reply) != 1:
++            raise ValueError('D-Bus reply must contain exactly one value')
++        return reply[0]
++
++    def power(self):
++        value = self.single(self.system_call(
++            'org.freedesktop.UPower', '/org/freedesktop/UPower',
++            'org.freedesktop.DBus.Properties', 'Get',
++            self.variant('(ss)', ('org.freedesktop.UPower', 'OnBattery'))))
++        if type(value) is not bool:
++            raise ValueError('UPower OnBattery is not boolean')
++        return 'dc' if value else 'ac'
++
++    def idle(self):
++        value = self.single(self.user_call(
++            'org.gnome.Mutter.IdleMonitor', '/org/gnome/Mutter/IdleMonitor/Core',
++            'org.gnome.Mutter.IdleMonitor', 'GetIdletime'))
++        if type(value) is not int or not 0 <= value < 2**64:
++            raise ValueError('Mutter GetIdletime is not uint64 milliseconds')
++        return value / 1000
++
++
++class PolicyRunner:
++    def __init__(self, *, active, config, manual, power, idle, writer=None,
++                 apply=False, emit=None, transaction=None):
++        self.active, self.config, self.manual = active, config, manual
++        self.power, self.idle, self.writer = power, idle, writer or apply_action
++        self.apply, self.emit = apply, emit
++        self.transaction = transaction or ZoneTransaction
++        self.memory = PolicyMemory()
++        self.restoring = False
++        self._last_report = None
++        self._config_snapshot = None
++
++    def begin_restore(self):
++        self.restoring = True
++
++    def finish_restore(self):
++        # A manual restore changed actual hardware outside the policy's writes.
++        self.memory = PolicyMemory()
++        self.restoring = False
++
++    def deactivate(self):
++        self.memory = PolicyMemory()
++
++    def _active(self):
++        try:
++            return self.active() is True
++        except Exception:
++            self.deactivate()
++            raise
++
++    def _finish(self, result):
++        result['errors'] = list(dict.fromkeys(result['errors']))
++        signature = json.dumps({'status': result['status'], 'errors': result['errors'],
++                                'memory': asdict(self.memory), 'config': self._config_snapshot,
++                                'preview': result['planned'] if not self.apply else None},
++                               sort_keys=True, ensure_ascii=False)
++        changed = signature != self._last_report
++        self._last_report = signature
++        if self.emit is not None and (changed or result['applied']):
++            self.emit({'event': 'lighting_policy', **result})
++        return result
++
++    def _drop_zone(self, device):
++        self.memory = PolicyMemory(tuple(zone for zone in self.memory.zones if zone.device != device))
++
++    def tick(self):
++        result = {'status': 'disabled', 'planned': [], 'applied': [], 'skipped': [], 'errors': []}
++        try:
++            if not self._active():
++                self.deactivate()
++                result['status'] = 'inactive'
++                return self._finish(result)
++            if self.restoring:
++                result['status'] = 'manual_restore_pending'
++                return self._finish(result)
++            config = validate_config(self.config())
++            self._config_snapshot = config
++            # Missing/default-disabled policy with no ownership does not sample
++            # power or idle and does not read/modify any manual device state.
++            if not config['enabled'] and not self.memory.zones:
++                return self._finish(result)
++            saved = self.manual()
++            result['errors'].extend(saved.errors)
++            power = idle = None
++            if config['enabled'] and config['power_enabled']:
++                try:
++                    power = self.power()
++                    if power not in ('ac', 'dc', None):
++                        raise ValueError('invalid power sample')
++                except Exception as error:
++                    power = None
++                    result['errors'].append(f'power: {error}')
++            if config['enabled'] and config['idle_minutes']:
++                try:
++                    idle = self.idle()
++                    if idle is not None and (type(idle) not in (int, float)
++                                             or not math.isfinite(idle) or idle < 0):
++                        raise ValueError('invalid idle sample')
++                except Exception as error:
++                    idle = None
++                    result['errors'].append(f'idle: {error}')
++            proposal = plan(config, power=power, idle_seconds=idle,
++                            saved=saved.records, memory=self.memory)
++            self.memory = proposal.memory
++            result['status'] = proposal.status if self.apply else 'preview_' + proposal.status
++            result['errors'].extend(proposal.errors)
++            for action in proposal.actions:
++                if not self._active():
++                    self.deactivate()
++                    result['status'] = 'inactive'
++                    break
++                try:
++                    # Acquire before the fresh manual read: a GUI/helper can
++                    # finish and save a new manual state while we wait here.
++                    with self.transaction(action.device) if self.apply else nullcontext():
++                        latest = self.manual()
++                        result['errors'].extend(latest.errors)
++                        if not action_matches(action, latest.records):
++                            self._drop_zone(action.device)
++                            result['skipped'].append(action.device + ': manual state changed')
++                            continue
++                        target = (validate_logo(action.params) if action.device == 'logo'
++                                  else validate_hid(action.device, action.params))
++                        result['planned'].append({'device': action.device, 'reason': action.reason,
++                                                  'brightness': action.params.get('brightness')})
++                        if not self.apply:
++                            continue
++                        if not self._active():
++                            self.deactivate()
++                            result['status'] = 'inactive'
++                            break
++                        if self.writer(target) is False:
++                            raise RuntimeError('lighting writer reported failure')
++                        if not self._active():
++                            self.deactivate()
++                            result['status'] = 'inactive'
++                            break
++                        self.memory = acknowledge(self.memory, action)
++                        result['applied'].append(action.device)
++                except Exception as error:
++                    result['errors'].append(f'{action.device}: {error}')
++        except Exception as error:
++            # Unknown config/session/manual input cannot authorize writes.
++            result['status'] = 'error'
++            result['errors'].append(str(error))
++        return self._finish(result)
+--- /dev/null
++++ b/src/iteglow/lighting_session.py
+@@ -0,0 +1,410 @@
++"""Restore last-applied lights in one active local graphical session.
++
++Default operation is a dry run. ``--apply`` explicitly enables the existing
++HID protocols and the fixed, validated Logo helper. The watcher also evaluates
++explicitly enabled session lighting policy; --once only previews/restores manual
++records. No performance settings, startup defaults or system-wide pins are used.
++Importing this module does not access devices, D-Bus or saved files.
++"""
++from __future__ import annotations
++
++import argparse
++from dataclasses import dataclass
++import json
++import os
++from pathlib import Path
++import signal
++import stat
++import subprocess
++from typing import Callable, Optional, Tuple
++
++from . import effects, protocol
++
++HELPER = "/usr/local/libexec/mechrevo-profile-helper"
++MAX_STATE_BYTES = 65536
++LOGO_COLORS = ((255, 255, 255), (255, 0, 0), (0, 255, 0), (0, 0, 255),
++               (255, 255, 0), (136, 0, 255), (0, 255, 255))
++
++
++def _int(value, low, high, field):
++    if type(value) is not int or not low <= value <= high:
++        raise ValueError(f"{field}: expected integer {low}..{high}")
++    return value
++
++
++def _color(value):
++    if not isinstance(value, (list, tuple)) or len(value) != 3:
++        raise ValueError("color: expected three RGB channels")
++    return tuple(_int(channel, 0, 255, "color") for channel in value)
++
++
++@dataclass(frozen=True)
++class RestoreAction:
++    device: str
++    reports: Tuple[protocol.Report, ...] = ()
++    logo_json: Optional[str] = None
++
++
++def validate_hid(device: str, saved: dict) -> RestoreAction:
++    if device not in effects.MODES_BY_LABEL or not isinstance(saved, dict):
++        raise ValueError("unknown device or invalid saved parameters")
++    allowed = {"mode", "color", "colors", "brightness", "speed", "direction", "reactive"}
++    if set(saved) - allowed:
++        raise ValueError("unknown saved lighting fields")
++    mode = saved.get("mode")
++    if not isinstance(mode, str) or mode not in effects.MODES_BY_LABEL[device]:
++        raise ValueError("unknown saved lighting mode")
++    maximum = protocol.KBD_BRIGHTNESS_MAX if device == "keyboard" else protocol.LB_BRIGHTNESS_MAX
++    brightness = saved.get("brightness")
++    brightness = maximum if brightness is None else _int(brightness, 0, maximum, "brightness")
++    color = _color(saved.get("color", [0, 255, 255]))
++    palette = saved.get("colors")
++    if palette is not None:
++        if not isinstance(palette, list) or not 1 <= len(palette) <= 7:
++            raise ValueError("colors: expected one to seven RGB colors")
++        palette = [_color(value) for value in palette]
++    speed = _int(saved.get("speed", 5), 1, 10, "speed")
++    direction = _int(saved.get("direction", 1), 1, 4 if device == "keyboard" else 2, "direction")
++    reactive = saved.get("reactive", False)
++    if type(reactive) is not bool:
++        raise ValueError("reactive: expected a boolean")
++    # A zero brightness is also OFF. In particular, never send lightbar
++    # power-on before an OFF restore (the old cmd_restore did that).
++    if mode == "off" or brightness == 0:
++        reports = effects.build(device, "off")
++    else:
++        reports = effects.build(device, mode, color=color, colors=palette,
++                                brightness=brightness, speed=speed,
++                                direction=direction, reactive=reactive)
++        if device == "lightbar":
++            reports = protocol.lightbar_power_on() + reports
++    return RestoreAction(device, tuple(reports))
++
++
++def validate_logo(saved: dict) -> RestoreAction:
++    if not isinstance(saved, dict) or set(saved) != {"mode", "brightness", "color"}:
++        raise ValueError("invalid last-applied Logo record")
++    mode = saved["mode"]
++    if mode not in ("solid", "breathing", "rainbow"):
++        raise ValueError("unknown Logo mode")
++    brightness = _int(saved["brightness"], 0, 100, "Logo brightness")
++    if brightness not in (0, 25, 50, 75, 100):
++        raise ValueError("unsupported Logo brightness")
++    color = _color(saved["color"])
++    if mode == "breathing" and color not in LOGO_COLORS:
++        raise ValueError("unsupported Logo breathing color")
++    data = {"mode": mode, "brightness": brightness, "color": list(color)}
++    return RestoreAction("logo", logo_json=json.dumps(data, separators=(",", ":")))
++
++
++def _read_saved(path: Path, uid: int):
++    try:
++        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
++    except FileNotFoundError:
++        return None
++    with os.fdopen(fd, "rb") as stream:
++        info = os.fstat(stream.fileno())
++        if not stat.S_ISREG(info.st_mode) or info.st_uid != uid or info.st_mode & 0o002:
++            raise ValueError("saved state must be a user-owned regular file, not world-writable")
++        if info.st_size > MAX_STATE_BYTES:
++            raise ValueError("saved state exceeds size limit")
++        data = stream.read(MAX_STATE_BYTES + 1)
++        if len(data) > MAX_STATE_BYTES:
++            raise ValueError("saved state exceeds size limit")
++        return json.loads(data)
++
++
++def load_actions(directory: Path, uid: int):
++    """Only applied state.json/logo.json; never logo-prefs or system pin data."""
++    actions, errors = [], []
++    try:
++        saved = _read_saved(directory / "state.json", uid)
++        if saved is not None:
++            if not isinstance(saved, dict) or set(saved) - {"keyboard", "lightbar"}:
++                raise ValueError("state.json has unknown devices")
++            for device in ("keyboard", "lightbar"):
++                if device in saved:
++                    try:
++                        actions.append(validate_hid(device, saved[device]))
++                    except (ValueError, TypeError) as error:
++                        errors.append(f"{device}: {error}")
++    except (OSError, ValueError, TypeError) as error:
++        errors.append(f"state.json: {error}")
++    try:
++        saved = _read_saved(directory / "logo.json", uid)
++        if saved is not None:
++            actions.append(validate_logo(saved))
++    except (OSError, ValueError, TypeError) as error:
++        errors.append(f"logo.json: {error}")
++    return tuple(actions), tuple(errors)
++
++
++def eligible_session(properties: dict, uid: int) -> bool:
++    user = properties.get("User", ())
++    seat = properties.get("Seat", ())
++    return (isinstance(user, (tuple, list)) and len(user) == 2 and user[0] == uid
++            and isinstance(seat, (tuple, list)) and len(seat) == 2 and bool(seat[0])
++            and properties.get("Active") is True and properties.get("Remote") is False
++            and properties.get("State") == "active" and properties.get("Class") == "user"
++            and properties.get("Type") in ("x11", "wayland"))
++
++
++class Lifecycle:
++    """Testable event gate; AC/DC and idle do not trigger restoration."""
++
++    def __init__(self, active: Callable[[], bool], schedule: Callable[[], None],
++                 cancel: Callable[[], None]):
++        self.active, self.schedule, self.cancel = active, schedule, cancel
++        self.started = self.sleeping = self.stopped = False
++
++    def startup(self):
++        if not self.started and not self.stopped:
++            self.started = True
++            if self.active():
++                self.schedule()
++
++    def prepare_for_sleep(self, sleeping: bool):
++        if type(sleeping) is not bool:
++            raise ValueError("sleep signal must be boolean")
++        if self.stopped:
++            return
++        if sleeping:
++            self.sleeping = True
++            self.cancel()
++        elif self.sleeping:
++            self.sleeping = False
++            if self.active():
++                self.schedule()
++
++    def stop(self):
++        self.stopped = True
++        self.cancel()
++
++    def can_restore(self):
++        return not self.stopped and not self.sleeping and self.active()
++
++
++def apply_action(action: RestoreAction):
++    """Explicit execution backend, called only with --apply and an active gate."""
++    from .zone_lock import ZoneTransaction
++    with ZoneTransaction(action.device):
++        return _apply_action_locked(action)
++
++
++def _apply_action_locked(action: RestoreAction):
++    if action.device == "logo":
++        # Revalidate even if called independently of load_actions.
++        action = validate_logo(json.loads(action.logo_json))
++        result = subprocess.run(
++            ["/usr/bin/pkexec", "--disable-internal-agent", HELPER, "logo", action.logo_json],
++            capture_output=True, text=True, timeout=5, check=False)
++        if result.returncode:
++            raise RuntimeError(result.stderr.strip() or "Logo helper failed")
++        response = json.loads(result.stdout)
++        if not isinstance(response, dict) or "error" in response:
++            raise RuntimeError("Logo helper rejected restoration")
++        expected = json.loads(action.logo_json)
++        if any(response.get(key) != value for key, value in expected.items()):
++            raise RuntimeError("Logo helper readback differs from saved state")
++    elif action.device in effects.MODES_BY_LABEL:
++        from . import devices
++        with devices.HidLed(devices.led_for_label(action.device)) as device:
++            device.send(action.reports)
++    else:
++        raise ValueError("unknown restore target")
++
++
++def restore_once(directory, uid, active, *, apply=False, writer=None, transaction=None):
++    """Recheck the owning session before each device; dry-run never calls writer."""
++    if not active():
++        return {"restored": [], "planned": [], "errors": [], "skipped": "inactive session"}
++    actions, errors = load_actions(directory, uid)
++    result = {"restored": [], "planned": [], "errors": list(errors)}
++    for action in actions:
++        if not active():
++            result["skipped"] = "session ended or became inactive"
++            break
++        result["planned"].append(action.device)
++        if apply:
++            try:
++                from .zone_lock import ZoneTransaction
++                with (transaction or ZoneTransaction)(action.device):
++                    latest, errors = load_actions(directory, uid)
++                    result['errors'].extend(errors)
++                    latest = next((value for value in latest if value.device == action.device), None)
++                    if latest is None:
++                        continue
++                    if not active():
++                        result['skipped'] = 'session ended or became inactive'
++                        break
++                    if (writer or apply_action)(latest) is False:
++                        raise RuntimeError('lighting writer reported failure')
++                    result["restored"].append(action.device)
++            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
++                result["errors"].append(f"{action.device}: {error}")
++    return result
++
++
++def main(argv=None):
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--apply", action="store_true", help="execute validated lighting restoration")
++    parser.add_argument("--once", action="store_true", help="evaluate startup once without watching D-Bus")
++    args = parser.parse_args(argv)
++    # One watcher per user even when started manually alongside the user unit.
++    # No lock is needed for --once, which defaults to a read-only preview.
++    lock_fd = None
++    if not args.once:
++        import fcntl
++        runtime = os.environ.get("XDG_RUNTIME_DIR")
++        if not runtime:
++            parser.error("XDG_RUNTIME_DIR is required for a session watcher")
++        lock_fd = os.open(Path(runtime) / "iteglow-session-restore.lock",
++                          os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
++        info = os.fstat(lock_fd)
++        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o022:
++            os.close(lock_fd)
++            raise RuntimeError("unsafe session watcher lock")
++        try:
++            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
++        except BlockingIOError:
++            os.close(lock_fd)
++            print(json.dumps({"skipped": "lighting session watcher already running"}))
++            return 0
++    from gi.repository import Gio, GLib
++    uid = os.getuid()
++    system_bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
++    user_bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
++
++    def call(bus, destination, path, interface, method, parameters=None):
++        return bus.call_sync(destination, path, interface, method, parameters, None,
++                             Gio.DBusCallFlags.NONE, 2500, None).unpack()
++
++    def properties(path):
++        return call(system_bus, "org.freedesktop.login1", path,
++                    "org.freedesktop.DBus.Properties", "GetAll",
++                    GLib.Variant("(s)", ("org.freedesktop.login1.Session",)))[0]
++
++    sessions = call(system_bus, "org.freedesktop.login1", "/org/freedesktop/login1",
++                    "org.freedesktop.login1.Manager", "ListSessions")[0]
++    candidates = [(sid, path) for sid, owner, _name, _seat, path in sessions
++                  if owner == uid and eligible_session(properties(path), uid)]
++    if len(candidates) != 1:
++        print(json.dumps({"skipped": "exactly one active local graphical session is required"}))
++        if lock_fd is not None:
++            os.close(lock_fd)
++        return 0
++    session_id, session_path = candidates[0]
++
++    def active():
++        try:
++            # Bind once to this session: never adopt a different login later.
++            if not eligible_session(properties(session_path), uid):
++                return False
++            unit = call(user_bus, "org.freedesktop.systemd1", "/org/freedesktop/systemd1",
++                        "org.freedesktop.systemd1.Manager", "GetUnit",
++                        GLib.Variant("(s)", ("graphical-session.target",)))[0]
++            state = call(user_bus, "org.freedesktop.systemd1", unit,
++                         "org.freedesktop.DBus.Properties", "Get",
++                         GLib.Variant("(ss)", ("org.freedesktop.systemd1.Unit", "ActiveState")))[0]
++            return state == "active"
++        except GLib.Error:
++            return False
++
++    directory = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state"))) / "iteglow"
++    if args.once:
++        print(json.dumps(restore_once(directory, uid, active, apply=args.apply)), flush=True)
++        return 0
++
++    from .lighting_policy_session import CONFIG_PATH, PolicyRunner, SessionInputs, read_config, read_manual
++    inputs = SessionInputs(
++        lambda *parameters: call(system_bus, *parameters),
++        lambda *parameters: call(user_bus, *parameters), GLib.Variant)
++    loop = GLib.MainLoop()
++    pending = None
++    last_active = False
++    lifecycle = None
++    policy = PolicyRunner(
++        active=lambda: lifecycle is not None and lifecycle.can_restore(),
++        config=lambda: read_config(CONFIG_PATH, uid),
++        manual=lambda: read_manual(directory, uid), power=inputs.power, idle=inputs.idle,
++        apply=args.apply, writer=apply_action,
++        emit=lambda event: print(json.dumps(event, ensure_ascii=False), flush=True))
++
++    def cancel():
++        nonlocal pending, last_active
++        policy.begin_restore()
++        last_active = False
++        if pending is not None:
++            GLib.source_remove(pending)
++            pending = None
++
++    def restore():
++        nonlocal pending
++        pending = None
++        policy.begin_restore()
++        try:
++            print(json.dumps(restore_once(directory, uid, lifecycle.can_restore, apply=args.apply)), flush=True)
++        finally:
++            policy.finish_restore()
++        policy.tick()
++        return False
++
++    def schedule():
++        nonlocal pending, last_active
++        cancel()
++        last_active = True
++        # Let USB and the graphical session settle; read saved state only then.
++        pending = GLib.timeout_add_seconds(2, restore)
++
++    lifecycle = Lifecycle(active, schedule, cancel)
++
++    def policy_tick():
++        nonlocal last_active
++        current = lifecycle.can_restore()
++        if not current:
++            policy.deactivate()
++            last_active = False
++        elif not last_active:
++            # Inactivity drops ownership. Restore the saved manual baseline
++            # before rejoining policy, so old idle-OFF cannot become stranded.
++            schedule()
++        policy.tick()
++        return True
++
++    def manager_signal(_connection, _sender, _path, _interface, member, params, _data):
++        values = params.unpack()
++        if member == "PrepareForSleep":
++            lifecycle.prepare_for_sleep(values[0])
++        elif member == "PrepareForShutdown" and values[0]:
++            lifecycle.stop()
++        elif member == "SessionRemoved" and values[0] == session_id:
++            lifecycle.stop()
++            loop.quit()
++
++    def stop():
++        lifecycle.stop()
++        policy.deactivate()
++        loop.quit()
++        return False
++
++    subscription = system_bus.signal_subscribe(
++        "org.freedesktop.login1", "org.freedesktop.login1.Manager", None,
++        "/org/freedesktop/login1", None, Gio.DBusSignalFlags.NONE, manager_signal, None)
++    GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, stop)
++    GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, stop)
++    lifecycle.startup()
++    policy_timer = GLib.timeout_add_seconds(5, policy_tick)
++    try:
++        loop.run()
++    finally:
++        lifecycle.stop()
++        policy.deactivate()
++        GLib.source_remove(policy_timer)
++        system_bus.signal_unsubscribe(subscription)
++        if lock_fd is not None:
++            os.close(lock_fd)
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+--- /dev/null
++++ b/src/iteglow/logo.py
+@@ -0,0 +1,197 @@
++"""Asynchronous controls for the verified, independent EC logo light."""
++import json
++import time
++from pathlib import Path
++from gi.repository import Gio, GLib, Gtk
++from .performance import HELPER
++from . import state
++from .zone_lock import ZoneTransaction
++
++MODES = [('solid', '常亮'), ('breathing', '呼吸'), ('rainbow', '七彩渐变')]
++COLORS = [('白色', [255,255,255]), ('红色', [255,0,0]), ('绿色', [0,255,0]),
++          ('蓝色', [0,0,255]), ('黄色', [255,255,0]), ('紫色', [136,0,255]), ('青色', [0,255,255])]
++APPLIED = Path.home()/'.local/state/iteglow/logo.json'
++PREFS = Path.home()/'.local/state/iteglow/logo-prefs.json'
++
++
++class LogoPanel(Gtk.Box):
++    def __init__(self):
++        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=18)
++        self.add_css_class('device-page')
++        self.busy = False; self.pending = None; self.initialized = False; self.closed = False; self.held_app = None
++        self.zone = None; self.zone_retry = None; self.zone_args = None; self.zone_started = None
++        title = Gtk.Label(label='后盖 Logo', xalign=0)
++        title.add_css_class('page-title'); self.append(title)
++        description = Gtk.Label(label='独立设置屏幕后盖灯光', xalign=0, wrap=True)
++        description.add_css_class('subtitle'); self.append(description)
++        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
++        card.add_css_class('control-card'); self.append(card)
++        self.current = Gtk.Label(label='正在读取 Logo 状态…', xalign=0)
++        self.current.add_css_class('section-title'); card.append(self.current)
++        self.mode = Gtk.DropDown.new_from_strings([caption for _,caption in MODES])
++        self.brightness = Gtk.DropDown.new_from_strings(['关闭', '25%', '50%', '75%', '100%'])
++        self.brightness.set_selected(1)
++        self.palette = Gtk.DropDown.new_from_strings([caption for caption,_ in COLORS]+['自选颜色'])
++        for caption, widget in [('灯光效果',self.mode), ('亮度',self.brightness), ('颜色',self.palette)]:
++            row=Gtk.Box(spacing=12); label=Gtk.Label(label=caption,xalign=0);label.set_hexpand(True)
++            row.append(label);row.append(widget);card.append(row)
++        self.rgb_row=Gtk.Box(spacing=10); self.rgb=[]
++        for name in ('红','绿','蓝'):
++            self.rgb_row.append(Gtk.Label(label=name)); spin=Gtk.SpinButton.new_with_range(0,255,1)
++            spin.set_value(255);spin.set_numeric(True);self.rgb.append(spin);self.rgb_row.append(spin)
++        card.append(self.rgb_row)
++        self.palette.connect('notify::selected',self.selection_changed)
++        self.mode.connect('notify::selected',self.selection_changed)
++        self.selection_changed()
++        note=Gtk.Label(label='呼吸支持七种固定颜色；常亮可自选颜色。编辑后点击“应用灯光”。',xalign=0,wrap=True)
++        note.add_css_class('small-note');card.append(note)
++        row=Gtk.Box(spacing=12)
++        self.apply_button=Gtk.Button(label='应用灯光');self.apply_button.add_css_class('suggested-action')
++        self.apply_button.connect('clicked',self.apply); row.append(self.apply_button)
++        self.off_button=Gtk.Button(label='关闭 Logo');self.off_button.connect('clicked',lambda *_:self.set_enabled(False));row.append(self.off_button)
++        self.buttons=[self.apply_button,self.off_button]
++        for button in self.buttons:button.set_sensitive(False)
++        card.append(row)
++        self.message=Gtk.Label(xalign=0,wrap=True);self.message.add_css_class('status-text');self.append(self.message)
++        self.connect('map',lambda *_:self.request(['logo-status']))
++        self.timer=GLib.timeout_add_seconds(3,self.poll)
++
++    def selection_changed(self,*_):
++        mode=MODES[self.mode.get_selected()][0]
++        if mode=='breathing' and self.palette.get_selected()==7:self.palette.set_selected(0)
++        self.palette.set_sensitive(mode!='rainbow')
++        self.rgb_row.set_visible(mode=='solid' and self.palette.get_selected()==7)
++
++    def load_values(self,config):
++        try:
++            index=[mode for mode,_ in MODES].index(config['mode'])
++            brightness=config['brightness'];color=config['color']
++            if type(brightness) is not int or brightness not in (0,25,50,75,100):return
++            if not isinstance(color,list) or len(color)!=3 or any(type(c) is not int or not 0<=c<=255 for c in color):return
++            self.mode.set_selected(index);self.brightness.set_selected(brightness//25)
++            colors=[rgb for _,rgb in COLORS]
++            self.palette.set_selected(colors.index(color) if color in colors else 7)
++            for spin,value in zip(self.rgb,color):spin.set_value(value)
++            self.selection_changed()
++        except (KeyError,TypeError,ValueError):return
++
++    def config(self):
++        mode=MODES[self.mode.get_selected()][0];index=self.palette.get_selected()
++        if mode=='breathing' and index==7:index=0
++        color=COLORS[index][1] if index<7 else [spin.get_value_as_int() for spin in self.rgb]
++        return {'mode':mode,'brightness':self.brightness.get_selected()*25,'color':color}
++
++    def apply(self,*_):
++        config=self.config()
++        self.request(['logo',json.dumps(config)])
++
++    def poll(self):
++        if self.closed:return False
++        if self.get_mapped() and not self.busy:self.request(['logo-status'])
++        return True
++
++    def set_enabled(self,enabled):
++        self.request(['logo','on' if enabled else 'off'])
++
++    def request(self,args):
++        if self.closed:return
++        if args[0]=='logo' and self.held_app is None:
++            app=Gio.Application.get_default()
++            if app is not None:app.hold();self.held_app=app
++        if self.busy:
++            if args[0]!='logo-status':self.pending=args
++            return
++        self.busy=True
++        for button in self.buttons:button.set_sensitive(False)
++        if args[0]=='logo':
++            self.zone=ZoneTransaction('logo',reentrant=False)
++            try:
++                if not self.zone.acquire(blocking=False):
++                    self.zone_args=args;self.zone_started=time.monotonic()
++                    self.zone_retry=GLib.timeout_add(100,self.retry_zone)
++                    self.message.set_text('正在等待当前 Logo 灯光操作完成…')
++                    return
++            except Exception as exc:
++                self.busy=False;self.message.set_text(str(exc));self.release_zone();self.release_hold();return
++        self.start_helper(args)
++
++    def retry_zone(self):
++        if self.closed:
++            self.zone_retry=None;self.zone_args=None;self.busy=False
++            self.release_zone();self.release_hold();return False
++        try:
++            if not self.zone.acquire(blocking=False):
++                if time.monotonic()-self.zone_started<5:return True
++                raise TimeoutError('Logo 灯光操作仍忙，请稍后重试')
++        except Exception as exc:
++            self.zone_retry=None;self.zone_args=None;self.pending=None;self.busy=False
++            self.message.set_text(str(exc));self.release_zone();self.release_hold()
++            for button in self.buttons:button.set_sensitive(self.initialized)
++            return False
++        args=self.pending or self.zone_args
++        self.pending=None;self.zone_args=None;self.zone_retry=None
++        self.start_helper(args)
++        return False
++
++    def start_helper(self,args):
++        try:
++            process=Gio.Subprocess.new(['/usr/bin/pkexec','--disable-internal-agent',HELPER,*args],
++                Gio.SubprocessFlags.STDOUT_PIPE|Gio.SubprocessFlags.STDERR_PIPE)
++        except GLib.Error as exc:
++            self.busy=False;self.message.set_text(str(exc));self.release_zone();self.release_hold();return
++        timeout=GLib.timeout_add_seconds(5,lambda:(process.force_exit(),False)[1])
++        process.communicate_utf8_async(None,None,self.finished,(args,timeout))
++
++    def finished(self,process,result,context):
++        args,timeout=context
++        if GLib.MainContext.default().find_source_by_id(timeout):GLib.source_remove(timeout)
++        self.busy=False
++        try:
++            _,output,error=process.communicate_utf8_finish(result)
++            data=json.loads(output)
++            if not process.get_successful() or 'error' in data:
++                raise RuntimeError(data.get('error') or error.strip() or 'Logo 控制失败')
++            if args[0]=='logo':
++                try:
++                    from .lighting_session import validate_logo
++                    actual={k:data[k] for k in ('mode','brightness','color')}
++                    validate_logo(actual)
++                    state.write(str(APPLIED),actual)
++                    if args[1] not in ('on','off'):state.write(str(PREFS),json.loads(args[1]))
++                except OSError as exc:save_error='；保存恢复设置失败：'+str(exc)
++                else:save_error=''
++            else:save_error=''
++            if self.closed:return
++            caption=dict(MODES)[data['mode']]
++            self.current.set_text(('当前：'+caption+' · '+str(data['brightness'])+'%') if data['logo_enabled'] else '当前：Logo 灯已关闭')
++            if not self.initialized:
++                self.load_values(data if data['logo_enabled'] else state.load(str(PREFS)) or data)
++                self.initialized=True
++            for button in self.buttons:button.set_sensitive(True)
++            self.message.set_text(('已读取当前硬件状态' if args[0]=='logo-status' else '设置已发送，寄存器回读一致')+save_error)
++        except Exception as exc:
++            if not self.closed:self.message.set_text(str(exc))
++        finally:
++            self.release_zone()
++            if self.closed:self.pending=None;self.release_hold()
++        if self.pending and not self.closed:
++            args,self.pending=self.pending,None;self.request(args)
++        else:self.release_hold()
++
++    def release_zone(self):
++        if self.zone is not None:
++            zone,self.zone=self.zone,None;zone.release()
++
++    def release_hold(self):
++        if self.held_app is not None:
++            app,self.held_app=self.held_app,None;app.release()
++
++    def close(self):
++        self.closed=True
++        if self.timer:GLib.source_remove(self.timer);self.timer=None
++        if self.zone_retry is not None:
++            GLib.source_remove(self.zone_retry);self.zone_retry=None
++            self.zone_args=None;self.pending=None;self.busy=False
++            self.release_zone();self.release_hold()
++        # A helper already writing retains the zone and application hold until
++        # its callback saves the readback, even if the window has been closed.
+--- /dev/null
++++ b/src/iteglow/oem_scheduler.py
+@@ -0,0 +1,195 @@
++"""Offline model of the OEM 1.5-second workload scheduler.
++
++This module only calculates state and records requested operations. It cannot
++read or write hardware. The caller supplies samples and *explicit* firmware
++reply bytes; replies used for simulation must not be presented as observations.
++
++Evidence: research/firmware-link-20261115/decoded-source/sysmanager-restored.cs,
++MySystemManager.cpugpuDTRunTimer_Elapsed (lines 1878-2010). Temperatures, water
++cooling, ACPI notifications and GPU power budgets belong to other layers and
++are intentionally not inferred here. A request is not proof of hardware effect.
++"""
++
++from dataclasses import dataclass, replace
++from enum import Enum
++from typing import Callable, Mapping, Optional, Tuple
++
++
++INTERVAL_MS = 1500
++ACK_ON = 0xBB
++ACK_OFF = 0xAA
++
++
++class Operation(str, Enum):
++    COMBINED_ON = "combined_on"
++    COMBINED_OFF = "combined_off"
++    GAME_ON = "game_on"
++    GAME_OFF = "game_off"
++
++
++def _integer_in_range(name: str, value: int, lower: int, upper: int) -> None:
++    if type(value) is not int or not lower <= value <= upper:
++        raise ValueError(f"{name} must be an integer in {lower}..{upper}")
++
++
++@dataclass(frozen=True)
++class LoadSample:
++    """OEM-style integer percentages, not a per-core maximum or process CPU%."""
++
++    cpu_percent: int
++    gpu_percent: int
++
++    def __post_init__(self) -> None:
++        _integer_in_range("cpu_percent", self.cpu_percent, 0, 100)
++        _integer_in_range("gpu_percent", self.gpu_percent, 0, 100)
++
++
++@dataclass(frozen=True)
++class SchedulerState:
++    cpu_count: int = 0
++    combined_gpu_count: int = 0
++    game_gpu_count: int = 0
++    combined_reply: int = 0
++    single_gpu_reply: int = 0
++    combined_condition: bool = False
++    game_on: bool = False
++    game_launch_condition: int = -1
++
++    def __post_init__(self) -> None:
++        for name in ("cpu_count", "combined_gpu_count", "game_gpu_count"):
++            _integer_in_range(name, getattr(self, name), -1, 3)
++        for name in ("combined_reply", "single_gpu_reply"):
++            _integer_in_range(name, getattr(self, name), 0, 255)
++        for name in ("combined_condition", "game_on"):
++            if type(getattr(self, name)) is not bool:
++                raise ValueError(f"{name} must be a bool")
++        if type(self.game_launch_condition) is not int or self.game_launch_condition not in (-1, 0):
++            raise ValueError("game_launch_condition must be -1 or 0")
++
++
++@dataclass(frozen=True)
++class Transition:
++    state: SchedulerState
++    operations: Tuple[Operation, ...]
++    sampled: bool
++
++
++def round_adapter_present(ec_07cc: int, ec_0490: int) -> bool:
++    """EcCtrl.GetRoundSocketStatusFromEC; this is not generic AC-online.
++
++    Both values are supplied by the caller. This function performs no EC read.
++    0x07cc bit 0 takes precedence. Only a zero low nibble permits the fallback
++    to 0x0490 bit 0, so a USB-C power indication must not be treated as round AC.
++    """
++    _integer_in_range("ec_07cc", ec_07cc, 0, 255)
++    _integer_in_range("ec_0490", ec_0490, 0, 255)
++    return bool(ec_07cc & 1) or (ec_07cc & 0xF == 0 and bool(ec_0490 & 1))
++
++
++def advance(
++    state: SchedulerState,
++    sample: Optional[LoadSample],
++    replies: Mapping[Operation, int],
++    *,
++    round_adapter: bool,
++    game_supported: bool,
++) -> Transition:
++    """Evaluate one callback, preserving OEM counters, ordering and ack gates.
++
++    ``replies`` must contain a byte for each requested COMBINED operation.
++    Use 0 explicitly to model an unknown/unsuccessful reply, or 0xBB/0xAA to
++    model successful ON/OFF. GAME replies are ignored by the OEM and by this
++    model. A missing combined reply raises before caller state is committed.
++
++    Unplugging the round adapter freezes the OEM state; it does not issue OFF.
++    The caller must serialize callbacks (the OEM uses Interlocked.Exchange).
++    Firmware/thermal fail-safes must not be inferred from this host state.
++    """
++    if type(round_adapter) is not bool or type(game_supported) is not bool:
++        raise ValueError("round_adapter and game_supported must be bools")
++    if not round_adapter:
++        return Transition(state, (), False)
++    if not isinstance(sample, LoadSample):
++        raise ValueError("a LoadSample is required with the round adapter present")
++
++    cpu = state.cpu_count
++    if sample.cpu_percent > 95:
++        cpu = min(3, cpu + 1)
++    elif sample.cpu_percent < 10:
++        cpu = max(-1, cpu - 1)
++    else:
++        cpu = 0
++    combined_gpu = max(-1, min(3, state.combined_gpu_count + (1 if sample.gpu_percent > 90 else -1)))
++    game_gpu = state.game_gpu_count
++    if game_supported:
++        game_gpu = max(-1, min(3, game_gpu + (1 if sample.gpu_percent > 50 else -1)))
++
++    current = replace(state, cpu_count=cpu, combined_gpu_count=combined_gpu,
++                      game_gpu_count=game_gpu, combined_condition=False)
++    requested = []
++
++    def combined_reply(operation: Operation) -> int:
++        if operation not in replies:
++            raise ValueError(f"explicit firmware reply required for {operation.value}")
++        value = replies[operation]
++        _integer_in_range("firmware reply", value, 0, 255)
++        requested.append(operation)
++        return value
++
++    if cpu >= 3 and combined_gpu >= 3:
++        current = replace(current, combined_condition=True)
++        if current.game_on:
++            requested.append(Operation.GAME_OFF)
++            current = replace(current, game_on=False)
++        if current.combined_reply != ACK_ON and current.single_gpu_reply != ACK_ON:
++            current = replace(current, combined_reply=combined_reply(Operation.COMBINED_ON))
++    elif (cpu <= -1 or combined_gpu <= -1) and current.combined_reply != ACK_OFF:
++        current = replace(current, combined_reply=combined_reply(Operation.COMBINED_OFF))
++
++    if game_supported:
++        if game_gpu >= 3:
++            if current.combined_reply != ACK_ON and not current.game_on:
++                requested.append(Operation.GAME_ON)
++                current = replace(current, game_on=True)
++        elif game_gpu <= -1 and (current.game_on or current.game_launch_condition == -1):
++            requested.append(Operation.GAME_OFF)
++            current = replace(current, game_on=False, game_launch_condition=0)
++    return Transition(current, tuple(requested), True)
++
++
++class WorkloadScheduler:
++    """Small injectable polling adapter, with no timers or hardware backend.
++
++    ``adapter_reader`` and ``sample_reader`` are read-only callbacks owned by
++    the caller. ``replies`` are simulation/observation data, never an actuator.
++    Missing replies or sample errors leave the previous state unchanged.
++    """
++
++    def __init__(self, *, game_supported: bool, state: Optional[SchedulerState] = None):
++        if type(game_supported) is not bool:
++            raise ValueError("game_supported must be a bool")
++        self.game_supported = game_supported
++        self.state = state if state is not None else SchedulerState()
++
++    def poll(
++        self,
++        adapter_reader: Callable[[], bool],
++        sample_reader: Callable[[], LoadSample],
++        replies: Mapping[Operation, int],
++    ) -> Transition:
++        adapter = adapter_reader()
++        if type(adapter) is not bool:
++            raise ValueError("adapter_reader must return a bool")
++        sample = sample_reader() if adapter else None
++        result = advance(self.state, sample, replies, round_adapter=adapter,
++                         game_supported=self.game_supported)
++        self.state = result.state
++        return result
++
++    def restore_parameters(self) -> None:
++        """Model RestoreCPUGPUCombineParams *after* its registry gate is met.
++
++        That OEM function does not reset game_launch_condition or issue WMI.
++        The registry check/write itself is deliberately outside this model.
++        """
++        self.state = SchedulerState(game_launch_condition=self.state.game_launch_condition)
+--- /dev/null
 +++ b/src/iteglow/performance.py
-@@ -0,0 +1,113 @@
+@@ -0,0 +1,324 @@
 +"""Asynchronous UI for this machine's verified firmware mode helper."""
 +import json
++from pathlib import Path
++
++from . import state
 +
 +from gi.repository import Gio, GLib, Gtk
 +
 +HELPER = '/usr/local/libexec/mechrevo-profile-helper'
-+LABELS = {'office': '办公 · 绿色', 'balanced': '均衡 · 蓝色', 'turbo': '狂暴 · 紫色'}
++LABELS = {'office': '办公 · 绿色', 'balanced': '均衡 · 蓝色', 'turbo': '狂暴 · 紫色', 'custom': '自定义模式 · 白色'}
++
++
++MIN_DUTY = [40,40,40,40,50,55,60,70,80,90,100]
++TEMPS = {'cpu_fan':[44,48,52,56,60,64,68,72,76,80,85],
++         'gpu_fan':[42,46,50,54,58,62,66,70,74,78,81]}
++PREFS = Path.home()/'.local/state/iteglow/performance.json'
++
++
++class TuningEditor(Gtk.Box):
++    def __init__(self, request):
++        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=12)
++        self.request = request; self.spins = {}; self.initialized = False
++        self.gpu_supported = False; self.available = False
++        self.add_css_class('control-card')
++        title=Gtk.Label(label='自定义调校', xalign=0); title.add_css_class('section-title'); self.append(title)
++        note=Gtk.Label(label='应用后进入白色自定义档。切换档位、按机身模式键或休眠前会撤销调校；关闭窗口会保留设置。',xalign=0,wrap=True)
++        note.add_css_class('subtitle');self.append(note)
++        row=Gtk.Box(spacing=12)
++        label=Gtk.Label(label='CPU 功耗上限',xalign=0);label.set_hexpand(True);row.append(label)
++        self.power=Gtk.SpinButton.new_with_range(25,75,1);self.power.set_value(35);row.append(self.power)
++        row.append(Gtk.Label(label='W'));self.append(row)
++        note=Gtk.Label(label='已实测 25–75 W；持续与短时上限同步设置。',xalign=0,wrap=True)
++        note.add_css_class('small-note');self.append(note)
++        row=Gtk.Box(spacing=12)
++        self.gpu_enabled=Gtk.CheckButton(label='同时设置 GPU 功耗');self.gpu_enabled.set_hexpand(True)
++        self.gpu_enabled.set_sensitive(False);row.append(self.gpu_enabled)
++        self.gpu_power=Gtk.SpinButton.new_with_range(65,115,1);self.gpu_power.set_value(115)
++        self.gpu_power.set_numeric(True);self.gpu_power.set_sensitive(False);row.append(self.gpu_power)
++        row.append(Gtk.Label(label='W'));self.append(row)
++        self.gpu_note=Gtk.Label(label='正在确认 GPU 调节支持。未勾选时由固件管理 GPU 功耗。',xalign=0,wrap=True)
++        self.gpu_note.add_css_class('small-note');self.append(self.gpu_note)
++        row=Gtk.Box(spacing=12)
++        self.gpu_db_enabled=Gtk.CheckButton(label='Dynamic Boost · 额外 GPU 功耗')
++        self.gpu_db_enabled.set_hexpand(True);row.append(self.gpu_db_enabled)
++        self.gpu_db=Gtk.SpinButton.new_with_range(5,25,1);self.gpu_db.set_value(5);self.gpu_db.set_numeric(True)
++        row.append(self.gpu_db);row.append(Gtk.Label(label='W'));self.append(row)
++        expander=Gtk.Expander(label='CPU / GPU 风扇曲线 · 点击展开编辑')
++        content=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=10)
++        stack=Gtk.Stack();switcher=Gtk.StackSwitcher(stack=stack);content.append(switcher)
++        for name,caption in [('cpu_fan','CPU 风扇'),('gpu_fan','GPU 风扇')]:
++            page=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8)
++            chart=Gtk.DrawingArea();chart.set_content_height(150);chart.set_hexpand(True)
++            chart.set_draw_func(self.draw_curve,name);page.append(chart)
++            grid=Gtk.Grid(column_spacing=8,row_spacing=6,column_homogeneous=True)
++            self.spins[name]=[]
++            for i,temp in enumerate(TEMPS[name]):
++                box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=4)
++                box.append(Gtk.Label(label=('<'+str(TEMPS[name][1]) if i==0 else str(temp))+'°C'))
++                spin=Gtk.SpinButton.new_with_range(MIN_DUTY[i],100,5);spin.set_value(MIN_DUTY[i]);spin.set_numeric(True)
++                spin.connect('value-changed',lambda _,c=chart:c.queue_draw())
++                spin.set_sensitive(i<10);box.append(spin);self.spins[name].append(spin)
++                grid.attach(box,i%4,i//4,1,1)
++            page.append(grid);stack.add_titled(page,name,caption)
++        content.append(stack)
++        note=Gtk.Label(label='节点数值为风扇占空比（%）。固定使用出厂温度节点与回落迟滞；曲线不能低于冷却基线，高温节点锁定 100%。',xalign=0,wrap=True)
++        note.add_css_class('small-note');content.append(note);expander.set_child(content);self.append(expander)
++        self.expander=expander
++        self.validation=Gtk.Label(xalign=0,wrap=True);self.validation.add_css_class('status-text');self.append(self.validation)
++        actions=Gtk.Box(spacing=10)
++        self.apply_button=Gtk.Button(label='应用功耗与曲线');self.apply_button.add_css_class('suggested-action')
++        self.apply_button.connect('clicked',self.apply);actions.append(self.apply_button)
++        self.reset_button=Gtk.Button(label='撤销调校 / 返回原档位');self.reset_button.connect('clicked',lambda _:request(['reset']));actions.append(self.reset_button)
++        self.append(actions);self.set_available(False,False)
++        self.gpu_enabled.connect('toggled',self.refresh_gpu)
++        self.gpu_db_enabled.connect('toggled',self.refresh_gpu)
++        saved=state.load(str(PREFS))
++        if saved:self.load_values(saved)
++
++    def load_values(self,config):
++        try:
++            power=int(config['pl1']);curves=[config[k] for k in self.spins]
++            if not 25<=power<=75 or any(len(c)!=11 or any(type(v) is not int or not MIN_DUTY[i]<=v<=100 for i,v in enumerate(c)) for c in curves):return
++            self.power.set_value(power)
++            gpu=config.get('gpu_ctgp')
++            if gpu is None:
++                self.gpu_enabled.set_active(False);self.gpu_db_enabled.set_active(False)
++            elif type(gpu) is int and 65<=gpu<=115:
++                self.gpu_power.set_value(gpu);self.gpu_enabled.set_active(True)
++                boost=config.get('gpu_db',0)
++                if type(boost) is int and 5<=boost<=25:
++                    self.gpu_db.set_value(boost);self.gpu_db_enabled.set_active(True)
++                else:self.gpu_db_enabled.set_active(False)
++            for name,spins in self.spins.items():
++                for spin,v in zip(spins,config[name]):spin.set_value(v)
++        except (KeyError,TypeError,ValueError):pass
++
++    def set_available(self,available,active):
++        self.available=bool(available)
++        self.refresh_gpu();self.reset_button.set_sensitive(active)
++
++    def refresh_gpu(self,*_):
++        selected=self.gpu_enabled.get_active()
++        self.gpu_enabled.set_sensitive(self.gpu_supported or selected)
++        self.gpu_power.set_sensitive(self.gpu_supported and selected)
++        self.gpu_db_enabled.set_sensitive(self.gpu_supported and selected)
++        self.gpu_db.set_sensitive(self.gpu_supported and selected and self.gpu_db_enabled.get_active())
++        self.apply_button.set_sensitive(self.available and (not selected or self.gpu_supported))
++
++    def update_status(self,data):
++        self.gpu_supported=(data.get('gpu_tuning_supported') is True
++                            and data.get('gpu_tuning_range')==[65,115] and data.get('gpu_db_range')==[5,25])
++        self.gpu_note.set_text('基础功耗 65–115 W；Dynamic Boost 可额外分配 5–25 W，实际用量随负载变化。未勾选 GPU 调节时由固件管理。'
++                               if self.gpu_supported else data.get('gpu_tuning_reason') or 'GPU 调节尚未就绪；可继续设置 CPU 和风扇。')
++        self.set_available(data['switchable'],data.get('tuning_active',False) or data.get('tuning_recovery_pending',False))
++        if not self.initialized:
++            if data.get('tuning'):self.load_values(data['tuning'])
++            self.initialized=True
++        config=data.get('tuning')
++        self.validation.set_text(('硬件当前已应用：CPU '+str(config['pl1'])+' W'
++                                 +(' · GPU '+str(config['gpu_ctgp'])+' W' if config.get('gpu_ctgp') is not None else '')
++                                 +(' + '+str(config['gpu_db'])+' W Boost' if config.get('gpu_db',0) else '')
++                                 +' · 独立双风扇曲线') if config else '编辑不会立即改变硬件，点击“应用”后生效。')
++
++    def apply(self,_):
++        config={'pl1':self.power.get_value_as_int(),'pl2':self.power.get_value_as_int()}
++        config.update({name:[spin.get_value_as_int() for spin in spins] for name,spins in self.spins.items()})
++        if self.gpu_enabled.get_active():
++            if not self.gpu_supported:
++                self.validation.set_text('GPU 调节状态尚未确认，请取消该项或稍后重试。');return
++            config['gpu_ctgp']=self.gpu_power.get_value_as_int()
++            config['gpu_db']=self.gpu_db.get_value_as_int() if self.gpu_db_enabled.get_active() else 0
++        if any(config[name]!=sorted(config[name]) for name in self.spins):
++            self.validation.set_text('请让风扇百分比随温度单调不减，再应用。');return
++        try:state.write(str(PREFS),config)
++        except OSError as exc:self.validation.set_text('无法保存设置：'+str(exc));return
++        self.request(['apply',json.dumps(config)])
++
++    def draw_curve(self,area,cr,width,height,name):
++        left,right,top,bottom=36,width-14,12,height-25
++        cr.set_source_rgb(.96,.97,.99);cr.paint();cr.set_line_width(1);cr.set_font_size(11)
++        for value in (40,70,100):
++            y=bottom-(value-30)/70*(bottom-top)
++            cr.set_source_rgb(.86,.89,.94);cr.move_to(left,y);cr.line_to(right,y);cr.stroke()
++            cr.set_source_rgb(.4,.46,.56);cr.move_to(3,y+4);cr.show_text(str(value)+'%')
++        points=[]
++        for i,spin in enumerate(self.spins.get(name,[])):
++            temp=TEMPS[name][i];x=left+(temp-40)/50*(right-left);y=bottom-(spin.get_value()-30)/70*(bottom-top);points.append((x,y))
++        cr.set_source_rgb(*((.23,.45,.85) if name=='cpu_fan' else (.58,.34,.79)));cr.set_line_width(2.5)
++        for i,(x,y) in enumerate(points):
++            if i==0:cr.move_to(x,y)
++            else:cr.line_to(x,y)
++        cr.stroke()
++        for x,y in points:cr.arc(x,y,3,0,6.284);cr.fill()
++        cr.set_source_rgb(.4,.46,.56)
++        for temp in (40,60,80,90):cr.move_to(left+(temp-40)/50*(right-left)-9,height-6);cr.show_text(str(temp)+' C')
++
++
++class TurboEditor(Gtk.Box):
++    def __init__(self, request):
++        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=12)
++        self.add_css_class('control-card')
++        title=Gtk.Label(label='狂暴子模式',xalign=0);title.add_css_class('section-title');self.append(title)
++        self.current=Gtk.Label(label='正在读取调度状态…',xalign=0,wrap=True);self.append(self.current)
++        self.buttons={};row=Gtk.Box(spacing=10)
++        for mode,caption in [('quiet','静音狂暴'),('extreme','高能狂暴'),('off','交还固件控制')]:
++            button=Gtk.Button(label=caption);button.set_sensitive(False)
++            button.connect('clicked',lambda _,value=mode:request(['turbo',value]))
++            row.append(button);self.buttons[mode]=button
++        self.append(row)
++        note=Gtk.Label(label='在狂暴档、原装圆口电源下可用。切换其他档位、拔掉电源或准备睡眠时，自动交还固件控制；唤醒后不自动重新启用。',xalign=0,wrap=True)
++        note.add_css_class('small-note');self.append(note)
++        budget=Gtk.Label(label='CPU 与 GPU 共享功耗预算。仅使用 GPU 时，两种子模式可能达到相同功耗。',xalign=0,wrap=True)
++        budget.add_css_class('small-note');self.append(budget)
++
++    def disable(self):
++        for button in self.buttons.values():button.set_sensitive(False)
++
++    def update_status(self,data):
++        turbo=data.get('turbo')
++        turbo=turbo if isinstance(turbo,dict) else {}
++        active=turbo.get('active') is True
++        available=turbo.get('available') is True
++        recovering=turbo.get('recovery_needed') is True and not active
++        uncertain=turbo.get('policy_uncertain') is True
++        known=(all(type(turbo.get(key)) is bool for key in
++                   ('active','recovery_needed','policy_uncertain','standard_turbo',
++                    'round_adapter','combined_supported'))
++               and all(type(data.get(key)) is bool for key in ('tuning_active','tuning_recovery_pending'))
++               and type(turbo.get('read_rc')) is int and turbo['read_rc']==0
++               and (not active or turbo.get('variant') in ('quiet','extreme')))
++        supported=turbo.get('combined_supported') is True
++        eligible=(available and known and supported and data.get('mode')=='turbo'
++                  and turbo.get('standard_turbo') is True and turbo.get('round_adapter') is True
++                  and not data['tuning_active'] and not data['tuning_recovery_pending']
++                  and not recovering and not uncertain)
++        variant=(turbo.get('variant') if active and turbo.get('variant') in ('quiet','extreme')
++                 else 'off' if known and not active and not recovering and not uncertain else None)
++        for name,button in self.buttons.items():
++            # A known active lease can always be handed back even if its variant
++            # or capability report is incomplete. Never infer active from truthy data.
++            button.set_sensitive(bool((available and (active or recovering) and not uncertain) if name=='off' else eligible and name!=variant))
++            if name==variant and available:button.add_css_class('selected')
++            else:button.remove_css_class('selected')
++        if uncertain:caption='固件状态无法确认，已停止软件切档；请正常重启电脑'
++        elif not available and (active or recovering):caption='控制服务离线，正在等待归还控制；暂不能更改模式'
++        elif not available:caption='调度服务未就绪，当前保持固件控制'
++        elif recovering:caption='恢复尚未完成，请点击“交还固件控制”重试'
++        elif not known:caption='调度状态尚未确认，请先交还固件控制' if active else '调度状态尚未确认，暂不能启用子模式'
++        elif not supported:caption='固件未报告支持自动功耗调度，请先交还控制' if active else '固件未报告支持自动功耗调度'
++        elif active:caption='当前：'+('静音狂暴' if variant=='quiet' else '高能狂暴')+' · 自动分配 CPU / GPU 功耗'
++        elif data.get('mode')!='turbo':caption='先切换到上方的狂暴模式'
++        elif not turbo.get('round_adapter'):caption='请使用原装圆口电源'
++        else:caption='当前：由固件控制，尚未启用子模式调度'
++        self.current.set_text(caption)
 +
 +
 +class PerformancePanel(Gtk.Box):
@@ -824,10 +2689,11 @@
 +        self.current = Gtk.Label(label='正在读取当前档位…', xalign=0)
 +        self.current.add_css_class('performance-current'); self.append(self.current)
 +        self.buttons = []
-+        row = Gtk.Box(spacing=12, homogeneous=True)
-+        for mode, title, color, css in [('office','办公模式','绿色指示灯','green-led'),
++        row = Gtk.Grid(column_spacing=12, row_spacing=12, column_homogeneous=True)
++        for index, (mode, title, color, css) in enumerate([('office','办公模式','绿色指示灯','green-led'),
 +                                       ('balanced','均衡模式','蓝色指示灯','blue-led'),
-+                                       ('turbo','狂暴模式','紫色指示灯','purple-led')]:
++                                       ('turbo','狂暴模式','紫色指示灯','purple-led'),
++                                       ('custom','自定义模式','白色指示灯','white-led')]):
 +            button = Gtk.Button(); button.add_css_class('mode-card')
 +            content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
 +            name = Gtk.Label(label=title, xalign=0); name.add_css_class('mode-name')
@@ -835,7 +2701,7 @@
 +            content.append(name); content.append(led); button.set_child(content)
 +            button.set_sensitive(False)
 +            button.connect('clicked', lambda _button, selected=mode: self.request(['set', selected]))
-+            row.append(button); self.buttons.append((mode, button))
++            row.attach(button, index % 2, index // 2, 1, 1); self.buttons.append((mode, button))
 +        self.append(row)
 +        self.message = Gtk.Label(xalign=0, wrap=True)
 +        self.message.add_css_class('status-text'); self.append(self.message)
@@ -843,12 +2709,9 @@
 +        note.add_css_class('subtitle'); self.append(note)
 +        note2 = Gtk.Label(label='启动、开机与唤醒时保持当前档位，不自动切换。', xalign=0, wrap=True)
 +        note2.add_css_class('subtitle'); self.append(note2)
-+        pending = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-+        pending.add_css_class('control-card')
-+        title = Gtk.Label(label='更多模式 · 待验证', xalign=0); title.add_css_class('section-title'); pending.append(title)
-+        detail = Gtk.Label(label='自定义（白色）、静音狂暴与高能狂暴尚未开放。\n当前“狂暴”对应机身按键的紫色档，不指定狂暴子模式。', xalign=0, wrap=True)
-+        detail.add_css_class('subtitle'); pending.append(detail)
-+        self.append(pending)
++        self.tuning = TuningEditor(self.request)
++        self.turbo = TurboEditor(self.request)
++        self.append(self.turbo);self.append(self.tuning)
 +        self.connect('map', self._mapped)
 +        self.connect('unmap', self._unmapped)
 +        self.timer = None
@@ -875,8 +2738,10 @@
 +        self.busy = True
 +        for _, button in self.buttons:
 +            button.set_sensitive(False)
-+        if args[0] == 'set':
-+            self.message.set_text('正在切换并核对硬件回读…')
++        self.tuning.set_available(False, False)
++        self.turbo.disable()
++        if args[0] != 'status':
++            self.message.set_text('正在应用设置并核对硬件回读…')
 +        try:
 +            process = Gio.Subprocess.new(['/usr/bin/pkexec', '--disable-internal-agent', HELPER, *args],
 +                                         Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE)
@@ -903,8 +2768,10 @@
 +                raise RuntimeError(data.get('error', error.strip() or '性能控制失败'))
 +            self.switchable = data['switchable']
 +            mode = data['mode']
-+            self.current.set_text('当前：' + LABELS.get(mode, '未知档位'))
-+            self.message.set_text(data['reason'] or ('切换成功，硬件回读一致' if operation == 'set' else '已连接固件档位控制'))
++            self.current.set_text('当前：' + LABELS.get(mode, '未知档位') + (' · 已应用调校' if data.get('tuning_active') else ''))
++            self.tuning.update_status(data)
++            self.turbo.update_status(data)
++            self.message.set_text(data['reason'] or ('设置已生效，硬件回读一致' if operation != 'status' else '已连接固件档位控制'))
 +            for value, button in self.buttons:
 +                button.set_sensitive(self.switchable and value != mode)
 +                if value == mode:
@@ -913,56 +2780,189 @@
 +                    button.remove_css_class('selected')
 +        except Exception as exc:
 +            self.switchable = False
++            self.tuning.set_available(False, False)
++            self.turbo.disable()
 +            self.current.set_text('当前：无法读取')
 +            self.message.set_text(str(exc))
+--- a/src/iteglow/state.py
++++ b/src/iteglow/state.py
+@@ -1,11 +1,12 @@
+ """Persist the last-applied LED state so it can be restored later.
+ 
+ Every successful ``iteglow set`` / GUI apply records the parameters in the
+-user's state file (``$XDG_STATE_HOME/iteglow/state.json``). ``sudo iteglow
+-pin`` copies the invoking user's file to the system path, which ``iteglow
+-restore --system`` -- run by ``iteglow-restore.service`` on boot and resume --
+-re-applies. Needed because the controllers lose their state on suspend and
+-dual-boot, and only the keyboard supports (partial) state readback.
++user's state file (``$XDG_STATE_HOME/iteglow/state.json``). The user-session
++restorer reads this file on login and resume when configured with --apply.
++``sudo iteglow pin`` only exports a copy for a later manual ``iteglow restore
++--system``; it does not enable a service or automatic restoration. The
++controllers may lose state on suspend and dual-boot, and only the keyboard
++supports partial state readback. Logo applied state is stored separately.
+ """
+ from __future__ import annotations
+ 
+@@ -13,6 +14,7 @@
+ import os
+ import pwd
+ from typing import Optional
++from .zone_lock import ZoneTransaction
+ 
+ SYSTEM_STATE_PATH = "/var/lib/iteglow/state.json"
+ 
+@@ -42,17 +44,26 @@
+     os.replace(tmp, path)
+ 
+ 
+-def save(label: str, params: dict) -> None:
++def save(label: str, params: dict) -> bool:
+     """Record ``params`` as the last state of ``label``. Best-effort: state
+-    saving must never break the actual LED operation. Root (e.g. ``sudo
+-    iteglow set``) also updates the system state used on boot/resume."""
++    saving must never break the actual LED operation. User CLI lighting writes
++    reject root so their zone locks share the active desktop user's identity.
++    The legacy root/library path also attempts the optional system export.
++    Return False when persistence fails; the light operation has already
++    succeeded and callers should report that distinction without retrying it.
++    """
+     targets = [user_state_path()]
+     if os.geteuid() == 0:
+         targets.append(SYSTEM_STATE_PATH)
++    saved = True
+     for path in targets:
+         try:
+-            data = load(path)
+-            data[label] = params
+-            write(path, data)
+-        except OSError:
+-            pass
++            with ZoneTransaction('manual-state'):
++                data = load(path)
++                if not isinstance(data, dict):
++                    raise ValueError("saved lighting state is not an object")
++                data[label] = params
++                write(path, data)
++        except (OSError, ValueError, TypeError, RuntimeError):
++            saved = False
++    return saved
 --- /dev/null
-+++ b/src/iteglow/control.css
-@@ -0,0 +1,48 @@
-+.mechrevo-shell { background: #f4f6fa; color: #1d2940; font-size: 13px; }
-+.mechrevo-shell .sidebar { background: #eaf0f7; padding: 28px 16px 20px; border-right: 1px solid #dfe6f0; }
-+.mechrevo-shell .brand-mark { font-size: 28px; font-weight: 900; letter-spacing: 3px; color: #2f63db; margin-bottom: 6px; }
-+.mechrevo-shell .brand-title { font-size: 20px; font-weight: 700; letter-spacing: 2px; }
-+.mechrevo-shell .subtitle { color: #66758a; font-size: 12px; }
-+.mechrevo-shell .small-note { color: #718096; font-size: 11px; }
-+.mechrevo-shell .nav-section { color: #7b879b; font-size: 11px; margin: 32px 10px 8px; }
-+.mechrevo-shell button { background: #fff; background-image: none; color: #34435a; border: 1px solid #dbe3ee; border-radius: 9px; box-shadow: none; text-shadow: none; padding: 8px 12px; min-height: 20px; font-weight: 500; }
-+.mechrevo-shell button:hover { background: #f0f5ff; border-color: #afc6ef; }
-+.mechrevo-shell button:focus-visible { outline: 2px solid #719cf0; outline-offset: 2px; }
-+.mechrevo-shell button.selected { background: #eaf2ff; color: #2459c4; border-color: #81a8f2; }
-+.mechrevo-shell button:disabled { opacity: .55; }
-+.mechrevo-shell .nav-button { background: transparent; border: 1px solid transparent; padding: 13px 12px; font-weight: 600; }
-+.mechrevo-shell .nav-button.selected { background: #fff; border-color: #d9e5fa; color: #275dc6; box-shadow: 0 3px 8px alpha(#315b9c,.06); }
-+.mechrevo-shell .device-name { font-size: 12px; font-weight: 600; color: #4c5e77; }
-+.mechrevo-shell .topbar { background: #fff; padding: 14px 24px; border-bottom: 1px solid #e4eaf2; }
-+.mechrevo-shell .topbar-label { color: #8290a5; font-size: 12px; }
-+.mechrevo-shell .all-off { font-size: 12px; }
-+.mechrevo-shell .device-page, .mechrevo-shell .performance-page { padding: 22px 24px; }
-+.mechrevo-shell .page-title { font-size: 24px; font-weight: 750; color: #1d2c44; }
-+.mechrevo-shell .connection-pill { color: #20815d; background: #e8f5ef; border-radius: 20px; padding: 7px 12px; font-size: 11px; }
-+.mechrevo-shell .control-card { background: #fff; border: 1px solid #e1e7f0; border-radius: 14px; padding: 16px; }
-+.mechrevo-shell .section-title { font-size: 14px; font-weight: 700; color: #24344e; }
-+.mechrevo-shell .effect-tile { min-height: 35px; padding: 7px 8px; font-size: 12px; font-weight: 600; }
-+.mechrevo-shell .value-label { font-size: 11px; color: #5874a1; }
-+.mechrevo-shell .status-text { font-size: 11px; color: #526f93; min-height: 16px; }
-+.mechrevo-shell .small-button { padding: 2px 8px; font-size: 10px; min-height: 16px; }
-+.mechrevo-shell .color-swatch { padding: 3px; min-width: 24px; min-height: 23px; border-radius: 7px; }
-+.mechrevo-shell colorswatch { border-radius: 5px; }
-+.mechrevo-shell scale { padding: 10px 0; }
-+.mechrevo-shell scale trough { background: #e7edf6; min-height: 5px; border: none; border-radius: 8px; }
-+.mechrevo-shell scale highlight { background: #477ce5; border: none; border-radius: 8px; }
-+.mechrevo-shell scale slider { background: #fff; border: 2px solid #477ce5; box-shadow: 0 1px 3px alpha(#1b3f80,.15); min-width: 12px; min-height: 12px; margin: -6px 0; }
-+.mechrevo-shell dropdown button { padding: 5px 8px; font-size: 11px; }
-+.mechrevo-shell .mode-card { min-height: 90px; padding: 18px 12px; }
-+.mechrevo-shell .mode-name { font-size: 17px; font-weight: 700; }
-+.mechrevo-shell .mode-led { font-size: 12px; }
-+.mechrevo-shell .green-led { color: #20966c; }
-+.mechrevo-shell .blue-led { color: #4074df; }
-+.mechrevo-shell .purple-led { color: #9660db; }
-+.mechrevo-shell .performance-current { background: #142238; color: #edf4ff; border-radius: 15px; padding: 26px; font-size: 21px; font-weight: 700; }
++++ b/src/iteglow/zone_lock.py
+@@ -0,0 +1,116 @@
++"""Cooperating user clients serialize complete per-zone lighting transactions.
 +
-+.mechrevo-shell .page-scroll > viewport { background: #f4f6fa; }
-+.mechrevo-shell scale highlight { min-width: 1px; min-height: 5px; padding: 0; margin: 0; }
-+.mechrevo-shell scale trough { padding: 0; margin: 0; }
-+.mechrevo-shell .mode-card.selected:disabled { opacity: 1; color: #2459c4; background: #eaf2ff; border-color: #81a8f2; }
++Lock order is zone -> manual-state (or the Logo helper's profile lock). Nothing
++holding manual-state/profile may acquire a zone. Locks are never unlinked: a
++second inode would let later clients bypass a transaction still in flight.
++"""
++import fcntl
++import os
++from pathlib import Path
++import stat
++import threading
++import time
 +
-+.mechrevo-shell scale:disabled { opacity: .4; }
++_entries = {}
++_entries_lock = threading.Lock()
++
++
++class _Entry:
++    def __init__(self):
++        self.local = threading.RLock()
++        self.depth = 0
++        self.fd = None
++
++
++class ZoneTransaction:
++    def __init__(self, device, runtime_dir=None, timeout=5, *, reentrant=True):
++        if device not in ('keyboard', 'lightbar', 'logo', 'manual-state'):
++            raise ValueError('unknown lighting lock')
++        self.device = device
++        self.runtime = Path(runtime_dir or os.environ.get('XDG_RUNTIME_DIR') or f'/run/user/{os.getuid()}')
++        self.timeout = timeout
++        self.reentrant = reentrant
++        self.depth = 0
++        key = (str(self.runtime.absolute()), device)
++        with _entries_lock:
++            self.entry = _entries.setdefault(key, _Entry())
++
++    def _open(self):
++        directory = os.open(self.runtime, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
++        try:
++            info = os.fstat(directory)
++            if info.st_uid != os.getuid() or info.st_mode & 0o022:
++                raise RuntimeError('unsafe lighting runtime directory')
++            fd = os.open(f'iteglow-{self.device}.lock',
++                         os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW,
++                         0o600, dir_fd=directory)
++            info = os.fstat(fd)
++            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
++                os.close(fd)
++                raise RuntimeError('unsafe lighting transaction lock')
++            return fd
++        finally:
++            os.close(directory)
++
++    def acquire(self, blocking=True):
++        until = time.monotonic() + self.timeout
++        if not self.entry.local.acquire(blocking=False):
++            if not blocking:
++                return False
++            if not self.entry.local.acquire(timeout=self.timeout):
++                raise TimeoutError('lighting transaction is busy')
++        try:
++            # Async GTK transactions can overlap on one thread after a window
++            # closes/reopens. They must not inherit synchronous RLock nesting.
++            if self.entry.depth and not self.reentrant:
++                if not blocking:
++                    self.entry.local.release()
++                    return False
++                raise RuntimeError('non-reentrant lighting transaction is already active')
++            if not self.entry.depth:
++                fd = self._open()
++                try:
++                    while True:
++                        try:
++                            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
++                            break
++                        except BlockingIOError:
++                            if not blocking:
++                                os.close(fd)
++                                self.entry.local.release()
++                                return False
++                            if time.monotonic() >= until:
++                                raise TimeoutError('lighting transaction is busy')
++                            time.sleep(.02)
++                except BaseException:
++                    os.close(fd)
++                    raise
++                self.entry.fd = fd
++            self.entry.depth += 1
++            self.depth += 1
++            return True
++        except BaseException:
++            self.entry.local.release()
++            raise
++
++    def release(self):
++        if not self.depth:
++            return
++        self.depth -= 1
++        self.entry.depth -= 1
++        try:
++            if not self.entry.depth:
++                fd, self.entry.fd = self.entry.fd, None
++                try:
++                    fcntl.flock(fd, fcntl.LOCK_UN)
++                finally:
++                    os.close(fd)
++        finally:
++            self.entry.local.release()
++
++    def __enter__(self):
++        self.acquire()
++        return self
++
++    def __exit__(self, *_):
++        self.release()
