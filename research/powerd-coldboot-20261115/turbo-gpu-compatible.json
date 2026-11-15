@@ -1,0 +1,243 @@
+{
+  "before": {
+    "1857": 128,
+    "1832": 0,
+    "1926": 0
+  },
+  "after": {
+    "1857": 128,
+    "1832": 0,
+    "1926": 0
+  },
+  "samples": [
+    {
+      "phase": "extreme1",
+      "gpu_w": 140.98,
+      "limit_w": 140.0,
+      "gpu_c": 50,
+      "util": 98,
+      "clock_mhz": 2265,
+      "cpu_c": 50.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=8a\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n",
+      "cpu_rpm": 1920,
+      "gpu_counter": 1911
+    },
+    {
+      "phase": "extreme1",
+      "gpu_w": 140.49,
+      "limit_w": 140.0,
+      "gpu_c": 51,
+      "util": 99,
+      "clock_mhz": 2220,
+      "cpu_c": 59.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=8a\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n",
+      "cpu_rpm": 1976,
+      "gpu_counter": 1944
+    },
+    {
+      "phase": "extreme1",
+      "gpu_w": 140.28,
+      "limit_w": 140.0,
+      "gpu_c": 52,
+      "util": 99,
+      "clock_mhz": 2205,
+      "cpu_c": 70.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=8a\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n",
+      "cpu_rpm": 1888,
+      "gpu_counter": 1871
+    },
+    {
+      "phase": "extreme1",
+      "gpu_w": 140.25,
+      "limit_w": 140.0,
+      "gpu_c": 53,
+      "util": 99,
+      "clock_mhz": 2212,
+      "cpu_c": 76.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=8a\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n",
+      "cpu_rpm": 1954,
+      "gpu_counter": 1942
+    },
+    {
+      "phase": "extreme1",
+      "gpu_w": 140.17,
+      "limit_w": 140.0,
+      "gpu_c": 54,
+      "util": 99,
+      "clock_mhz": 2235,
+      "cpu_c": 55.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=8a\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n",
+      "cpu_rpm": 2134,
+      "gpu_counter": 2126
+    },
+    {
+      "phase": "extreme1",
+      "gpu_w": 140.14,
+      "limit_w": 140.0,
+      "gpu_c": 54,
+      "util": 99,
+      "clock_mhz": 2220,
+      "cpu_c": 53.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=8a\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n",
+      "cpu_rpm": 2313,
+      "gpu_counter": 2291
+    },
+    {
+      "phase": "extreme1",
+      "gpu_w": 139.86,
+      "limit_w": 140.0,
+      "gpu_c": 55,
+      "util": 98,
+      "clock_mhz": 2227,
+      "cpu_c": 52.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=8a\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n",
+      "cpu_rpm": 2171,
+      "gpu_counter": 2149
+    },
+    {
+      "phase": "extreme1",
+      "gpu_w": 139.82,
+      "limit_w": 140.0,
+      "gpu_c": 55,
+      "util": 98,
+      "clock_mhz": 2227,
+      "cpu_c": 49.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=8a\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n",
+      "cpu_rpm": 2077,
+      "gpu_counter": 2049
+    },
+    {
+      "phase": "quiet",
+      "gpu_w": 139.7,
+      "limit_w": 140.0,
+      "gpu_c": 55,
+      "util": 99,
+      "clock_mhz": 2220,
+      "cpu_c": 53.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=600\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=01\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=92\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=4b\n",
+      "cpu_rpm": 2081,
+      "gpu_counter": 2043
+    },
+    {
+      "phase": "quiet",
+      "gpu_w": 139.76,
+      "limit_w": 140.0,
+      "gpu_c": 55,
+      "util": 99,
+      "clock_mhz": 2212,
+      "cpu_c": 76.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=600\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=01\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=92\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=4b\n",
+      "cpu_rpm": 2156,
+      "gpu_counter": 2147
+    },
+    {
+      "phase": "quiet",
+      "gpu_w": 139.71,
+      "limit_w": 140.0,
+      "gpu_c": 56,
+      "util": 99,
+      "clock_mhz": 2212,
+      "cpu_c": 59.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=600\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=01\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=92\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=4b\n",
+      "cpu_rpm": 2180,
+      "gpu_counter": 2158
+    },
+    {
+      "phase": "quiet",
+      "gpu_w": 139.76,
+      "limit_w": 140.0,
+      "gpu_c": 56,
+      "util": 99,
+      "clock_mhz": 2212,
+      "cpu_c": 74.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=600\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=01\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=92\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=4b\n",
+      "cpu_rpm": 2182,
+      "gpu_counter": 2169
+    },
+    {
+      "phase": "quiet",
+      "gpu_w": 139.97,
+      "limit_w": 140.0,
+      "gpu_c": 57,
+      "util": 99,
+      "clock_mhz": 2212,
+      "cpu_c": 86.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=600\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=01\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=92\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=4b\n",
+      "cpu_rpm": 2333,
+      "gpu_counter": 2331
+    },
+    {
+      "phase": "quiet",
+      "gpu_w": 139.84,
+      "limit_w": 140.0,
+      "gpu_c": 57,
+      "util": 98,
+      "clock_mhz": 2212,
+      "cpu_c": 71.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=600\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=01\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=92\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=4b\n",
+      "cpu_rpm": 2518,
+      "gpu_counter": 2498
+    },
+    {
+      "phase": "quiet",
+      "gpu_w": 139.75,
+      "limit_w": 140.0,
+      "gpu_c": 57,
+      "util": 99,
+      "clock_mhz": 2205,
+      "cpu_c": 88.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=600\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=01\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=92\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=4b\n",
+      "cpu_rpm": 2698,
+      "gpu_counter": 2678
+    },
+    {
+      "phase": "quiet",
+      "gpu_w": 139.87,
+      "limit_w": 140.0,
+      "gpu_c": 58,
+      "util": 99,
+      "clock_mhz": 2205,
+      "cpu_c": 87.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=600\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=01\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=92\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=4b\n",
+      "cpu_rpm": 2855,
+      "gpu_counter": 2848
+    },
+    {
+      "phase": "extreme2",
+      "gpu_w": 139.93,
+      "limit_w": 140.0,
+      "gpu_c": 58,
+      "util": 99,
+      "clock_mhz": 2205,
+      "cpu_c": 78.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=8a\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n",
+      "cpu_rpm": 3084,
+      "gpu_counter": 3067
+    },
+    {
+      "phase": "extreme2",
+      "gpu_w": 139.77,
+      "limit_w": 140.0,
+      "gpu_c": 58,
+      "util": 99,
+      "clock_mhz": 2205,
+      "cpu_c": 92.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=8a\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n",
+      "cpu_rpm": 3242,
+      "gpu_counter": 3218
+    },
+    {
+      "phase": "extreme2",
+      "gpu_w": 139.74,
+      "limit_w": 140.0,
+      "gpu_c": 58,
+      "util": 99,
+      "clock_mhz": 2205,
+      "cpu_c": 94.0,
+      "firmware": "CSTM=0\nGATM=1\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=09\n741=81\n751=10\n783=00\n784=00\n785=00\n786=8a\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n",
+      "cpu_rpm": 3369,
+      "gpu_counter": 3363
+    }
+  ],
+  "firmware_restored": "CSTM=0\nGATM=0\nACBT=400\nAMAT=200\nAMIT=65416\nATPP=1160\nDBAC=0\nDBDC=1\nCTGP=1\n706=40\n726=00\n727=80\n728=00\n72b=01\n741=80\n751=10\n783=00\n784=00\n785=00\n786=00\n787=00\n7ab=01\n7c5=00\n7c7=0c\n7e8=18\n788=32\n7c3=07\n7d5=19\n7f7=91\n"
+}

@@ -1,0 +1,5 @@
+{
+  "pid": 71273,
+  "journal": "nvidia-powerd version:2.0 (build 1)\nDBus Connection is established\nERROR! Client (presumably SBIOS) has requested to disable Dynamic Boost DC controller\nERROR! Error(1f) in setting the short timescale limit (0)\nQuit successfully\n",
+  "lscpu_override_used": true
+}

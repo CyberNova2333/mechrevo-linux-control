@@ -410,5 +410,12 @@
     "final": "6.8.0-149-generic",
     "all_nine_added_packages_removed": true,
     "future_series_change_requires_user_approval": true
+  },
+  "additional_trials": {
+    "topology-executable-probe.json": "adapter used; AutoFL error absent; private process ended and original daemon restored",
+    "turbo-gpu-compatible.json": "incomplete: stopped at CPU sustained temperature guard (92/94C); settings restored",
+    "turbo-gpu-compatible-restart.json": "complete: both phases still about 140W; settings restored",
+    "temporary_adapter_installed": false,
+    "temporary_module_loaded": false
   }
 }
