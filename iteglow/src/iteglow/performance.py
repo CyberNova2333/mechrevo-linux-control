@@ -20,7 +20,7 @@ class TuningEditor(Gtk.Box):
     def __init__(self, request):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         self.request = request; self.spins = {}; self.initialized = False
-        self.gpu_supported = False; self.available = False
+        self.gpu_supported = False; self.available = False; self.safety_protect = False
         self.add_css_class('control-card')
         title=Gtk.Label(label='自定义调校', xalign=0); title.add_css_class('section-title'); self.append(title)
         note=Gtk.Label(label='应用后进入白色自定义档。切换档位、按机身模式键或休眠前会撤销调校；关闭窗口会保留设置。',xalign=0,wrap=True)
@@ -104,9 +104,10 @@ class TuningEditor(Gtk.Box):
         self.gpu_power.set_sensitive(self.gpu_supported and selected)
         self.gpu_db_enabled.set_sensitive(self.gpu_supported and selected)
         self.gpu_db.set_sensitive(self.gpu_supported and selected and self.gpu_db_enabled.get_active())
-        self.apply_button.set_sensitive(self.available and (not selected or self.gpu_supported))
+        self.apply_button.set_sensitive(self.available and not self.safety_protect and (not selected or self.gpu_supported))
 
     def update_status(self,data):
+        self.safety_protect=data.get('fan_safety_protect') is True
         self.gpu_supported=(data.get('gpu_tuning_supported') is True
                             and data.get('gpu_tuning_range')==[65,115] and data.get('gpu_db_range')==[5,25])
         self.gpu_note.set_text('基础功耗 65–115 W；Dynamic Boost 可额外分配 5–25 W，实际用量随负载变化。未勾选 GPU 调节时由固件管理。'
@@ -116,10 +117,13 @@ class TuningEditor(Gtk.Box):
             if data.get('tuning'):self.load_values(data['tuning'])
             self.initialized=True
         config=data.get('tuning')
-        self.validation.set_text(('硬件当前已应用：CPU '+str(config['pl1'])+' W'
-                                 +(' · GPU '+str(config['gpu_ctgp'])+' W' if config.get('gpu_ctgp') is not None else '')
-                                 +(' + '+str(config['gpu_db'])+' W Boost' if config.get('gpu_db',0) else '')
-                                 +' · 独立双风扇曲线') if config else '编辑不会立即改变硬件，点击“应用”后生效。')
+        if self.safety_protect and not config:
+            self.validation.set_text('EC 高温安全保护激活，已暂停自定义调校。')
+        else:
+            self.validation.set_text(('硬件当前已应用：CPU '+str(config['pl1'])+' W'
+                                     +(' · GPU '+str(config['gpu_ctgp'])+' W' if config.get('gpu_ctgp') is not None else '')
+                                     +(' + '+str(config['gpu_db'])+' W Boost' if config.get('gpu_db',0) else '')
+                                     +' · 独立双风扇曲线') if config else '编辑不会立即改变硬件，点击“应用”后生效。')
 
     def apply(self,_):
         config={'pl1':self.power.get_value_as_int(),'pl2':self.power.get_value_as_int()}
@@ -243,10 +247,17 @@ class PerformancePanel(Gtk.Box):
         self.append(row)
         self.message = Gtk.Label(xalign=0, wrap=True)
         self.message.add_css_class('status-text'); self.append(self.message)
-        note = Gtk.Label(label='点击模式卡片立即切换。机身模式键仍可使用，当前状态每 3 秒刷新。', xalign=0, wrap=True)
+        note = Gtk.Label(label='点击模式卡片立即切换。机身模式键在各档位（含狂暴子模式与自定义调校期间）均可响应，当前状态每 3 秒刷新。', xalign=0, wrap=True)
         note.add_css_class('subtitle'); self.append(note)
         note2 = Gtk.Label(label='启动、开机与唤醒时保持当前档位，不自动切换。', xalign=0, wrap=True)
         note2.add_css_class('subtitle'); self.append(note2)
+        telemetry = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        telemetry.add_css_class('control-card')
+        self.safety_label = Gtk.Label(label='EC 高温风扇安全保护：正在读取…', xalign=0, wrap=True)
+        self.safety_label.add_css_class('small-note'); telemetry.append(self.safety_label)
+        self.smart_balance_label = Gtk.Label(label='SmartBalance：正在读取…', xalign=0, wrap=True)
+        self.smart_balance_label.add_css_class('small-note'); telemetry.append(self.smart_balance_label)
+        self.append(telemetry)
         self.tuning = TuningEditor(self.request)
         self.turbo = TurboEditor(self.request)
         self.append(self.turbo);self.append(self.tuning)
@@ -306,12 +317,27 @@ class PerformancePanel(Gtk.Box):
                 raise RuntimeError(data.get('error', error.strip() or '性能控制失败'))
             self.switchable = data['switchable']
             mode = data['mode']
+            safety = data.get('fan_safety_protect')
+            sb_sup = data.get('smart_balance_supported')
+            sb_en = data.get('smart_balance_enabled')
+            if safety is True:
+                self.safety_label.set_text('EC 高温风扇安全保护：EC 高温安全保护激活（已交由固件降温，暂停自定义调校）')
+            elif safety is False:
+                self.safety_label.set_text('EC 高温风扇安全保护：正常')
+            else:
+                self.safety_label.set_text('EC 高温风扇安全保护：未知')
+            if sb_sup is False:
+                self.smart_balance_label.set_text('SmartBalance：本机固件不支持 (0x7ac bit0=0)')
+            elif sb_sup is True:
+                self.smart_balance_label.set_text('SmartBalance：支持' + (' · 已开启' if sb_en else ' · 未开启'))
+            else:
+                self.smart_balance_label.set_text('SmartBalance：未知')
             self.current.set_text('当前：' + LABELS.get(mode, '未知档位') + (' · 已应用调校' if data.get('tuning_active') else ''))
             self.tuning.update_status(data)
             self.turbo.update_status(data)
             self.message.set_text(data['reason'] or ('设置已生效，硬件回读一致' if operation != 'status' else '已连接固件档位控制'))
             for value, button in self.buttons:
-                button.set_sensitive(self.switchable and value != mode)
+                button.set_sensitive(self.switchable and value != mode and not (value == 'custom' and safety is True))
                 if value == mode:
                     button.add_css_class('selected')
                 else:

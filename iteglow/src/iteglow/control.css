@@ -48,3 +48,4 @@
 .mechrevo-shell scale:disabled { opacity: .4; }
 
 .mechrevo-shell .white-led { color: #64748b; }
+.mechrevo-shell .keycap-btn { padding: 3px 4px; min-height: 28px; min-width: 24px; font-size: 10px; border-radius: 6px; }

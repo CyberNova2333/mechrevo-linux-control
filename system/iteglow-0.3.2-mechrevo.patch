@@ -1,14 +1,71 @@
 --- a/src/iteglow/cli.py
 +++ b/src/iteglow/cli.py
-@@ -8,6 +8,7 @@
+@@ -2,12 +2,15 @@
+ from __future__ import annotations
  
- from . import __version__, devices, effects, protocol, state
+ import argparse
++import json
+ import os
++import subprocess
+ import sys
+ from typing import List, Optional
+ 
+-from . import __version__, devices, effects, protocol, state
++from . import __version__, devices, effects, keymap, protocol, state
  from .protocol import RGB
 +from .zone_lock import ZoneTransaction
  
  
  def _parse_color(s: str) -> RGB:
-@@ -37,7 +38,8 @@
+@@ -23,6 +26,47 @@
+     raise argparse.ArgumentTypeError(f"bad colour {s!r}; use #RRGGBB or r,g,b")
+ 
+ 
++def _parse_color_value(value) -> RGB:
++    if isinstance(value, str):
++        return _parse_color(value)
++    if isinstance(value, (list, tuple)) and len(value) == 3:
++        return tuple(int(c) for c in value)  # type: ignore[return-value]
++    raise argparse.ArgumentTypeError(f"bad colour entry {value!r}")
++
++
++def _parse_matrix(spec: str) -> List[RGB]:
++    text = spec.strip()
++    if text.startswith("@"):
++        text = text[1:]
++    if os.path.isfile(text):
++        with open(text) as f:
++            data = json.load(f)
++    else:
++        try:
++            data = json.loads(text)
++        except ValueError as exc:
++            raise argparse.ArgumentTypeError(f"invalid matrix JSON or file {spec!r}: {exc}") from exc
++    if isinstance(data, dict):
++        cells = keymap.blank_cells()
++        by_name = {cap.name.lower(): cap for cap in keymap.ALL_KEYCAPS}
++        for key, raw_col in data.items():
++            cap = by_name.get(str(key).strip().lower())
++            if cap is None:
++                raise argparse.ArgumentTypeError(f"unknown key name {key!r} in matrix map")
++            col = _parse_color_value(raw_col)
++            for idx in cap.indices:
++                cells[idx] = col
++        return cells
++    if isinstance(data, list) and len(data) == protocol.KBD_MATRIX_ROWS and all(
++        isinstance(row, list) and len(row) == protocol.KBD_MATRIX_COLS for row in data
++    ):
++        return [_parse_color_value(cell) for row in data for cell in row]
++    if isinstance(data, list) and len(data) == protocol.KBD_MATRIX_CELLS:
++        return [_parse_color_value(cell) for cell in data]
++    raise argparse.ArgumentTypeError(
++        f"matrix must be 126 cells, 6x21 rows, or {{key: color}} JSON")
++
++
+ def _resolve_direction(label: str, value: str) -> int:
+     table = effects.DIRECTIONS_BY_LABEL[label]
+     if value in table:
+@@ -37,7 +81,8 @@
  # --------------------------------------------------------------------- commands
  
  def cmd_doctor(_args) -> int:
@@ -18,13 +75,15 @@
      mods = ""
      try:
          with open("/proc/modules") as f:
-@@ -63,18 +65,18 @@
+@@ -63,18 +108,19 @@
                      extra = f"  fw {fw[0]}.{fw[1]}"
                      if label == "keyboard":
                          st = protocol.parse_keyboard_state(dev.query(protocol.QUERY_EFFECT))
 -                        onoff = "off" if st["power"] == 0x01 else "on"
+-                        extra += (f"  [{onoff}, mode 0x{st['mode']:02x}, "
 +                        onoff = "off" if st["power"] == 0x01 or st["brightness"] == 0 else "on"
-                         extra += (f"  [{onoff}, mode 0x{st['mode']:02x}, "
++                        mode_name, _ = effects.decode_keyboard_state(st)
++                        extra += (f"  [{onoff}, {mode_name} 0x{st['mode']:02x}, "
                                    f"brightness {st['brightness']}]")
              except OSError:
                  pass
@@ -40,7 +99,15 @@
          print("  * NO ACCESS            -> sudo install -m644 data/60-iteglow.rules "
                "/etc/udev/rules.d/ && sudo udevadm control --reload && reboot")
      return 0 if ok else 1
-@@ -93,28 +95,46 @@
+@@ -86,6 +132,7 @@
+                          ("lightbar", effects.LIGHTBAR_MODES)):
+         tag = "" if label in present else "  (not detected)"
+         print(f"{label}{tag}: {', '.join(modes)}")
++    print(f"matrix presets: {', '.join(keymap.PRESETS)}")
+     return 0
+ 
+ 
+@@ -93,33 +140,66 @@
      return devices.HidLed(devices.led_for_label(label))
  
  
@@ -60,10 +127,25 @@
      direction = _resolve_direction(args.device, args.direction) if args.direction else 1
      params = dict(color=args.color, colors=args.palette or None,
 -                  brightness=args.brightness, speed=args.speed, direction=direction)
+-    reports = effects.build(args.device, args.mode, **params)
+-    with _open(args.device) as dev:
 +                  brightness=args.brightness, speed=args.speed, direction=direction,
 +                  reactive=args.reactive)
-     reports = effects.build(args.device, args.mode, **params)
--    with _open(args.device) as dev:
++    matrix = getattr(args, "matrix", None)
++    preset = getattr(args, "preset", None)
++    calibrate = bool(getattr(args, "calibrate", False))
++    build_kwargs = dict(params)
++    if args.device == "keyboard" and args.mode == "matrix":
++        if matrix is not None:
++            params["matrix"] = [list(c) for c in matrix]
++            build_kwargs["matrix"] = matrix
++        elif preset:
++            params["preset"] = preset
++            build_kwargs["preset"] = preset
++        if calibrate:
++            params["calibrate"] = True
++            build_kwargs["calibrate"] = True
++    reports = effects.build(args.device, args.mode, **build_kwargs)
 +    with ZoneTransaction(args.device), _open(args.device) as dev:
          dev.send(reports)
 -    state.save(args.device, dict(mode=args.mode, **params))
@@ -92,11 +174,20 @@
      return 0
  
  
-@@ -127,31 +147,53 @@
+ def _build_from_params(label: str, params: dict):
+     colors = params.get("colors")
++    matrix = params.get("matrix")
+     return effects.build(
+         label, params.get("mode", "off"),
+         color=tuple(params.get("color") or (0, 255, 255)),
+@@ -127,31 +207,56 @@
          brightness=params.get("brightness"),
          speed=params.get("speed", 5),
          direction=params.get("direction", 1),
 +        reactive=params.get("reactive", False),
++        matrix=[tuple(c) for c in matrix] if matrix else None,
++        preset=params.get("preset"),
++        calibrate=bool(params.get("calibrate", False)),
      )
  
  
@@ -155,7 +246,7 @@
  
  
  def cmd_pin(args) -> int:
-@@ -174,7 +216,8 @@
+@@ -174,10 +279,123 @@
          return 1
      state.write(state.SYSTEM_STATE_PATH, data)
      print(f"pinned {', '.join(sorted(data))} -> {state.SYSTEM_STATE_PATH}")
@@ -165,7 +256,122 @@
      return 0
  
  
-@@ -197,6 +240,7 @@
++def cmd_profile(args) -> int:
++    if not _user_lighting_only():
++        return 1
++    from . import profiles
++    path = profiles.profiles_path()
++    try:
++        cfg = profiles.load_config(path)
++        action = args.profile_cmd
++        if action == "list":
++            print(f"config: {path}")
++            print(f"auto_switch: {'on' if cfg['auto_switch_enabled'] else 'off'} "
++                  f"(restore_previous={cfg['restore_previous']}, cooldown={cfg['cooldown_seconds']}s)")
++            if cfg["profiles"]:
++                print("profiles:")
++                for name, body in cfg["profiles"].items():
++                    perf = body.get("performance", {}).get("mode", "-")
++                    turbo = body.get("performance", {}).get("turbo")
++                    if turbo:
++                        perf = f"{perf}/{turbo}"
++                    zones = ",".join(sorted((body.get("lighting") or {}).keys())) or "-"
++                    label = f" — {body['label']}" if body.get("label") else ""
++                    print(f"  {name}: perf={perf} lights={zones}{label}")
++            else:
++                print("profiles: (none — run `iteglow profile init-templates` to add starters)")
++            if cfg["rules"]:
++                print("rules:")
++                for rule in cfg["rules"]:
++                    st = "on" if rule["enabled"] else "off"
++                    print(f"  [{st}] {rule['name']}: match={','.join(rule['match'])} -> {rule['profile']}")
++            return 0
++        if action == "init-templates":
++            added = []
++            for name, body in profiles.builtin_templates().items():
++                if name not in cfg["profiles"]:
++                    cfg["profiles"][name] = body
++                    added.append(name)
++            profiles.save_config(path, cfg)
++            print("added templates: " + (", ".join(added) if added else "none (already present)"))
++            return 0
++        if action == "save":
++            prof = profiles.capture_current_profile(
++                args.label,
++                include_lighting=not args.no_lighting,
++                include_performance=not args.no_performance,
++            )
++            cfg["profiles"][args.name] = prof
++            profiles.save_config(path, cfg)
++            print(f"saved profile {args.name!r} -> {path}")
++            return 0
++        if action == "apply":
++            if args.name not in cfg["profiles"]:
++                raise ValueError(f"unknown profile {args.name!r}")
++            res = profiles.apply_profile(
++                cfg["profiles"][args.name],
++                save_manual=True,
++                apply_lighting=not args.performance_only,
++                apply_performance=not args.lighting_only,
++            )
++            print(json.dumps({"applied": args.name, **res}, ensure_ascii=False))
++            return 0
++        if action == "delete":
++            if args.name not in cfg["profiles"]:
++                raise ValueError(f"unknown profile {args.name!r}")
++            refs = [r["name"] for r in cfg["rules"] if r["profile"] == args.name]
++            if refs and not args.force:
++                raise ValueError(f"profile {args.name!r} is referenced by rules {refs}; pass --force to delete both")
++            del cfg["profiles"][args.name]
++            if refs:
++                cfg["rules"] = [r for r in cfg["rules"] if r["profile"] != args.name]
++            profiles.save_config(path, cfg)
++            print(f"deleted profile {args.name!r}")
++            return 0
++        if action == "rule-add":
++            cfg["rules"] = [r for r in cfg["rules"] if r["name"] != args.name]
++            cfg["rules"].append({
++                "name": args.name,
++                "enabled": not args.disabled,
++                "match": list(args.match),
++                "profile": args.profile,
++            })
++            profiles.save_config(path, cfg)
++            print(f"saved rule {args.name!r} -> {args.profile!r}")
++            return 0
++        if action == "rule-del":
++            before = len(cfg["rules"])
++            cfg["rules"] = [r for r in cfg["rules"] if r["name"] != args.name]
++            if len(cfg["rules"]) == before:
++                raise ValueError(f"unknown rule {args.name!r}")
++            profiles.save_config(path, cfg)
++            print(f"deleted rule {args.name!r}")
++            return 0
++        if action == "auto":
++            if args.state in ("on", "off"):
++                cfg["auto_switch_enabled"] = (args.state == "on")
++                if args.cooldown is not None:
++                    cfg["cooldown_seconds"] = args.cooldown
++                if args.restore is not None:
++                    cfg["restore_previous"] = args.restore
++                profiles.save_config(path, cfg)
++            print(json.dumps({
++                "auto_switch_enabled": cfg["auto_switch_enabled"],
++                "restore_previous": cfg["restore_previous"],
++                "cooldown_seconds": cfg["cooldown_seconds"],
++                "rules": len(cfg["rules"]),
++            }, ensure_ascii=False))
++            return 0
++    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
++        print(f"error: {exc}", file=sys.stderr)
++        return 1
++    return 1
++
++
+ # --------------------------------------------------------------------- parser
+ 
+ def build_parser() -> argparse.ArgumentParser:
+@@ -197,9 +415,16 @@
                     help="up to 7 colours for multi-colour effects")
      s.add_argument("--brightness", type=int, default=None, help="0..100 (lightbar) / 0..50 (keyboard)")
      s.add_argument("--speed", type=int, default=5, help="1 (fast) .. 10 (slow)")
@@ -173,7 +379,16 @@
      s.add_argument("--direction", default=None,
                     help="lightbar: forward/reverse; keyboard: ltr/rtl/btt/ttb "
                          "(default: forward / ltr)")
-@@ -208,11 +252,11 @@
++    s.add_argument("--preset", choices=sorted(keymap.PRESETS), default=None,
++                   help="per-key preset when mode=matrix")
++    s.add_argument("--matrix", type=_parse_matrix, default=None,
++                   help="per-key JSON file/@file or inline JSON (126 RGB cells, 6x21, or {key: color})")
++    s.add_argument("--calibrate", action="store_true",
++                   help="apply OEM white/primary color calibration for keyboard matrix mode")
+     s.set_defaults(func=cmd_set)
+ 
+     o = sub.add_parser("off", help="turn a device (or all) off")
+@@ -208,13 +433,44 @@
  
      r = sub.add_parser("restore", help="re-apply the last saved state")
      r.add_argument("--system", action="store_true",
@@ -186,10 +401,43 @@
 +        "pin", help="export your saved state system-wide; does not enable automatic restore (sudo)")
      pin.set_defaults(func=cmd_pin)
  
++    pr = sub.add_parser("profile", help="manage performance+lighting profiles and app rules")
++    pr_sub = pr.add_subparsers(dest="profile_cmd", required=True)
++    pr_sub.add_parser("list", help="list saved profiles and auto-switch rules")
++    pr_sub.add_parser("init-templates", help="populate starter profile templates")
++    ps = pr_sub.add_parser("save", help="capture current state into a named profile")
++    ps.add_argument("name")
++    ps.add_argument("--label", default=None)
++    ps.add_argument("--no-performance", action="store_true")
++    ps.add_argument("--no-lighting", action="store_true")
++    pa = pr_sub.add_parser("apply", help="apply a saved profile")
++    pa.add_argument("name")
++    pa_g = pa.add_mutually_exclusive_group()
++    pa_g.add_argument("--lighting-only", action="store_true")
++    pa_g.add_argument("--performance-only", action="store_true")
++    pd = pr_sub.add_parser("delete", help="delete a saved profile")
++    pd.add_argument("name")
++    pd.add_argument("--force", action="store_true")
++    pra = pr_sub.add_parser("rule-add", help="add or update an app auto-switch rule")
++    pra.add_argument("name")
++    pra.add_argument("profile")
++    pra.add_argument("--match", nargs="+", required=True)
++    pra.add_argument("--disabled", action="store_true")
++    prd = pr_sub.add_parser("rule-del", help="delete an app auto-switch rule")
++    prd.add_argument("name")
++    pau = pr_sub.add_parser("auto", help="configure or inspect app auto-switching")
++    pau.add_argument("state", choices=["on", "off", "status"])
++    pau.add_argument("--cooldown", type=int, default=None)
++    pau.add_argument("--restore", dest="restore", action="store_true", default=None)
++    pau.add_argument("--no-restore", dest="restore", action="store_false")
++    pr.set_defaults(func=cmd_profile)
++
      g = sub.add_parser("gui", help="launch the graphical control panel")
+     g.set_defaults(func=lambda a: _launch_gui())
+     return p
 --- /dev/null
 +++ b/src/iteglow/control.css
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,51 @@
 +.mechrevo-shell { background: #f4f6fa; color: #1d2940; font-size: 13px; }
 +.mechrevo-shell .sidebar { background: #eaf0f7; padding: 28px 16px 20px; border-right: 1px solid #dfe6f0; }
 +.mechrevo-shell .brand-mark { font-size: 28px; font-weight: 900; letter-spacing: 3px; color: #2f63db; margin-bottom: 6px; }
@@ -240,6 +488,7 @@
 +.mechrevo-shell scale:disabled { opacity: .4; }
 +
 +.mechrevo-shell .white-led { color: #64748b; }
++.mechrevo-shell .keycap-btn { padding: 3px 4px; min-height: 28px; min-width: 24px; font-size: 10px; border-radius: 6px; }
 --- a/src/iteglow/devices.py
 +++ b/src/iteglow/devices.py
 @@ -8,11 +8,13 @@
@@ -311,11 +560,31 @@
          try:
 --- a/src/iteglow/effects.py
 +++ b/src/iteglow/effects.py
-@@ -31,13 +31,13 @@
+@@ -6,9 +6,9 @@
+ """
+ from __future__ import annotations
+ 
+-from typing import Dict, List, Optional, Sequence
++from typing import Dict, List, Optional, Sequence, Tuple
+ 
+-from . import protocol
++from . import keymap, protocol
+ from .protocol import RGB, Report
+ 
+ RAINBOW: List[RGB] = [
+@@ -29,15 +29,21 @@
+ KEYBOARD_MODES: Dict[str, dict] = {
+     "off":       dict(code=0x00, off=True),
      "solid":     dict(code=0x33, single=True),
++    "matrix":    dict(code=0x33, matrix=True),
      "breathing": dict(code=0x02, palette=True, speed=True),
      "wave":      dict(code=0x03, palette=True, speed=True, direction=True),
 -    "reactive":  dict(code=0x04, palette=True, speed=True),
++    "sine":      dict(code=0x03, palette=True, speed=True, direction=True,
++                      direction_map={1: 16, 2: 17, 3: 16, 4: 17}),
++    "interlace": dict(code=0x03, palette=True, speed=True, fixed_direction=19),
++    "diagonal":  dict(code=0x03, palette=True, speed=True, direction=True,
++                      direction_map={1: 33, 2: 32, 3: 33, 4: 32}),
 +    "reactive":  dict(code=0x04, palette=True, speed=True, trigger=True),
      "rainbow":   dict(code=0x05, speed=True),
 -    "ripple":    dict(code=0x06, palette=True, speed=True),
@@ -329,29 +598,74 @@
  }
  
  # direction name -> byte
-@@ -53,7 +53,8 @@
+@@ -48,12 +54,37 @@
+ DIRECTIONS_BY_LABEL = {"lightbar": LIGHTBAR_DIRECTIONS, "keyboard": KEYBOARD_DIRECTIONS}
+ 
+ 
++def decode_keyboard_state(actual: dict, saved_mode: Optional[str] = None) -> Tuple[str, int]:
++    """Map a QUERY_EFFECT 0x88 reply to ``(mode_name, direction_1_to_4)``."""
++    if actual.get("power") == 1 or actual.get("brightness", 0) == 0:
++        return ("off", 1)
++    code = actual.get("mode", 0)
++    hw_dir = actual.get("direction", 0)
++    if code == 0x03:
++        if hw_dir in (16, 17):
++            return ("sine", 1 if hw_dir == 16 else 2)
++        if hw_dir == 19:
++            return ("interlace", 1)
++        if hw_dir in (32, 33):
++            return ("diagonal", 1 if hw_dir == 33 else 2)
++        return ("wave", hw_dir if 1 <= hw_dir <= 4 else 1)
++    if code == 0x33:
++        return ("matrix" if saved_mode == "matrix" else "solid", 1)
++    fallback = saved_mode if saved_mode in KEYBOARD_MODES else "rainbow"
++    name = next((m for m, spec in KEYBOARD_MODES.items() if spec["code"] == code), fallback)
++    return (name, hw_dir if 1 <= hw_dir <= 4 else 1)
++
++
+ def build(label: str, mode: str, *,
+           color: RGB = (0, 255, 255),
            colors: Optional[Sequence[RGB]] = None,
            brightness: Optional[int] = None,
            speed: int = 5,
 -          direction: int = 1) -> List[Report]:
 +          direction: int = 1,
-+          reactive: bool = False) -> List[Report]:
++          reactive: bool = False,
++          matrix: Optional[Sequence[RGB]] = None,
++          preset: Optional[str] = None,
++          calibrate: bool = False) -> List[Report]:
      """Translate a (device, mode, params) selection into protocol reports."""
      modes = MODES_BY_LABEL[label]
      if mode not in modes:
-@@ -75,5 +76,8 @@
+@@ -73,7 +104,24 @@
+     bright = protocol.KBD_BRIGHTNESS_MAX if brightness is None else brightness
+     if spec.get("off"):
          return protocol.keyboard_off()
++    if spec.get("matrix"):
++        if matrix is not None:
++            cells = [tuple(c) for c in matrix]  # type: ignore[misc]
++        else:
++            cells = keymap.preset_cells(preset or "gaming", color)
++        return protocol.keyboard_matrix(cells, bright, calibrate=calibrate)
      if spec.get("single"):
          return protocol.keyboard_solid(*color, bright)
 -    return protocol.keyboard_effect(spec["code"], pal, bright, speed, direction,
-+    # Byte 6 is overloaded: wave direction vs. key trigger (0 auto, 1 reactive).
-+    # Never reuse a saved wave direction for a key-trigger-capable effect.
-+    behavior = int(bool(reactive)) if spec.get("trigger") else direction if spec.get("direction") else 0
++    # Byte 6 is overloaded: wave direction vs. key trigger (0 auto, 1 reactive),
++    # plus fw 34.9 sub-mode codes for sine (16/17), interlace (19), diagonal (33/32).
++    if spec.get("trigger"):
++        behavior = int(bool(reactive))
++    elif "fixed_direction" in spec:
++        behavior = int(spec["fixed_direction"])
++    elif spec.get("direction"):
++        dmap = spec.get("direction_map")
++        behavior = dmap.get(direction, next(iter(dmap.values()))) if dmap else direction
++    else:
++        behavior = 0
 +    return protocol.keyboard_effect(spec["code"], pal, bright, speed, behavior,
                                      use_palette=bool(spec.get("palette")))
 --- a/src/iteglow/gui.py
 +++ b/src/iteglow/gui.py
-@@ -1,308 +1,410 @@
+@@ -1,308 +1,589 @@
 -"""GTK4 control panel. Optional front-end; the CLI/library has no GUI deps.
 -
 -Uses the system PyGObject (python3-gi + gir1.2-gtk-4.0). One tab per detected
@@ -366,44 +680,30 @@
 +"""Chinese GTK4 control centre. Construction and previews never write hardware."""
  from __future__ import annotations
 -
++import json
 +import math
 +from pathlib import Path
  import gi
--
--gi.require_version("Gtk", "4.0")
--gi.require_version("Gdk", "4.0")
--from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
--
--from . import devices, effects, protocol, state  # noqa: E402
--
--
--def _rgba_to_rgb(rgba):
--    return (round(rgba.red * 255), round(rgba.green * 255), round(rgba.blue * 255))
--
--
--def _make_rgba(rgb):
--    r, g, b = rgb
--    c = Gdk.RGBA()
--    c.red, c.green, c.blue, c.alpha = r / 255, g / 255, b / 255, 1.0
--    return c
--
--
--def _make_color_button(rgb):
 +gi.require_version('Gtk', '4.0')
 +gi.require_version('Gdk', '4.0')
 +from gi.repository import Gdk, GLib, Gtk
-+from . import devices, effects, protocol, state
++from . import devices, effects, keymap, protocol, state
 +from .performance import PerformancePanel
 +from .logo import LogoPanel
 +from .lighting_policy_gui import LightingPolicyPanel
++from .profiles_gui import ProfilesPanel
 +from .zone_lock import ZoneTransaction
 +
 +MODE_TEXT = {
 +    'off': ('关闭', '关闭当前设备的灯光'),
 +    'solid': ('常亮', '整个键盘保持同一种颜色'),
++    'matrix': ('单键自定义', '点击键盘键帽单独配色，或套用游戏分区预设'),
 +    'static': ('常亮', '灯带保持同一种颜色'),
 +    'breathing': ('呼吸', '灯光逐渐亮起与淡出'),
 +    'wave': ('彩色波浪', '色彩沿指定方向流动'),
++    'sine': ('正弦波', '色彩如正弦曲线般柔和起伏'),
++    'interlace': ('交错波', '多色光带双向交错扫过'),
++    'diagonal': ('斜向波', '色彩沿对角线方向流动'),
 +    'reactive': ('随机闪烁', '星点随机闪烁，也可随按键触发'),
 +    'rainbow': ('彩虹渐变', '自动循环彩虹色彩'),
 +    'ripple': ('涟漪', '灯光向周围扩散'),
@@ -418,43 +718,53 @@
 +    'keyboard': [('从左向右', 1), ('从右向左', 2), ('从下向上', 3), ('从上向下', 4)],
 +    'lightbar': [('正向', 1), ('反向', 2)],
 +}
-+
-+
+ 
+-gi.require_version("Gtk", "4.0")
+-gi.require_version("Gdk", "4.0")
+-from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
+ 
+-from . import devices, effects, protocol, state  # noqa: E402
 +def label(text='', css=None, **kwargs):
 +    widget = Gtk.Label(label=text, xalign=0, **kwargs)
 +    if css:
 +        widget.add_css_class(css)
 +    return widget
-+
-+
+ 
+ 
+-def _rgba_to_rgb(rgba):
+-    return (round(rgba.red * 255), round(rgba.green * 255), round(rgba.blue * 255))
 +def box(vertical=True, spacing=0, css=None):
 +    widget = Gtk.Box(orientation=Gtk.Orientation.VERTICAL if vertical else Gtk.Orientation.HORIZONTAL, spacing=spacing)
 +    if css:
 +        widget.add_css_class(css)
 +    return widget
-+
-+
+ 
+ 
+-def _make_rgba(rgb):
+-    r, g, b = rgb
+-    c = Gdk.RGBA()
+-    c.red, c.green, c.blue, c.alpha = r / 255, g / 255, b / 255, 1.0
+-    return c
 +def rgba(rgb):
 +    color = Gdk.RGBA()
 +    color.red, color.green, color.blue, color.alpha = *[v / 255 for v in rgb], 1.0
 +    return color
-+
-+
-+def rgb(color):
-+    return tuple(round(v * 255) for v in (color.red, color.green, color.blue))
-+
-+
-+def color_button(color):
-     try:
+ 
+ 
+-def _make_color_button(rgb):
+-    try:
 -        btn = Gtk.ColorDialogButton.new(Gtk.ColorDialog())
 -        btn.set_rgba(_make_rgba(rgb))
 -    except AttributeError:  # GTK < 4.10
 -        btn = Gtk.ColorButton.new_with_rgba(_make_rgba(rgb))
 -    return btn
--
--
++def rgb(color):
++    return tuple(round(v * 255) for v in (color.red, color.green, color.blue))
+ 
+ 
 -def _connect_color(btn, cb):
--    try:
++def color_button(color):
+     try:
 -        btn.connect("notify::rgba", lambda *_: cb())
 -    except Exception:  # noqa: BLE001
 -        btn.connect("color-set", lambda *_: cb())
@@ -522,28 +832,48 @@
 +                cr.set_source_rgb(*tint(n//7))
 +                rounded(cr, width*.13+n*width*.74/48, 106, width*.74/48-1, 5, 2); cr.fill()
 +        else:
-+            # Simplified full keyboard with numpad, deliberately labelled as an illustration.
-+            cr.save(); cr.translate(max(20, (width-610)/2), 38)
++            # Simplified full keyboard with numpad; live-reflects per-key cells in matrix mode.
++            cr.save(); cr.translate(max(20, (width-610)/2), 28)
 +            scale = min(1.0, (width-40)/610); cr.scale(scale, scale)
-+            rows = [list('1234567890−=')+['Bksp'], list('QWERTYUIOP')+['[',']','\\'],
-+                    list('ASDFGHJKL')+[';','\'', 'Enter'], list('ZXCVBNM')+[',','.','/','↑'],
-+                    ['Ctrl','Fn','Alt','SPACE','Alt','←','↓','→']]
-+            for row, keys in enumerate(rows):
-+                x = row*4 if row < 4 else 0
-+                for n, key in enumerate(keys):
-+                    w = 148 if key=='SPACE' else 34 if len(key)>1 else 29
-+                    cr.set_source_rgb(.115,.15,.21)
-+                    rounded(cr,x,row*20,w,16,3);cr.fill_preserve()
-+                    cr.set_source_rgb(*tint(n//2+row));cr.set_line_width(.8);cr.stroke()
-+                    cr.set_font_size(6 if key=='SPACE' else 7)
-+                    cr.set_source_rgb(.75,.81,.9)
-+                    if key != 'SPACE': cr.move_to(x+5,row*20+11);cr.show_text(key)
-+                    x += w+4
-+            for row in range(5):
-+                for col in range(4):
-+                    cr.set_source_rgb(.115,.15,.21)
-+                    rounded(cr,460+col*32,row*20,28,16,3);cr.fill_preserve()
-+                    cr.set_source_rgb(*tint(col+row+3));cr.stroke()
++            factor = (.35 + .65 * p.bright.get_value()/100) if on else 0.0
++            if mode == 'matrix' and hasattr(p, 'matrix_cells'):
++                for r_idx, caps in enumerate(keymap.KEYBOARD_101_ROWS):
++                    x = 0.0
++                    h = 15
++                    for cap in caps:
++                        w = max(21.0, cap.width * 24.0)
++                        c = p.matrix_cells[cap.primary]
++                        cr.set_source_rgb(.115, .15, .21)
++                        rounded(cr, x, r_idx * 18, w, h, 3); cr.fill_preserve()
++                        if not on or c == (0, 0, 0):
++                            cr.set_source_rgb(.20, .24, .31)
++                        else:
++                            cr.set_source_rgb(*(v / 255 * factor for v in c))
++                        cr.set_line_width(1.1); cr.stroke()
++                        cr.set_font_size(5.5 if len(cap.name) > 2 else 6.5)
++                        cr.set_source_rgb(.78, .84, .92)
++                        cr.move_to(x + 3, r_idx * 18 + 10); cr.show_text(cap.name[:5])
++                        x += w + 3.0
++            else:
++                rows = [list('1234567890−=')+['Bksp'], list('QWERTYUIOP')+['[',']','\\'],
++                        list('ASDFGHJKL')+[';','\'', 'Enter'], list('ZXCVBNM')+[',','.','/','↑'],
++                        ['Ctrl','Fn','Alt','SPACE','Alt','←','↓','→']]
++                for row, keys in enumerate(rows):
++                    x = row*4 if row < 4 else 0
++                    for n, key in enumerate(keys):
++                        w = 148 if key=='SPACE' else 34 if len(key)>1 else 29
++                        cr.set_source_rgb(.115,.15,.21)
++                        rounded(cr,x,row*20,w,16,3);cr.fill_preserve()
++                        cr.set_source_rgb(*tint(n//2+row));cr.set_line_width(.8);cr.stroke()
++                        cr.set_font_size(6 if key=='SPACE' else 7)
++                        cr.set_source_rgb(.75,.81,.9)
++                        if key != 'SPACE': cr.move_to(x+5,row*20+11);cr.show_text(key)
++                        x += w+4
++                for row in range(5):
++                    for col in range(4):
++                        cr.set_source_rgb(.115,.15,.21)
++                        rounded(cr,460+col*32,row*20,28,16,3);cr.fill_preserve()
++                        cr.set_source_rgb(*tint(col+row+3));cr.stroke()
 +            cr.restore()
 +        cr.set_font_size(9); cr.set_source_rgb(.53,.60,.71)
 +        cr.move_to(20,height-12); cr.show_text('颜色与布局示意 · 灯效请以实物为准')
@@ -590,6 +920,11 @@
 +        self.bmax = protocol.KBD_BRIGHTNESS_MAX if device=='keyboard' else protocol.LB_BRIGHTNESS_MAX
 +        self.ready = False
 +        self.pending = None
++        self._hotkey_timer = None
++        self._last_hw_kbd = None
++        self.matrix_cells = keymap.preset_cells('gaming')
++        self.matrix_calibrate = False
++        self._key_swatches = []
 +        self.add_css_class('device-page')
 +        self.status = label('', 'status-text', wrap=True)
 +        self.bright = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1)
@@ -625,6 +960,9 @@
 +        self.trigger = Gtk.DropDown.new_from_strings(['自动播放', '随按键触发'])
 +        self.color = color_button((0,255,255))
 +        self.palette_buttons = [color_button(c) for c in effects.RAINBOW]
++        self.brush = color_button((255, 40, 0))
++        self.calibrate_check = Gtk.CheckButton(label='OEM 白平衡/纯色校准')
++        self.matrix_card = self._build_matrix_card() if device == 'keyboard' else Gtk.Box()
 +        self._load()
 +        heading = box(False, 10)
 +        names = box(spacing=5)
@@ -674,8 +1012,71 @@
 +            swatches.attach(button,index%4,index//4,1,1)
 +        self.palette_row.append(swatches);controls.append(self.palette_row)
 +        lower.append(controls);self.append(lower)
++        if device == 'keyboard':
++            self.append(self.matrix_card)
          self.append(self.status)
--
++        self.refresh()
++        self.bright.connect('value-changed',lambda *_: self.schedule())
++        self.speed.connect('value-changed',lambda *_: self.schedule())
++        self.direction.connect('notify::selected',lambda *_: self.schedule())
++        self.trigger.connect('notify::selected',lambda *_: self.schedule())
++        on_color(self.color,self.schedule)
++        for button in self.palette_buttons: on_color(button,self.schedule)
++        if device == 'keyboard':
++            self._hotkey_timer = GLib.timeout_add(800, self._poll_hotkey)
++        self.ready = True
++
++    def _build_matrix_card(self):
++        card = box(spacing=10, css='control-card')
++        top = box(False, 8)
++        title = label('单键灯效编辑 (左键上色 · 右键熄灭)', 'section-title')
++        title.set_hexpand(True); top.append(title)
++        top.append(label('画笔', 'small-note'))
++        top.append(self.brush)
++        fill_btn = Gtk.Button(label='填满全键'); fill_btn.add_css_class('small-button')
++        fill_btn.connect('clicked', lambda *_: self.fill_matrix(rgb(self.brush.get_rgba())))
++        top.append(fill_btn)
++        clear_btn = Gtk.Button(label='全部熄灭'); clear_btn.add_css_class('small-button')
++        clear_btn.connect('clicked', lambda *_: self.fill_matrix((0, 0, 0)))
++        top.append(clear_btn)
++        self.calibrate_check.connect('toggled', self._on_calibrate_toggled)
++        top.append(self.calibrate_check)
++        card.append(top)
++        presets_bar = box(False, 6)
++        presets_bar.append(label('预设：', 'small-note'))
++        preset_names = [('gaming', '游戏分区'), ('wasd_fps', 'FPS WASD'),
++                        ('zones', '功能分区'), ('rainbow_grid', '彩虹矩阵'), ('gradient', '双色渐变')]
++        for pid, ptitle in preset_names:
++            btn = Gtk.Button(label=ptitle); btn.add_css_class('small-button')
++            btn.connect('clicked', lambda _, name=pid: self.apply_matrix_preset(name))
++            presets_bar.append(btn)
++        card.append(presets_bar)
++        rows_box = box(spacing=4)
++        for row_caps in keymap.KEYBOARD_101_ROWS:
++            rbox = box(False, 3)
++            for cap in row_caps:
++                btn = Gtk.Button(); btn.add_css_class('keycap-btn')
++                btn.set_hexpand(cap.width >= 2.5)
++                inner = box(spacing=2)
++                lbl = Gtk.Label(label=cap.name)
++                swatch = Gtk.DrawingArea(); swatch.set_content_height(4); swatch.set_hexpand(True)
++                def _draw_swatch(_a, cr, w, h, idx=cap.primary):
++                    r, g, b = self.matrix_cells[idx]
++                    cr.set_source_rgb(r / 255, g / 255, b / 255)
++                    rounded(cr, 0, 0, w, h, 2); cr.fill()
++                swatch.set_draw_func(_draw_swatch)
++                self._key_swatches.append(swatch)
++                inner.append(lbl); inner.append(swatch)
++                btn.set_child(inner)
++                btn.connect('clicked', lambda _, c=cap: self.paint_keycap(c, erase=False))
++                rclick = Gtk.GestureClick(button=3)
++                rclick.connect('pressed', lambda _g, _n, _x, _y, c=cap: self.paint_keycap(c, erase=True))
++                btn.add_controller(rclick)
++                rbox.append(btn)
++            rows_box.append(rbox)
++        card.append(rows_box)
++        return card
+ 
 -        # ---- initial values: defaults, then the device's actual state ----
 -        if "off" in self.mode_names and len(self.mode_names) > 1:
 -            self.mode_dd.set_selected(1)          # first non-off mode
@@ -721,14 +1122,64 @@
 -        firmware does not report its state back)."""
 -        if self.label != "keyboard":
 -            return
-+        self.refresh()
-+        self.bright.connect('value-changed',lambda *_: self.schedule())
-+        self.speed.connect('value-changed',lambda *_: self.schedule())
-+        self.direction.connect('notify::selected',lambda *_: self.schedule())
-+        self.trigger.connect('notify::selected',lambda *_: self.schedule())
-+        on_color(self.color,self.schedule)
-+        for button in self.palette_buttons: on_color(button,self.schedule)
-+        self.ready = True
+-        try:
+-            st = protocol.parse_keyboard_state(self.dev.query(protocol.QUERY_EFFECT))
+-        except OSError:
+-            return
+-        if st["power"] == 0x01:
+-            self.mode_dd.set_selected(self.mode_names.index("off"))
+-        else:
+-            for i, name in enumerate(self.mode_names):
+-                if self.modes[name].get("code") == st["mode"] and not self.modes[name].get("off"):
+-                    self.mode_dd.set_selected(i)
+-                    break
+-        self.bright.set_value(min(st["brightness"], self.bmax))
+-        if protocol.SPEED_MIN <= st["speed"] <= protocol.SPEED_MAX:
+-            self.speed.set_value(st["speed"])
+-        for i, (_name, byte) in enumerate(self.dirs):
+-            if byte == st.get("direction"):
+-                self.dir_dd.set_selected(i)
+-
+-    def _reset_rainbow(self, *_):
+-        for b, c in zip(self.palette_btns, effects.RAINBOW):
+-            b.set_rgba(_make_rgba(c))
++    def _on_calibrate_toggled(self, *_):
++        self.matrix_calibrate = self.calibrate_check.get_active()
+         self.schedule()
+ 
+-    def _spec(self):
+-        return self.modes[self.mode_names[self.mode_dd.get_selected()]]
++    def paint_keycap(self, cap, *, erase: bool = False):
++        col = (0, 0, 0) if erase else rgb(self.brush.get_rgba())
++        if not erase and self.matrix_cells[cap.primary] == col:
++            col = (0, 0, 0)
++        for idx in cap.indices:
++            if 0 <= idx < len(self.matrix_cells):
++                self.matrix_cells[idx] = col
++        self.schedule()
+ 
+-    def _update_visibility(self):
+-        spec = self._spec()
+-        for w in (self.speed_lbl, self.speed):
+-            w.set_visible(bool(spec.get("speed")))
+-        for w in (self.dir_lbl, self.dir_dd):
+-            w.set_visible(bool(spec.get("direction")))
+-        for w in (self.color_lbl, self.color_btn):
+-            w.set_visible(bool(spec.get("single")))
+-        for w in (self.palette_lbl, self.palette_box):
+-            w.set_visible(bool(spec.get("palette")))
++    def fill_matrix(self, col):
++        self.matrix_cells = keymap.blank_cells(col)
++        self.schedule()
+ 
+-    def schedule(self, *_):
+-        if not self._ready:
+-            return
+-        self._update_visibility()
+-        if self._pending:
++    def apply_matrix_preset(self, preset_name: str):
++        self.matrix_cells = keymap.preset_cells(preset_name, rgb(self.brush.get_rgba()))
++        self.schedule()
 +
 +    def _slider_row(self,title,slider,value):
 +        result = box(spacing=4); top=box(False,8)
@@ -750,17 +1201,68 @@
 +            if value==saved.get('direction'):self.direction.set_selected(i)
 +        if saved.get('color'):self.color.set_rgba(rgba(saved['color']))
 +        for button,color in zip(self.palette_buttons,saved.get('colors') or []):button.set_rgba(rgba(color))
++        if isinstance(saved.get('matrix'), list) and len(saved['matrix']) == protocol.KBD_MATRIX_CELLS:
++            self.matrix_cells = [tuple(c) for c in saved['matrix']]
++        elif saved.get('preset') in keymap.PRESETS:
++            self.matrix_cells = keymap.preset_cells(saved['preset'], tuple(saved.get('color') or (0, 255, 255)))
++        self.matrix_calibrate = bool(saved.get('calibrate', False))
++        self.calibrate_check.set_active(self.matrix_calibrate)
 +        if self.device=='keyboard':
 +            try:
 +                actual=protocol.parse_keyboard_state(self.dev.query(protocol.QUERY_EFFECT))
-+                if actual['power']==1 or actual['brightness']==0:self.mode='off'
-+                else:
-+                    self.mode=next((name for name,spec in self.modes.items() if spec['code']==actual['mode']),self.mode)
-+                    self.bright.set_value(actual['brightness']/self.bmax*100)
-+                    if 1<=actual['speed']<=10:self.speed.set_value(11-actual['speed'])
-+                    if self.spec().get('trigger'):self.trigger.set_selected(int(actual['direction']==1))
-+                    elif self.spec().get('direction') and 1<=actual['direction']<=4:self.direction.set_selected(actual['direction']-1)
++                self._last_hw_kbd = dict(actual)
++                self._sync_from_hw_state(actual, saved.get('mode'))
 +            except OSError:self.status.set_text('无法读取当前灯效，已显示上次保存值')
++
++    def _sync_from_hw_state(self, actual, saved_mode=None):
++        mode_name, ui_dir = effects.decode_keyboard_state(actual, saved_mode=saved_mode)
++        if mode_name == 'off':
++            self.mode = 'off'
++            self.bright.set_value(0)
+             return
+-        self._pending = True
+-        GLib.timeout_add(50, self._do_apply)
++        self.mode = mode_name
++        self.bright.set_value(min(100, actual['brightness'] / self.bmax * 100))
++        if 1 <= actual['speed'] <= 10:
++            self.speed.set_value(11 - actual['speed'])
++        if self.spec().get('trigger'):
++            self.trigger.set_selected(int(actual['direction'] == 1))
++        elif self.spec().get('direction') and 1 <= ui_dir <= len(DIRECTIONS[self.device]):
++            self.direction.set_selected(ui_dir - 1)
++
++    def _poll_hotkey(self):
++        if not self.ready or self.pending is not None:
++            return True
++        try:
++            actual = protocol.parse_keyboard_state(self.dev.query(protocol.QUERY_EFFECT))
++        except Exception:
++            return True
++        if self._last_hw_kbd is None:
++            self._last_hw_kbd = dict(actual)
++            return True
++        changed = (actual.get('power') != self._last_hw_kbd.get('power') or
++                   actual.get('brightness') != self._last_hw_kbd.get('brightness'))
++        if not changed:
++            return True
++        self._last_hw_kbd = dict(actual)
++        was = self.ready; self.ready = False
++        try:
++            saved = state.load(state.user_state_path()).get(self.device) or {}
++            saved_mode = saved.get('mode') or self.mode
++            if actual['power'] == 1 or actual['brightness'] == 0:
++                self.bright.set_value(0)
++                self.status.set_text('快捷键已关闭键盘背光')
++            else:
++                if self.mode == 'off':
++                    self._sync_from_hw_state(actual, saved_mode)
++                else:
++                    self.bright.set_value(min(100, actual['brightness'] / self.bmax * 100))
++                self.status.set_text(f'已同步快捷键亮度：{round(self.bright.get_value())}%')
++            self.refresh()
++        finally:
++            self.ready = was
++        return True
 +
 +    def spec(self):return self.modes[self.mode]
 +
@@ -768,7 +1270,9 @@
 +        self.mode=mode
 +        if mode!='off' and self.bright.get_value()==0:self.bright.set_value(60)
 +        self.schedule()
-+
+ 
+-    def _do_apply(self):
+-        self._pending = False
 +    def refresh(self):
 +        spec=self.spec();on=not spec.get('off')
 +        for name,button in self.effect_buttons.items():
@@ -780,7 +1284,10 @@
 +        self.bright.set_sensitive(on)
 +        for widget,visible in [(self.speed_row,spec.get('speed')), (self.direction_row,spec.get('direction')),
 +                               (self.trigger_row,spec.get('trigger')), (self.single_row,spec.get('single')),
-+                               (self.palette_row,spec.get('palette'))]:widget.set_visible(bool(visible))
++                               (self.palette_row,spec.get('palette')), (self.matrix_card,spec.get('matrix'))]:
++            widget.set_visible(bool(visible))
++        for swatch in self._key_swatches:
++            swatch.queue_draw()
 +        self.trigger_hint.set_visible(bool(spec.get('trigger')) and self.trigger.get_selected()==1)
 +        self.preview.queue_draw()
 +
@@ -796,68 +1303,30 @@
 +        self.pending=GLib.timeout_add(90,self.apply)
 +
 +    def params(self):
-+        return dict(mode=self.mode,color=rgb(self.color.get_rgba()),colors=[rgb(b.get_rgba()) for b in self.palette_buttons],
++        data = dict(mode=self.mode,color=rgb(self.color.get_rgba()),colors=[rgb(b.get_rgba()) for b in self.palette_buttons],
 +                    brightness=round(self.bright.get_value()*self.bmax/100),speed=11-round(self.speed.get_value()),
 +                    direction=DIRECTIONS[self.device][self.direction.get_selected()][1],reactive=self.trigger.get_selected()==1)
++        if self.device == 'keyboard' and self.mode == 'matrix':
++            data['matrix'] = [list(c) for c in self.matrix_cells]
++            if self.matrix_calibrate:
++                data['calibrate'] = True
++        return data
 +
 +    def apply(self):
 +        self.pending=None
 +        params=self.params()
          try:
--            st = protocol.parse_keyboard_state(self.dev.query(protocol.QUERY_EFFECT))
--        except OSError:
--            return
--        if st["power"] == 0x01:
--            self.mode_dd.set_selected(self.mode_names.index("off"))
--        else:
--            for i, name in enumerate(self.mode_names):
--                if self.modes[name].get("code") == st["mode"] and not self.modes[name].get("off"):
--                    self.mode_dd.set_selected(i)
--                    break
--        self.bright.set_value(min(st["brightness"], self.bmax))
--        if protocol.SPEED_MIN <= st["speed"] <= protocol.SPEED_MAX:
--            self.speed.set_value(st["speed"])
--        for i, (_name, byte) in enumerate(self.dirs):
--            if byte == st.get("direction"):
--                self.dir_dd.set_selected(i)
--
--    def _reset_rainbow(self, *_):
--        for b, c in zip(self.palette_btns, effects.RAINBOW):
--            b.set_rgba(_make_rgba(c))
--        self.schedule()
--
--    def _spec(self):
--        return self.modes[self.mode_names[self.mode_dd.get_selected()]]
--
--    def _update_visibility(self):
--        spec = self._spec()
--        for w in (self.speed_lbl, self.speed):
--            w.set_visible(bool(spec.get("speed")))
--        for w in (self.dir_lbl, self.dir_dd):
--            w.set_visible(bool(spec.get("direction")))
--        for w in (self.color_lbl, self.color_btn):
--            w.set_visible(bool(spec.get("single")))
--        for w in (self.palette_lbl, self.palette_box):
--            w.set_visible(bool(spec.get("palette")))
--
--    def schedule(self, *_):
--        if not self._ready:
--            return
--        self._update_visibility()
--        if self._pending:
--            return
--        self._pending = True
--        GLib.timeout_add(50, self._do_apply)
--
--    def _do_apply(self):
--        self._pending = False
--        try:
 -            self.apply()
 -            self.status.set_text("")
 -        except Exception as e:  # noqa: BLE001
 -            self.status.set_text(f"error: {e}")
 +            with ZoneTransaction(self.device):
 +                self.dev.send(effects.build(self.device,**params))
++                if self.device == 'keyboard':
++                    try:
++                        self._last_hw_kbd = protocol.parse_keyboard_state(self.dev.query(protocol.QUERY_EFFECT))
++                    except Exception:
++                        pass
 +                saved=state.save(self.device,params)
 +            suffix=' · 按键时亮起' if self.spec().get('trigger') and params['reactive'] else ''
 +            self.status.set_text(('已应用：'+MODE_TEXT[self.mode][0]+suffix) if saved else '灯光已应用，但恢复设置保存失败')
@@ -877,6 +1346,8 @@
 -        self.dev.send(effects.build(self.label, mode, **params))
 -        state.save(self.label, dict(mode=mode, **params))
 +    def close(self):
++        if self._hotkey_timer is not None:
++            GLib.source_remove(self._hotkey_timer); self._hotkey_timer = None
 +        if self.pending is not None:
 +            GLib.source_remove(self.pending);self.pending=None
 +        self.dev.close()
@@ -941,25 +1412,9 @@
 -            self._pin_status.set_text(f"pin failed: {e.message}")
 -            return
 -        proc.communicate_utf8_async(None, None, self._on_pin_done)
--
--    def _on_pin_done(self, proc, result):
--        try:
--            _ok, out, _err = proc.communicate_utf8_finish(result)
--        except GLib.Error as e:
--            self._pin_status.set_text(f"pin failed: {e.message}")
--            return
--        if proc.get_successful():
--            self._pin_status.set_text("pinned — this state is restored on every boot & resume")
--        else:
--            lines = (out or "").strip().splitlines()
--            self._pin_status.set_text(
--                f"pin failed: {lines[-1] if lines else 'authentication cancelled'}")
--
--
--def main() -> int:
 +        window=self.get_active_window()
 +        if window:window.present();return
-+        self.panels=[];self.logo=None
++        self.panels=[];self.logo=None;self.profiles_panel=None
 +        provider=Gtk.CssProvider()
 +        provider.load_from_path(str(Path(__file__).with_name('control.css')))
 +        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(),provider,Gtk.STYLE_PROVIDER_PRIORITY_USER + 1)
@@ -977,9 +1432,10 @@
 +        self.stack.set_transition_duration(120)
 +        self.nav={}
 +        detected={label for _,_,label in devices.available_devices()}
-+        for name,title,icon in [('keyboard','键盘背光','input-keyboard-symbolic'),('lightbar','机身灯带','display-brightness-symbolic'),('logo','后盖 Logo','starred-symbolic'),('lighting-policy','自动灯光','preferences-system-symbolic'),('performance','性能模式','speedometer-symbolic')]:
++        for name,title,icon in [('keyboard','键盘背光','input-keyboard-symbolic'),('lightbar','机身灯带','display-brightness-symbolic'),('logo','后盖 Logo','starred-symbolic'),('lighting-policy','自动灯光','preferences-system-symbolic'),('profiles','情景预设','view-grid-symbolic'),('performance','性能模式','speedometer-symbolic')]:
 +            if name=='performance':page=PerformancePanel()
 +            elif name=='logo':page=LogoPanel();self.logo=page
++            elif name=='profiles':page=ProfilesPanel();self.profiles_panel=page
 +            elif name=='lighting-policy':
 +                page=box(spacing=18,css='device-page')
 +                page.append(label('灯光策略','page-title'))
@@ -1004,7 +1460,7 @@
 +        off=Gtk.Button(label='关闭全部灯光');off.set_tooltip_text('关闭键盘、机身灯带与后盖 Logo，保留配色设置')
 +        off.add_css_class('all-off');off.connect('clicked',self.all_off);bar.append(off);right.append(bar)
 +        right.append(self.stack)
-+        window.connect('close-request',self.window_closed,tuple(self.panels),self.logo)
++        window.connect('close-request',self.window_closed,tuple(self.panels),self.logo,self.profiles_panel)
 +        self.navigate('keyboard');window.present()
 +
 +    def navigate(self,name):
@@ -1023,26 +1479,43 @@
 +            GLib.source_remove(panel.pending);panel.pending=None;panel.apply()
 +        panel.close()
 +
-+    def window_closed(self,window,panels,logo):
++    def window_closed(self,window,panels,logo,profiles_panel=None):
 +        for panel in panels:
 +            if panel in self.panels:
 +                self.close_panel(panel);self.panels.remove(panel)
 +        if logo is not None:
 +            logo.close()
 +            if self.logo is logo:self.logo=None
++        if profiles_panel is not None:
++            profiles_panel.close()
++            if getattr(self,'profiles_panel',None) is profiles_panel:self.profiles_panel=None
 +        # An old Logo helper retains its own application hold and transaction
 +        # until the async callback saves its actual value, independently of UI.
 +        return False
-+
+ 
+-    def _on_pin_done(self, proc, result):
+-        try:
+-            _ok, out, _err = proc.communicate_utf8_finish(result)
+-        except GLib.Error as e:
+-            self._pin_status.set_text(f"pin failed: {e.message}")
+-            return
+-        if proc.get_successful():
+-            self._pin_status.set_text("pinned — this state is restored on every boot & resume")
+-        else:
+-            lines = (out or "").strip().splitlines()
+-            self._pin_status.set_text(
+-                f"pin failed: {lines[-1] if lines else 'authentication cancelled'}")
 +    def do_shutdown(self):
 +        for panel in self.panels:
 +            # Apply a pending user change before closing; never schedule on construction.
 +            self.close_panel(panel)
 +        self.panels=[]
 +        if self.logo:self.logo.close();self.logo=None
++        if getattr(self,'profiles_panel',None):self.profiles_panel.close();self.profiles_panel=None
 +        Gtk.Application.do_shutdown(self)
-+
-+
+ 
+ 
+-def main() -> int:
 +def main():
 +    GLib.set_prgname('mechrevo-control')
 +    GLib.set_application_name('机械革命控制中心')
@@ -1053,8 +1526,213 @@
 -    raise SystemExit(main())
 +if __name__=='__main__':raise SystemExit(main())
 --- /dev/null
++++ b/src/iteglow/keymap.py
+@@ -0,0 +1,202 @@
++"""Physical 101-key layout (MEZone_3p1nd_101) and per-key matrix presets.
++
++All matrix cell coordinates use the logical top-to-bottom 6x21 grid
++(``idx = row * 21 + col``, ``row=0`` top Esc/Fn row, ``row=5`` bottom Ctrl/Space
++row). :func:`iteglow.protocol.keyboard_matrix` handles translating logical grid
++order into firmware ``12H`` wire slots.
++"""
++from __future__ import annotations
++
++from dataclasses import dataclass
++from typing import Dict, List, Sequence, Tuple
++
++from .protocol import KBD_MATRIX_CELLS, KBD_MATRIX_COLS, KBD_MATRIX_ROWS, RGB
++
++
++@dataclass(frozen=True)
++class KeyCap:
++    name: str
++    row: int
++    col: int
++    width: float
++    indices: Tuple[int, ...]
++    group: str = "alpha"
++
++    @property
++    def primary(self) -> int:
++        return self.indices[0]
++
++
++def _cap(name: str, row: int, col: int, width: float = 1.0,
++         extra: Sequence[int] = (), group: str = "alpha") -> KeyCap:
++    primary = row * KBD_MATRIX_COLS + col
++    return KeyCap(name=name, row=row, col=col, width=width,
++                  indices=(primary, *extra), group=group)
++
++
++# Verified 101-key physical layout (20 + 18 + 18 + 16 + 16 + 13 = 101)
++# Matches OEM SetColorKeyNumbers3p_101_Mapping() + hardware 12H verification.
++KEYBOARD_101_ROWS: Tuple[Tuple[KeyCap, ...], ...] = (
++    # Row 0 (top): Esc..F12 + nav + top numpad (indices 0..19)
++    (
++        _cap("Esc", 0, 0, group="mod"),
++        *(_cap(f"F{i}", 0, i, group="fn") for i in range(1, 13)),
++        _cap("PrtSc", 0, 13, group="nav"),
++        _cap("Pause", 0, 14, group="nav"),
++        _cap("Del", 0, 15, group="nav"),
++        _cap("Home", 0, 16, group="nav"),
++        _cap("PgUp", 0, 17, group="nav"),
++        _cap("PgDn", 0, 18, group="nav"),
++        _cap("End", 0, 19, group="nav"),
++    ),
++    # Row 1: `..= (21..33), Bksp (35), NumLk / * - (36..39)
++    (
++        *(_cap(lbl, 1, c, group="alpha") for c, lbl in enumerate(
++            ("`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "="))),
++        _cap("Bksp", 1, 14, width=2.0, group="mod"),
++        _cap("NumLk", 1, 15, group="num"),
++        _cap("/", 1, 16, group="num"),
++        _cap("*", 1, 17, group="num"),
++        _cap("-", 1, 18, group="num"),
++    ),
++    # Row 2: Tab (42), Q..\ (44..56), Num7..+ (57..60)
++    (
++        _cap("Tab", 2, 0, width=1.5, group="mod"),
++        *(_cap(lbl, 2, 2 + i, group=("wasd" if lbl == "W" else "alpha"))
++          for i, lbl in enumerate(
++              ("Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "[", "]", "\\"))),
++        _cap("Num7", 2, 15, group="num"),
++        _cap("Num8", 2, 16, group="num"),
++        _cap("Num9", 2, 17, group="num"),
++        _cap("+", 2, 18, group="num"),
++    ),
++    # Row 3: Caps (63), A..' (65..75), Enter (77), Num4..6 (78..80)
++    (
++        _cap("Caps", 3, 0, width=1.8, group="mod"),
++        *(_cap(lbl, 3, 2 + i, group=("wasd" if lbl in ("A", "S", "D") else "alpha"))
++          for i, lbl in enumerate(
++              ("A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'"))),
++        _cap("Enter", 3, 14, width=2.0, group="mod"),
++        _cap("Num4", 3, 15, group="num"),
++        _cap("Num5", 3, 16, group="num"),
++        _cap("Num6", 3, 17, group="num"),
++    ),
++    # Row 4: LShift (84,85), Z../ (87..96), RShift (98), Up (99), Num1..3 (100..102)
++    (
++        _cap("LShift", 4, 0, width=2.3, extra=(85,), group="mod"),
++        *(_cap(lbl, 4, 3 + i, group="alpha") for i, lbl in enumerate(
++            ("Z", "X", "C", "V", "B", "N", "M", ",", ".", "/"))),
++        _cap("RShift", 4, 14, width=1.7, group="mod"),
++        _cap("↑", 4, 15, group="arrows"),
++        _cap("Num1", 4, 16, group="num"),
++        _cap("Num2", 4, 17, group="num"),
++        _cap("Num3", 4, 18, group="num"),
++    ),
++    # Row 5: LCtrl (105), Fn (107), Win (108), LAlt (109), Space (112),
++    # RAlt (115), RCtrl (117), Left/Down/Right (118..120), Num0/./Ent (121..123)
++    (
++        _cap("LCtrl", 5, 0, width=1.5, group="mod"),
++        _cap("Fn", 5, 2, group="mod"),
++        _cap("Win", 5, 3, group="mod"),
++        _cap("LAlt", 5, 4, group="mod"),
++        _cap("Space", 5, 7, width=4.0, extra=(110, 111, 113, 114), group="mod"),
++        _cap("RAlt", 5, 10, group="mod"),
++        _cap("RCtrl", 5, 12, group="mod"),
++        _cap("←", 5, 13, group="arrows"),
++        _cap("↓", 5, 14, group="arrows"),
++        _cap("→", 5, 15, group="arrows"),
++        _cap("Num0", 5, 16, width=1.5, group="num"),
++        _cap("Num.", 5, 17, group="num"),
++        _cap("NumEnt", 5, 18, group="num"),
++    ),
++)
++
++ALL_KEYCAPS: Tuple[KeyCap, ...] = tuple(cap for row in KEYBOARD_101_ROWS for cap in row)
++
++PRESETS: Dict[str, str] = {
++    "gaming": "游戏分区 (WASD/方向红光 + 功能区蓝紫 + 主区青色)",
++    "wasd_fps": "FPS 战术高亮 (仅亮 WASD 与方向键)",
++    "zones": "功能分区 (字母/功能/修饰/小键盘分色)",
++    "rainbow_grid": "彩虹渐变矩阵",
++    "gradient": "双色横向渐变",
++}
++
++
++def blank_cells(fill: RGB = (0, 0, 0)) -> List[RGB]:
++    rgb = (int(fill[0]), int(fill[1]), int(fill[2]))
++    return [rgb] * KBD_MATRIX_CELLS
++
++
++def _lerp(c1: RGB, c2: RGB, t: float) -> RGB:
++    t = max(0.0, min(1.0, t))
++    return (
++        round(c1[0] + (c2[0] - c1[0]) * t),
++        round(c1[1] + (c2[1] - c1[1]) * t),
++        round(c1[2] + (c2[2] - c1[2]) * t),
++    )
++
++
++def _hue_rgb(pos: float) -> RGB:
++    h = (pos % 1.0) * 6.0
++    i = int(h) % 6
++    f = h - int(h)
++    up, down = round(255 * f), round(255 * (1.0 - f))
++    return (
++        (255, up, 0), (down, 255, 0), (0, 255, up),
++        (0, down, 255), (up, 0, 255), (255, 0, down),
++    )[i]
++
++
++def preset_cells(name: str, accent: RGB = (0, 255, 255),
++                 secondary: RGB = (255, 0, 128)) -> List[RGB]:
++    """Generate a 126-cell RGB matrix for one of ``PRESETS``."""
++    if name not in PRESETS:
++        raise ValueError(f"unknown matrix preset {name!r}; choose from {sorted(PRESETS)}")
++    cells = blank_cells()
++    if name == "rainbow_grid":
++        for r in range(KBD_MATRIX_ROWS):
++            for c in range(KBD_MATRIX_COLS):
++                cells[r * KBD_MATRIX_COLS + c] = _hue_rgb(c / 19.0 + r * 0.04)
++        return cells
++    if name == "gradient":
++        for r in range(KBD_MATRIX_ROWS):
++            for c in range(KBD_MATRIX_COLS):
++                cells[r * KBD_MATRIX_COLS + c] = _lerp(accent, secondary, c / 18.0)
++        return cells
++
++    group_colors: Dict[str, RGB]
++    if name == "wasd_fps":
++        group_colors = {
++            "wasd": (255, 40, 0),
++            "arrows": accent,
++            "fn": (0, 0, 0), "nav": (0, 0, 0), "mod": (0, 0, 0),
++            "num": (0, 0, 0), "alpha": (0, 0, 0),
++        }
++        for idx in (0, 63, 77, 84, 85, 112):  # Esc, Caps, Enter, Shift, Space dim cue
++            cells[idx] = (20, 45, 70)
++    elif name == "gaming":
++        group_colors = {
++            "wasd": (255, 32, 0),
++            "arrows": (255, 140, 0),
++            "fn": (110, 0, 255),
++            "nav": (0, 120, 255),
++            "mod": (0, 90, 255),
++            "num": (0, 220, 160),
++            "alpha": accent,
++        }
++    else:  # zones
++        group_colors = {
++            "wasd": accent,
++            "alpha": accent,
++            "fn": (255, 165, 0),
++            "nav": (255, 220, 0),
++            "mod": (110, 80, 255),
++            "arrows": (255, 60, 120),
++            "num": (0, 220, 140),
++        }
++    for cap in ALL_KEYCAPS:
++        col = group_colors[cap.group]
++        for idx in cap.indices:
++            if 0 <= idx < KBD_MATRIX_CELLS:
++                cells[idx] = col
++    return cells
+--- /dev/null
 +++ b/src/iteglow/lighting_policy.py
-@@ -0,0 +1,228 @@
+@@ -0,0 +1,241 @@
 +"""Pure AC/DC brightness and shared idle-light policy; never performs I/O.
 +
 +``saved`` contains the user's last *manually applied* records, never temporary
@@ -1068,7 +1746,7 @@
 +import math
 +from typing import Optional, Tuple
 +
-+from . import effects, protocol
++from . import effects, keymap, protocol
 +
 +DEVICES = ("keyboard", "lightbar", "logo")
 +LOGO_COLORS = ((255, 255, 255), (255, 0, 0), (0, 255, 0), (0, 0, 255),
@@ -1136,7 +1814,10 @@
 +        if saved["mode"] == "breathing" and tuple(saved["color"]) not in LOGO_COLORS:
 +            raise ValueError("不支持的 Logo 呼吸颜色")
 +    else:
-+        if set(saved) - {"mode", "brightness", "color", "colors", "speed", "direction", "reactive"}:
++        allowed = {"mode", "brightness", "color", "colors", "speed", "direction", "reactive"}
++        if device == "keyboard":
++            allowed |= {"matrix", "preset", "calibrate"}
++        if set(saved) - allowed:
 +            raise ValueError("灯光记录包含未知字段")
 +        if not isinstance(saved.get("mode"), str) or saved["mode"] not in effects.MODES_BY_LABEL[device]:
 +            raise ValueError("未知灯效")
@@ -1155,6 +1836,16 @@
 +            _integer(saved["direction"], 1, 4 if device == "keyboard" else 2, "方向")
 +        if "reactive" in saved and type(saved["reactive"]) is not bool:
 +            raise ValueError("按键响应需要布尔值")
++        if saved.get("matrix") is not None:
++            matrix = saved["matrix"]
++            if not isinstance(matrix, (tuple, list)) or len(matrix) != protocol.KBD_MATRIX_CELLS:
++                raise ValueError(f"按键矩阵需要 {protocol.KBD_MATRIX_CELLS} 个 RGB 颜色")
++            saved["matrix"] = [_color(color) for color in matrix]
++        if saved.get("preset") is not None:
++            if not isinstance(saved["preset"], str) or saved["preset"] not in keymap.PRESETS:
++                raise ValueError("未知按键矩阵预设")
++        if "calibrate" in saved and type(saved["calibrate"]) is not bool:
++            raise ValueError("色彩校准需要布尔值")
 +    return saved
 +
 +
@@ -1648,7 +2339,7 @@
 +        return self._finish(result)
 --- /dev/null
 +++ b/src/iteglow/lighting_session.py
-@@ -0,0 +1,410 @@
+@@ -0,0 +1,630 @@
 +"""Restore last-applied lights in one active local graphical session.
 +
 +Default operation is a dry run. ``--apply`` explicitly enables the existing
@@ -1660,6 +2351,7 @@
 +from __future__ import annotations
 +
 +import argparse
++import copy
 +from dataclasses import dataclass
 +import json
 +import os
@@ -1669,9 +2361,11 @@
 +import subprocess
 +from typing import Callable, Optional, Tuple
 +
-+from . import effects, protocol
++from . import effects, keymap, protocol, state
 +
 +HELPER = "/usr/local/libexec/mechrevo-profile-helper"
++WMI_STATE_PATH = Path("/run/mechrevo-wmi-state.json")
++WMI_KBD_BRIGHTNESS_CODE = 193
 +MAX_STATE_BYTES = 65536
 +LOGO_COLORS = ((255, 255, 255), (255, 0, 0), (0, 255, 0), (0, 0, 255),
 +               (255, 255, 0), (136, 0, 255), (0, 255, 255))
@@ -1699,7 +2393,8 @@
 +def validate_hid(device: str, saved: dict) -> RestoreAction:
 +    if device not in effects.MODES_BY_LABEL or not isinstance(saved, dict):
 +        raise ValueError("unknown device or invalid saved parameters")
-+    allowed = {"mode", "color", "colors", "brightness", "speed", "direction", "reactive"}
++    allowed = {"mode", "color", "colors", "brightness", "speed", "direction",
++               "reactive", "matrix", "preset", "calibrate"}
 +    if set(saved) - allowed:
 +        raise ValueError("unknown saved lighting fields")
 +    mode = saved.get("mode")
@@ -1719,14 +2414,30 @@
 +    reactive = saved.get("reactive", False)
 +    if type(reactive) is not bool:
 +        raise ValueError("reactive: expected a boolean")
++    matrix = saved.get("matrix")
++    if matrix is not None:
++        if device != "keyboard":
++            raise ValueError("matrix: only supported for keyboard")
++        if not isinstance(matrix, list) or len(matrix) != protocol.KBD_MATRIX_CELLS:
++            raise ValueError(f"matrix: expected {protocol.KBD_MATRIX_CELLS} RGB entries")
++        matrix = [_color(value) for value in matrix]
++    preset = saved.get("preset")
++    if preset is not None:
++        if device != "keyboard" or not isinstance(preset, str) or preset not in keymap.PRESETS:
++            raise ValueError("preset: unknown keyboard matrix preset")
++    calibrate = saved.get("calibrate", False)
++    if type(calibrate) is not bool:
++        raise ValueError("calibrate: expected a boolean")
 +    # A zero brightness is also OFF. In particular, never send lightbar
 +    # power-on before an OFF restore (the old cmd_restore did that).
 +    if mode == "off" or brightness == 0:
 +        reports = effects.build(device, "off")
 +    else:
-+        reports = effects.build(device, mode, color=color, colors=palette,
-+                                brightness=brightness, speed=speed,
-+                                direction=direction, reactive=reactive)
++        build_kwargs = dict(color=color, colors=palette, brightness=brightness,
++                            speed=speed, direction=direction, reactive=reactive)
++        if device == "keyboard" and mode == "matrix":
++            build_kwargs.update(matrix=matrix, preset=preset, calibrate=calibrate)
++        reports = effects.build(device, mode, **build_kwargs)
 +        if device == "lightbar":
 +            reports = protocol.lightbar_power_on() + reports
 +    return RestoreAction(device, tuple(reports))
@@ -1748,7 +2459,7 @@
 +    return RestoreAction("logo", logo_json=json.dumps(data, separators=(",", ":")))
 +
 +
-+def _read_saved(path: Path, uid: int):
++def _read_saved(path: Path, uid: int, *, max_bytes: int = MAX_STATE_BYTES):
 +    try:
 +        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
 +    except FileNotFoundError:
@@ -1757,10 +2468,10 @@
 +        info = os.fstat(stream.fileno())
 +        if not stat.S_ISREG(info.st_mode) or info.st_uid != uid or info.st_mode & 0o002:
 +            raise ValueError("saved state must be a user-owned regular file, not world-writable")
-+        if info.st_size > MAX_STATE_BYTES:
++        if info.st_size > max_bytes:
 +            raise ValueError("saved state exceeds size limit")
-+        data = stream.read(MAX_STATE_BYTES + 1)
-+        if len(data) > MAX_STATE_BYTES:
++        data = stream.read(max_bytes + 1)
++        if len(data) > max_bytes:
 +            raise ValueError("saved state exceeds size limit")
 +        return json.loads(data)
 +
@@ -1842,6 +2553,143 @@
 +        return _apply_action_locked(action)
 +
 +
++def _default_query_kbd() -> dict:
++    from . import devices
++    with devices.HidLed(devices.led_for_label("keyboard")) as dev:
++        return protocol.parse_keyboard_state(dev.query(protocol.QUERY_EFFECT))
++
++
++class KeyboardHotkeySync:
++    """Sync hardware Fn+F6 / Fn+F7 (and WMI 0xC1) keyboard brightness into state.json."""
++
++    def __init__(self, directory: Path, uid: int, *,
++                 wmi_state_path: Path = WMI_STATE_PATH,
++                 query_kbd: Optional[Callable[[], dict]] = None,
++                 transaction=None):
++        self.directory = Path(directory)
++        self.uid = uid
++        self.wmi_state_path = Path(wmi_state_path)
++        self._query_kbd = query_kbd or _default_query_kbd
++        self._transaction = transaction
++        self.last_manual = None
++        self.last_hw: Optional[dict] = None
++        self.last_wmi_seq: Optional[int] = None
++
++    def _tx(self, zone: str):
++        if self._transaction is not None:
++            return self._transaction(zone)
++        from .zone_lock import ZoneTransaction
++        return ZoneTransaction(zone)
++
++    def _safe_query(self) -> Optional[dict]:
++        try:
++            reply = self._query_kbd()
++            return dict(reply) if isinstance(reply, dict) else None
++        except OSError:
++            return None
++
++    def _current_wmi_seq(self) -> Optional[int]:
++        try:
++            fd = os.open(self.wmi_state_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
++        except OSError:
++            return None
++        try:
++            with os.fdopen(fd, "rb") as stream:
++                info = os.fstat(stream.fileno())
++                if not stat.S_ISREG(info.st_mode) or info.st_size > 16384:
++                    return None
++                raw = json.loads(stream.read(16384))
++        except (OSError, ValueError):
++            return None
++        if not isinstance(raw, dict):
++            return None
++        seqs = [ev.get("seq") for ev in raw.get("wmi_events") or ()
++                if isinstance(ev, dict) and ev.get("code") == WMI_KBD_BRIGHTNESS_CODE
++                and isinstance(ev.get("seq"), int)]
++        if seqs:
++            return max(seqs)
++        if raw.get("wmi_last_code") == WMI_KBD_BRIGHTNESS_CODE and isinstance(raw.get("wmi_seq"), int):
++            return raw["wmi_seq"]
++        return None
++
++    def _read_manual_kbd(self):
++        try:
++            saved = _read_saved(self.directory / "state.json", self.uid)
++        except (OSError, ValueError, TypeError):
++            return None, None
++        if saved is None or not isinstance(saved, dict):
++            return saved, None
++        return saved, saved.get("keyboard")
++
++    def reset(self) -> None:
++        self.last_hw = None
++
++    def record_applied(self) -> None:
++        """Refresh manual & hardware snapshots after our own restore/policy write."""
++        _, manual = self._read_manual_kbd()
++        self.last_manual = copy.deepcopy(manual)
++        self.last_hw = self._safe_query()
++        seq = self._current_wmi_seq()
++        if seq is not None:
++            self.last_wmi_seq = seq
++
++    def sync_if_needed(self, *, force_query: bool = False) -> Optional[dict]:
++        """Detect hardware hotkey changes and update saved keyboard brightness."""
++        _, manual = self._read_manual_kbd()
++        if manual != self.last_manual:
++            self.last_manual = copy.deepcopy(manual)
++            with self._tx("keyboard"):
++                self.last_hw = self._safe_query()
++            seq = self._current_wmi_seq()
++            if seq is not None:
++                self.last_wmi_seq = seq
++            return None
++        seq = self._current_wmi_seq()
++        wmi_changed = seq is not None and seq != self.last_wmi_seq
++        if seq is not None:
++            self.last_wmi_seq = seq
++        if not (wmi_changed or force_query):
++            return None
++        with self._tx("keyboard"):
++            full_state, current_manual = self._read_manual_kbd()
++            if current_manual != self.last_manual:
++                self.last_manual = copy.deepcopy(current_manual)
++                self.last_hw = self._safe_query()
++                return None
++            actual = self._safe_query()
++            if actual is None:
++                return None
++            if self.last_hw is None:
++                self.last_hw = dict(actual)
++                return None
++            changed = (actual.get("power") != self.last_hw.get("power") or
++                       actual.get("brightness") != self.last_hw.get("brightness"))
++            if not changed and actual.get("power") != 1 and actual.get("brightness", 0) > 0:
++                changed = actual.get("mode") != self.last_hw.get("mode")
++            if not changed:
++                return None
++            self.last_hw = dict(actual)
++            new_bright = 0 if (actual.get("power") == 1 or actual.get("brightness", 0) == 0) else max(
++                0, min(protocol.KBD_BRIGHTNESS_MAX, int(actual["brightness"])))
++            if isinstance(current_manual, dict):
++                updated = dict(current_manual)
++                if updated.get("mode") == "off" and new_bright > 0:
++                    mode_name, ui_dir = effects.decode_keyboard_state(actual, saved_mode=updated.get("mode"))
++                    updated["mode"] = mode_name
++                    updated["direction"] = ui_dir
++                updated["brightness"] = new_bright
++            else:
++                mode_name, ui_dir = effects.decode_keyboard_state(actual)
++                updated = {"mode": mode_name, "brightness": new_bright, "direction": ui_dir}
++            validate_hid("keyboard", updated)
++            next_data = dict(full_state) if isinstance(full_state, dict) else {}
++            next_data["keyboard"] = updated
++            with self._tx("manual-state"):
++                state.write(str(self.directory / "state.json"), next_data)
++            self.last_manual = copy.deepcopy(updated)
++            return {"hotkey_sync": "keyboard", "mode": updated["mode"], "brightness": new_bright}
++
++
 +def _apply_action_locked(action: RestoreAction):
 +    if action.device == "logo":
 +        # Revalidate even if called independently of load_actions.
@@ -1850,7 +2698,13 @@
 +            ["/usr/bin/pkexec", "--disable-internal-agent", HELPER, "logo", action.logo_json],
 +            capture_output=True, text=True, timeout=5, check=False)
 +        if result.returncode:
-+            raise RuntimeError(result.stderr.strip() or "Logo helper failed")
++            err_msg = result.stderr.strip()
++            if not err_msg and result.stdout.strip():
++                try:
++                    err_msg = json.loads(result.stdout).get("error", "")
++                except ValueError:
++                    err_msg = result.stdout.strip()
++            raise RuntimeError(err_msg or "Logo helper failed")
 +        response = json.loads(result.stdout)
 +        if not isinstance(response, dict) or "error" in response:
 +            raise RuntimeError("Logo helper rejected restoration")
@@ -1967,6 +2821,7 @@
 +        return 0
 +
 +    from .lighting_policy_session import CONFIG_PATH, PolicyRunner, SessionInputs, read_config, read_manual
++    from .profiles import ProfileRuleRunner, profiles_path, read_config as read_profiles_config
 +    inputs = SessionInputs(
 +        lambda *parameters: call(system_bus, *parameters),
 +        lambda *parameters: call(user_bus, *parameters), GLib.Variant)
@@ -1974,16 +2829,32 @@
 +    pending = None
 +    last_active = False
 +    lifecycle = None
++    hotkey_sync = KeyboardHotkeySync(directory, uid)
++
++    def policy_writer(action: RestoreAction):
++        result = apply_action(action)
++        if action.device == "keyboard":
++            with hotkey_sync._tx("keyboard"):
++                hotkey_sync.record_applied()
++        return result
++
 +    policy = PolicyRunner(
 +        active=lambda: lifecycle is not None and lifecycle.can_restore(),
 +        config=lambda: read_config(CONFIG_PATH, uid),
 +        manual=lambda: read_manual(directory, uid), power=inputs.power, idle=inputs.idle,
-+        apply=args.apply, writer=apply_action,
++        apply=args.apply, writer=policy_writer,
++        emit=lambda event: print(json.dumps(event, ensure_ascii=False), flush=True))
++    rule_runner = ProfileRuleRunner(
++        active=lambda: lifecycle is not None and lifecycle.can_restore(),
++        config=lambda: read_profiles_config(profiles_path(), uid),
++        directory=directory, uid=uid, apply=args.apply,
 +        emit=lambda event: print(json.dumps(event, ensure_ascii=False), flush=True))
 +
 +    def cancel():
 +        nonlocal pending, last_active
 +        policy.begin_restore()
++        rule_runner.deactivate()
++        hotkey_sync.reset()
 +        last_active = False
 +        if pending is not None:
 +            GLib.source_remove(pending)
@@ -1992,12 +2863,19 @@
 +    def restore():
 +        nonlocal pending
 +        pending = None
++        rule_runner.deactivate()
 +        policy.begin_restore()
 +        try:
 +            print(json.dumps(restore_once(directory, uid, lifecycle.can_restore, apply=args.apply)), flush=True)
 +        finally:
 +            policy.finish_restore()
 +        policy.tick()
++        if args.apply and lifecycle.can_restore():
++            try:
++                with hotkey_sync._tx("keyboard"):
++                    hotkey_sync.record_applied()
++            except (OSError, ValueError, RuntimeError):
++                pass
 +        return False
 +
 +    def schedule():
@@ -2009,16 +2887,45 @@
 +
 +    lifecycle = Lifecycle(active, schedule, cancel)
 +
++    def _run_hotkey_sync(force_query: bool) -> None:
++        if not args.apply or pending is not None or not lifecycle.can_restore() or rule_runner.owns_lighting:
++            return
++        try:
++            event = hotkey_sync.sync_if_needed(force_query=force_query)
++            if event:
++                print(json.dumps(event, ensure_ascii=False), flush=True)
++        except (OSError, ValueError, TypeError, RuntimeError):
++            pass
++
++    def hotkey_tick():
++        _run_hotkey_sync(False)
++        return True
++
 +    def policy_tick():
 +        nonlocal last_active
 +        current = lifecycle.can_restore()
 +        if not current:
 +            policy.deactivate()
++            rule_runner.deactivate()
++            hotkey_sync.reset()
 +            last_active = False
 +        elif not last_active:
 +            # Inactivity drops ownership. Restore the saved manual baseline
 +            # before rejoining policy, so old idle-OFF cannot become stranded.
 +            schedule()
++        if pending is None:
++            rule_result = rule_runner.tick()
++            if rule_result.get("active_lighting"):
++                policy.begin_restore()
++            elif rule_result.get("released_lighting"):
++                policy.finish_restore()
++            if rule_result.get("action") in ("apply", "release", "yield_mode_key") and args.apply:
++                try:
++                    with hotkey_sync._tx("keyboard"):
++                        hotkey_sync.record_applied()
++                except (OSError, ValueError, RuntimeError):
++                    pass
++        _run_hotkey_sync(True)
 +        policy.tick()
 +        return True
 +
@@ -2035,6 +2942,7 @@
 +    def stop():
 +        lifecycle.stop()
 +        policy.deactivate()
++        rule_runner.deactivate()
 +        loop.quit()
 +        return False
 +
@@ -2045,11 +2953,14 @@
 +    GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, stop)
 +    lifecycle.startup()
 +    policy_timer = GLib.timeout_add_seconds(5, policy_tick)
++    hotkey_timer = GLib.timeout_add_seconds(1, hotkey_tick)
 +    try:
 +        loop.run()
 +    finally:
 +        lifecycle.stop()
 +        policy.deactivate()
++        rule_runner.deactivate()
++        GLib.source_remove(hotkey_timer)
 +        GLib.source_remove(policy_timer)
 +        system_bus.signal_unsubscribe(subscription)
 +        if lock_fd is not None:
@@ -2459,7 +3370,7 @@
 +        self.state = SchedulerState(game_launch_condition=self.state.game_launch_condition)
 --- /dev/null
 +++ b/src/iteglow/performance.py
-@@ -0,0 +1,324 @@
+@@ -0,0 +1,350 @@
 +"""Asynchronous UI for this machine's verified firmware mode helper."""
 +import json
 +from pathlib import Path
@@ -2482,7 +3393,7 @@
 +    def __init__(self, request):
 +        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=12)
 +        self.request = request; self.spins = {}; self.initialized = False
-+        self.gpu_supported = False; self.available = False
++        self.gpu_supported = False; self.available = False; self.safety_protect = False
 +        self.add_css_class('control-card')
 +        title=Gtk.Label(label='自定义调校', xalign=0); title.add_css_class('section-title'); self.append(title)
 +        note=Gtk.Label(label='应用后进入白色自定义档。切换档位、按机身模式键或休眠前会撤销调校；关闭窗口会保留设置。',xalign=0,wrap=True)
@@ -2566,9 +3477,10 @@
 +        self.gpu_power.set_sensitive(self.gpu_supported and selected)
 +        self.gpu_db_enabled.set_sensitive(self.gpu_supported and selected)
 +        self.gpu_db.set_sensitive(self.gpu_supported and selected and self.gpu_db_enabled.get_active())
-+        self.apply_button.set_sensitive(self.available and (not selected or self.gpu_supported))
++        self.apply_button.set_sensitive(self.available and not self.safety_protect and (not selected or self.gpu_supported))
 +
 +    def update_status(self,data):
++        self.safety_protect=data.get('fan_safety_protect') is True
 +        self.gpu_supported=(data.get('gpu_tuning_supported') is True
 +                            and data.get('gpu_tuning_range')==[65,115] and data.get('gpu_db_range')==[5,25])
 +        self.gpu_note.set_text('基础功耗 65–115 W；Dynamic Boost 可额外分配 5–25 W，实际用量随负载变化。未勾选 GPU 调节时由固件管理。'
@@ -2578,10 +3490,13 @@
 +            if data.get('tuning'):self.load_values(data['tuning'])
 +            self.initialized=True
 +        config=data.get('tuning')
-+        self.validation.set_text(('硬件当前已应用：CPU '+str(config['pl1'])+' W'
-+                                 +(' · GPU '+str(config['gpu_ctgp'])+' W' if config.get('gpu_ctgp') is not None else '')
-+                                 +(' + '+str(config['gpu_db'])+' W Boost' if config.get('gpu_db',0) else '')
-+                                 +' · 独立双风扇曲线') if config else '编辑不会立即改变硬件，点击“应用”后生效。')
++        if self.safety_protect and not config:
++            self.validation.set_text('EC 高温安全保护激活，已暂停自定义调校。')
++        else:
++            self.validation.set_text(('硬件当前已应用：CPU '+str(config['pl1'])+' W'
++                                     +(' · GPU '+str(config['gpu_ctgp'])+' W' if config.get('gpu_ctgp') is not None else '')
++                                     +(' + '+str(config['gpu_db'])+' W Boost' if config.get('gpu_db',0) else '')
++                                     +' · 独立双风扇曲线') if config else '编辑不会立即改变硬件，点击“应用”后生效。')
 +
 +    def apply(self,_):
 +        config={'pl1':self.power.get_value_as_int(),'pl2':self.power.get_value_as_int()}
@@ -2705,10 +3620,17 @@
 +        self.append(row)
 +        self.message = Gtk.Label(xalign=0, wrap=True)
 +        self.message.add_css_class('status-text'); self.append(self.message)
-+        note = Gtk.Label(label='点击模式卡片立即切换。机身模式键仍可使用，当前状态每 3 秒刷新。', xalign=0, wrap=True)
++        note = Gtk.Label(label='点击模式卡片立即切换。机身模式键在各档位（含狂暴子模式与自定义调校期间）均可响应，当前状态每 3 秒刷新。', xalign=0, wrap=True)
 +        note.add_css_class('subtitle'); self.append(note)
 +        note2 = Gtk.Label(label='启动、开机与唤醒时保持当前档位，不自动切换。', xalign=0, wrap=True)
 +        note2.add_css_class('subtitle'); self.append(note2)
++        telemetry = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
++        telemetry.add_css_class('control-card')
++        self.safety_label = Gtk.Label(label='EC 高温风扇安全保护：正在读取…', xalign=0, wrap=True)
++        self.safety_label.add_css_class('small-note'); telemetry.append(self.safety_label)
++        self.smart_balance_label = Gtk.Label(label='SmartBalance：正在读取…', xalign=0, wrap=True)
++        self.smart_balance_label.add_css_class('small-note'); telemetry.append(self.smart_balance_label)
++        self.append(telemetry)
 +        self.tuning = TuningEditor(self.request)
 +        self.turbo = TurboEditor(self.request)
 +        self.append(self.turbo);self.append(self.tuning)
@@ -2768,12 +3690,27 @@
 +                raise RuntimeError(data.get('error', error.strip() or '性能控制失败'))
 +            self.switchable = data['switchable']
 +            mode = data['mode']
++            safety = data.get('fan_safety_protect')
++            sb_sup = data.get('smart_balance_supported')
++            sb_en = data.get('smart_balance_enabled')
++            if safety is True:
++                self.safety_label.set_text('EC 高温风扇安全保护：EC 高温安全保护激活（已交由固件降温，暂停自定义调校）')
++            elif safety is False:
++                self.safety_label.set_text('EC 高温风扇安全保护：正常')
++            else:
++                self.safety_label.set_text('EC 高温风扇安全保护：未知')
++            if sb_sup is False:
++                self.smart_balance_label.set_text('SmartBalance：本机固件不支持 (0x7ac bit0=0)')
++            elif sb_sup is True:
++                self.smart_balance_label.set_text('SmartBalance：支持' + (' · 已开启' if sb_en else ' · 未开启'))
++            else:
++                self.smart_balance_label.set_text('SmartBalance：未知')
 +            self.current.set_text('当前：' + LABELS.get(mode, '未知档位') + (' · 已应用调校' if data.get('tuning_active') else ''))
 +            self.tuning.update_status(data)
 +            self.turbo.update_status(data)
 +            self.message.set_text(data['reason'] or ('设置已生效，硬件回读一致' if operation != 'status' else '已连接固件档位控制'))
 +            for value, button in self.buttons:
-+                button.set_sensitive(self.switchable and value != mode)
++                button.set_sensitive(self.switchable and value != mode and not (value == 'custom' and safety is True))
 +                if value == mode:
 +                    button.add_css_class('selected')
 +                else:
@@ -2784,6 +3721,1442 @@
 +            self.turbo.disable()
 +            self.current.set_text('当前：无法读取')
 +            self.message.set_text(str(exc))
+--- /dev/null
++++ b/src/iteglow/profiles.py
+@@ -0,0 +1,859 @@
++"""Named performance + lighting profile presets and safe app-triggered switching.
++
++Profiles and auto-switch rules are stored in ``~/.config/iteglow/profiles.json``,
++strictly separate from ``~/.local/state/iteglow/state.json``.
++Importing this module performs no D-Bus, /proc, EC, or HID I/O.
++"""
++from __future__ import annotations
++
++import copy
++from dataclasses import dataclass
++import json
++import os
++from pathlib import Path
++import stat
++import subprocess
++import tempfile
++import time
++from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
++
++from . import effects, lighting_session, protocol, state
++from .zone_lock import ZoneTransaction
++
++PERF_MODES = ("office", "balanced", "turbo", "custom")
++TURBO_VARIANTS = ("quiet", "extreme")
++MIN_FAN_DUTY = (40, 40, 40, 40, 50, 55, 60, 70, 80, 90, 100)
++MAX_PROFILE_BYTES = 262144
++MAX_PROFILES = 32
++MAX_RULES = 32
++WMI_MODE_KEY_CODE = 176
++IGNORED_SELF_TOKENS = frozenset({"iteglow", "mechrevo-control", "mechrevo-profile-helper"})
++
++
++def profiles_path() -> Path:
++    """Return the user's Track 3 profile configuration path."""
++    base = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config"))
++    return base / "iteglow" / "profiles.json"
++
++
++def default_config() -> dict:
++    """Return the default opt-out configuration with auto-switching disabled."""
++    return {
++        "version": 1,
++        "auto_switch_enabled": False,
++        "restore_previous": True,
++        "cooldown_seconds": 5,
++        "profiles": {},
++        "rules": [],
++    }
++
++
++def _int_range(value, low: int, high: int, field: str) -> int:
++    if type(value) is not int or not low <= value <= high:
++        raise ValueError(f"{field}: 需要 {low}..{high} 的整数")
++    return value
++
++
++def _clean_text(value, max_len: int, field: str, *, forbid_sep: bool = False) -> str:
++    if not isinstance(value, str):
++        raise ValueError(f"{field}: 需要字符串")
++    text = value.strip()
++    if not text or len(text) > max_len:
++        raise ValueError(f"{field}: 长度需在 1..{max_len} 之间")
++    if any(ord(ch) < 32 or ord(ch) == 127 for ch in text):
++        raise ValueError(f"{field}: 不能包含控制字符")
++    if forbid_sep and ("/" in text or "\\" in text):
++        raise ValueError(f"{field}: 不能包含路径分隔符")
++    return text
++
++
++def validate_tuning(config: dict) -> dict:
++    """Validate custom tuning config identically to mechrevo-profile-helper."""
++    required = {"pl1", "pl2", "cpu_fan", "gpu_fan"}
++    if not isinstance(config, dict) or set(config) not in (
++        required,
++        required | {"gpu_ctgp"},
++        required | {"gpu_ctgp", "gpu_db"},
++    ):
++        raise ValueError("tuning: 自定义调校字段不完整或包含未知字段")
++    pl1 = _int_range(config["pl1"], 25, 75, "tuning.pl1")
++    pl2 = _int_range(config["pl2"], 25, 75, "tuning.pl2")
++    if pl1 != pl2:
++        raise ValueError("tuning: pl1 与 pl2 需保持一致 (25..75 W)")
++    out: dict = {"pl1": pl1, "pl2": pl2}
++    for fan_key in ("cpu_fan", "gpu_fan"):
++        curve = config[fan_key]
++        if not isinstance(curve, list) or len(curve) != 11:
++            raise ValueError(f"tuning.{fan_key}: 风扇曲线需要 11 个节点")
++        clean_curve = [
++            _int_range(v, MIN_FAN_DUTY[idx], 100, f"tuning.{fan_key}[{idx}]")
++            for idx, v in enumerate(curve)
++        ]
++        if clean_curve != sorted(clean_curve):
++            raise ValueError(f"tuning.{fan_key}: 风扇占空比需随温度单调不减")
++        out[fan_key] = clean_curve
++    if "gpu_ctgp" in config:
++        out["gpu_ctgp"] = _int_range(config["gpu_ctgp"], 65, 115, "tuning.gpu_ctgp")
++    if "gpu_db" in config:
++        db = config["gpu_db"]
++        if type(db) is not int or (db != 0 and not 5 <= db <= 25):
++            raise ValueError("tuning.gpu_db: 仅支持 0 或 5..25 W")
++        out["gpu_db"] = db
++    return out
++
++
++def validate_performance(perf: Optional[dict]) -> Optional[dict]:
++    """Validate optional performance block of a profile."""
++    if perf is None:
++        return None
++    if not isinstance(perf, dict) or set(perf) - {"mode", "turbo", "tuning"}:
++        raise ValueError("performance: 包含未知字段")
++    mode = perf.get("mode")
++    if not isinstance(mode, str) or mode not in PERF_MODES:
++        raise ValueError("performance.mode: 必须是 office/balanced/turbo/custom")
++    out: dict = {"mode": mode}
++    turbo = perf.get("turbo")
++    if turbo is not None:
++        if mode != "turbo" or turbo not in TURBO_VARIANTS:
++            raise ValueError("performance.turbo: 仅 turbo 模式支持 quiet/extreme")
++        out["turbo"] = turbo
++    tuning = perf.get("tuning")
++    if tuning is not None:
++        if mode != "custom":
++            raise ValueError("performance.tuning: 仅 custom 模式支持调校参数")
++        out["tuning"] = validate_tuning(tuning)
++    return out
++
++
++def validate_lighting(lighting: Optional[dict]) -> Optional[dict]:
++    """Validate optional lighting block reusing lighting_session zone validators."""
++    if lighting is None:
++        return None
++    if not isinstance(lighting, dict) or set(lighting) - {"keyboard", "lightbar", "logo"}:
++        raise ValueError("lighting: 仅支持 keyboard / lightbar / logo")
++    out: dict = {}
++    for zone in ("keyboard", "lightbar"):
++        if zone in lighting and lighting[zone] is not None:
++            raw = copy.deepcopy(lighting[zone])
++            lighting_session.validate_hid(zone, raw)
++            out[zone] = json.loads(json.dumps(raw))
++    if "logo" in lighting and lighting["logo"] is not None:
++        raw_logo = copy.deepcopy(lighting["logo"])
++        lighting_session.validate_logo(raw_logo)
++        out["logo"] = json.loads(json.dumps(raw_logo))
++    return out or None
++
++
++def validate_profile(profile: dict) -> dict:
++    """Validate one named performance+lighting preset bundle."""
++    if not isinstance(profile, dict) or set(profile) - {"label", "performance", "lighting"}:
++        raise ValueError("profile: 包含未知字段")
++    out: dict = {}
++    if "label" in profile and profile["label"] is not None:
++        out["label"] = _clean_text(profile["label"], 80, "profile.label")
++    perf = validate_performance(profile.get("performance"))
++    lighting = validate_lighting(profile.get("lighting"))
++    if perf is None and lighting is None:
++        raise ValueError("profile: 至少需要包含性能或灯光配置")
++    if perf is not None:
++        out["performance"] = perf
++    if lighting is not None:
++        out["lighting"] = lighting
++    return out
++
++
++def validate_rule(rule: dict, profile_names: Iterable[str]) -> dict:
++    """Validate one app auto-switch rule."""
++    if not isinstance(rule, dict) or set(rule) != {"name", "enabled", "match", "profile"}:
++        raise ValueError("rule: 需要 name / enabled / match / profile 字段")
++    name = _clean_text(rule["name"], 64, "rule.name")
++    enabled = rule["enabled"]
++    if type(enabled) is not bool:
++        raise ValueError("rule.enabled: 需要布尔值")
++    raw_match = rule["match"]
++    if not isinstance(raw_match, (list, tuple)) or not 1 <= len(raw_match) <= 8:
++        raise ValueError("rule.match: 需要 1..8 个匹配关键词")
++    clean_match = [_clean_text(item, 128, "rule.match[]").lower() for item in raw_match]
++    prof = _clean_text(rule["profile"], 48, "rule.profile", forbid_sep=True)
++    if prof not in profile_names:
++        raise ValueError(f"rule.profile: 引用了不存在的预设 {prof!r}")
++    return {"name": name, "enabled": enabled, "match": clean_match, "profile": prof}
++
++
++def validate_config(config: dict) -> dict:
++    """Validate and canonicalize full profiles.json payload."""
++    expected_keys = set(default_config())
++    if not isinstance(config, dict) or set(config) != expected_keys:
++        raise ValueError("profiles 配置字段不完整或包含未知字段")
++    if type(config["version"]) is not int or config["version"] != 1:
++        raise ValueError("不支持的 profiles 配置版本")
++    for key in ("auto_switch_enabled", "restore_previous"):
++        if type(config[key]) is not bool:
++            raise ValueError(f"{key}: 需要布尔值")
++    cooldown = _int_range(config["cooldown_seconds"], 0, 120, "cooldown_seconds")
++    raw_profiles = config["profiles"]
++    if not isinstance(raw_profiles, dict) or len(raw_profiles) > MAX_PROFILES:
++        raise ValueError(f"profiles: 最多支持 {MAX_PROFILES} 个预设")
++    profiles: Dict[str, dict] = {}
++    for raw_name, raw_profile in raw_profiles.items():
++        clean_name = _clean_text(raw_name, 48, "profile name", forbid_sep=True)
++        if clean_name in profiles:
++            raise ValueError(f"profile name 重复: {clean_name!r}")
++        profiles[clean_name] = validate_profile(raw_profile)
++    raw_rules = config["rules"]
++    if not isinstance(raw_rules, list) or len(raw_rules) > MAX_RULES:
++        raise ValueError(f"rules: 最多支持 {MAX_RULES} 条规则")
++    rules = [validate_rule(item, profiles.keys()) for item in raw_rules]
++    return {
++        "version": 1,
++        "auto_switch_enabled": config["auto_switch_enabled"],
++        "restore_previous": config["restore_previous"],
++        "cooldown_seconds": cooldown,
++        "profiles": profiles,
++        "rules": rules,
++    }
++
++
++def builtin_templates() -> Dict[str, dict]:
++    """Return validated built-in starter preset bundles (never auto-applied)."""
++    templates = {
++        "quiet-office": {
++            "label": "静音办公 · 低亮蓝色背光",
++            "performance": {"mode": "office"},
++            "lighting": {
++                "keyboard": {"mode": "solid", "color": [0, 180, 255], "brightness": 20},
++                "lightbar": {"mode": "off"},
++                "logo": {"mode": "solid", "brightness": 0, "color": [255, 255, 255]},
++            },
++        },
++        "balanced-daily": {
++            "label": "均衡日常 · 正弦波背光",
++            "performance": {"mode": "balanced"},
++            "lighting": {
++                "keyboard": {"mode": "sine", "brightness": 35, "speed": 5, "direction": 1},
++                "lightbar": {"mode": "off"},
++            },
++        },
++        "gaming-fps": {
++            "label": "FPS 狂暴 · WASD+方向键高亮",
++            "performance": {"mode": "turbo", "turbo": "extreme"},
++            "lighting": {
++                "keyboard": {
++                    "mode": "matrix",
++                    "preset": "wasd_fps",
++                    "color": [0, 255, 255],
++                    "brightness": 50,
++                    "calibrate": True,
++                },
++            },
++        },
++        "dark-focus": {
++            "label": "暗夜专注 · 全部熄灯",
++            "performance": {"mode": "balanced"},
++            "lighting": {
++                "keyboard": {"mode": "off"},
++                "lightbar": {"mode": "off"},
++                "logo": {"mode": "solid", "brightness": 0, "color": [255, 255, 255]},
++            },
++        },
++    }
++    return {name: validate_profile(body) for name, body in templates.items()}
++
++
++def load_config(path: Optional[Path] = None, uid: Optional[int] = None) -> dict:
++    """Safely read and validate profiles.json (rejects symlinks and oversized files)."""
++    target = Path(path) if path is not None else profiles_path()
++    owner = os.getuid() if uid is None else uid
++    saved = lighting_session._read_saved(target, owner, max_bytes=MAX_PROFILE_BYTES)
++    if saved is None:
++        return default_config()
++    return validate_config(saved)
++
++
++def read_config(path: Optional[Path] = None, uid: Optional[int] = None) -> dict:
++    """Alias matching lighting_policy_session.read_config naming."""
++    return load_config(path, uid)
++
++
++def save_config(path: Optional[Path], config: dict) -> dict:
++    """Validate and atomically write profiles.json."""
++    clean = validate_config(config)
++    target = Path(path) if path is not None else profiles_path()
++    target.parent.mkdir(parents=True, exist_ok=True)
++    temporary = None
++    try:
++        with tempfile.NamedTemporaryFile(
++            mode="w", encoding="utf-8", dir=target.parent, prefix=".profiles-", delete=False
++        ) as stream:
++            temporary = Path(stream.name)
++            json.dump(clean, stream, ensure_ascii=False, indent=2)
++            stream.write("\n")
++            stream.flush()
++            os.fsync(stream.fileno())
++        os.replace(temporary, target)
++    finally:
++        if temporary is not None:
++            temporary.unlink(missing_ok=True)
++    return clean
++
++
++def _read_small_proc(path: Path, limit: int = 4096) -> bytes:
++    with path.open("rb") as stream:
++        return stream.read(limit)
++
++
++def _extract_tokens(comm_text: str, cmdline_raw: bytes) -> Tuple[str, ...]:
++    tokens = set()
++    clean_comm = comm_text.strip().lower()
++    if clean_comm:
++        tokens.add(clean_comm)
++    parts = [part.decode("utf-8", errors="ignore").strip() for part in cmdline_raw.split(b"\x00") if part]
++    for idx, part in enumerate(parts[:6]):
++        low = part.lower()
++        if not low:
++            continue
++        if idx == 0:
++            tokens.add(low)
++        # Support Unix '/' and Proton/Wine '\' executable paths cleanly.
++        base = low.replace("\\", "/").rsplit("/", 1)[-1]
++        if base:
++            tokens.add(base)
++        if base.endswith(".exe") and len(base) > 4:
++            tokens.add(base[:-4])
++    return tuple(sorted(tokens))
++
++
++def scan_processes(proc_root: Path = Path("/proc"), uid: Optional[int] = None) -> List[Tuple[str, ...]]:
++    """Return normalized process token tuples owned by ``uid`` (never reads files outside /proc)."""
++    owner = os.getuid() if uid is None else uid
++    results: List[Tuple[str, ...]] = []
++    try:
++        entries = list(proc_root.iterdir())
++    except OSError:
++        return results
++    for entry in entries:
++        if not entry.name.isdigit():
++            continue
++        try:
++            info = entry.stat()
++            if not stat.S_ISDIR(info.st_mode) or info.st_uid != owner:
++                continue
++            comm_raw = _read_small_proc(entry / "comm", 256).decode("utf-8", errors="ignore")
++            cmd_raw = _read_small_proc(entry / "cmdline", 4096)
++        except OSError:
++            continue
++        if not cmd_raw:
++            continue  # Skip kernel threads / zombies.
++        tokens = _extract_tokens(comm_raw, cmd_raw)
++        if not tokens or any(t in IGNORED_SELF_TOKENS or t.startswith("iteglow") or t.startswith("mechrevo-") for t in tokens):
++            continue
++        results.append(tokens)
++    return results
++
++
++def match_rule(rules: Sequence[dict], processes: Sequence[Sequence[str]]) -> Optional[dict]:
++    """Return the first enabled rule whose match token hits any running process token."""
++    for rule in rules:
++        if not rule.get("enabled"):
++            continue
++        needles = rule.get("match", ())
++        for tokens in processes:
++            for needle in needles:
++                if any(needle in token for token in tokens):
++                    return rule
++    return None
++
++
++def read_wmi_snapshot(path: Path = lighting_session.WMI_STATE_PATH) -> Optional[dict]:
++    """Read /run/mechrevo-wmi-state.json safely (returns None if unavailable)."""
++    try:
++        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
++    except OSError:
++        return None
++    try:
++        with os.fdopen(fd, "rb") as stream:
++            info = os.fstat(stream.fileno())
++            if not stat.S_ISREG(info.st_mode) or info.st_size > 65536:
++                return None
++            data = stream.read(65537)
++            if len(data) > 65536:
++                return None
++            payload = json.loads(data)
++            return payload if isinstance(payload, dict) else None
++    except (OSError, ValueError, TypeError):
++        return None
++
++
++def latest_wmi_code_seq(snapshot: Optional[dict], code: int = WMI_MODE_KEY_CODE) -> int:
++    """Return highest event sequence number for ``code`` in WMI state snapshot (0 if absent)."""
++    if not isinstance(snapshot, dict):
++        return 0
++    best = 0
++    events = snapshot.get("wmi_events")
++    if isinstance(events, list):
++        for item in events:
++            if (
++                isinstance(item, dict)
++                and item.get("code") == code
++                and type(item.get("seq")) is int
++                and item["seq"] > best
++            ):
++                best = item["seq"]
++    if snapshot.get("wmi_last_code") == code and type(snapshot.get("wmi_seq")) is int:
++        best = max(best, snapshot["wmi_seq"])
++    return best
++
++
++@dataclass(frozen=True)
++class RuleDecision:
++    action: str  # noop | apply | release | yield_mode_key | yielded | fan_safety_paused | hold | disabled
++    rule_name: Optional[str] = None
++    profile_name: Optional[str] = None
++    restore_profile: Optional[dict] = None
++    reason: str = ""
++
++
++class RuleEvaluator:
++    """Pure state machine for app-triggered profile switching with 0xB0 yield & cooldown."""
++
++    def __init__(self):
++        self.active_rule: Optional[str] = None
++        self.active_profile: Optional[str] = None
++        self.baseline_profile: Optional[dict] = None
++        self.last_switch_time: Optional[float] = None
++        self.missing_since: Optional[float] = None
++        self.last_b0_seq: Optional[int] = None
++        self.yielded_until_exit: Optional[str] = None
++
++    def reset(self) -> None:
++        self.active_rule = None
++        self.active_profile = None
++        self.baseline_profile = None
++        self.missing_since = None
++        self.yielded_until_exit = None
++
++    def clear_active_keeping_yield(self) -> None:
++        self.active_rule = None
++        self.active_profile = None
++        self.baseline_profile = None
++        self.missing_since = None
++
++    def step(
++        self,
++        config: dict,
++        *,
++        processes: Sequence[Sequence[str]],
++        b0_seq: int = 0,
++        fan_safety_protect: bool = False,
++        now: Optional[float] = None,
++        capture_baseline: Optional[Callable[[], Optional[dict]]] = None,
++    ) -> RuleDecision:
++        current_time = time.monotonic() if now is None else float(now)
++        if self.last_b0_seq is None:
++            self.last_b0_seq = b0_seq
++        elif b0_seq > self.last_b0_seq:
++            self.last_b0_seq = b0_seq
++            if self.active_rule is not None:
++                yielded = self.active_rule
++                prev_prof = self.active_profile
++                self.yielded_until_exit = yielded
++                self.clear_active_keeping_yield()
++                self.last_switch_time = current_time
++                return RuleDecision(
++                    "yield_mode_key",
++                    rule_name=yielded,
++                    profile_name=prev_prof,
++                    reason="物理模式键 0xB0 已接管，自动切换让步",
++                )
++
++        if not config.get("auto_switch_enabled"):
++            self.yielded_until_exit = None
++            if self.active_rule is not None:
++                prev_rule = self.active_rule
++                prev_prof = self.active_profile
++                restore = self.baseline_profile if config.get("restore_previous") else None
++                self.reset()
++                self.last_switch_time = current_time
++                return RuleDecision(
++                    "release",
++                    rule_name=prev_rule,
++                    profile_name=prev_prof,
++                    restore_profile=restore,
++                    reason="自动切换已关闭，恢复先前状态",
++                )
++            return RuleDecision("disabled")
++
++        matched = match_rule(config.get("rules", ()), processes)
++        cooldown = int(config.get("cooldown_seconds", 5))
++
++        if self.yielded_until_exit is not None:
++            if matched is not None and matched["name"] == self.yielded_until_exit:
++                self.missing_since = None
++                return RuleDecision("yielded", rule_name=matched["name"], profile_name=matched["profile"])
++            if matched is None:
++                if self.missing_since is None:
++                    self.missing_since = current_time
++                if (current_time - self.missing_since) < cooldown:
++                    return RuleDecision("yielded", rule_name=self.yielded_until_exit)
++            self.yielded_until_exit = None
++            self.missing_since = None
++
++        if matched is not None:
++            self.missing_since = None
++            if fan_safety_protect and config["profiles"][matched["profile"]].get("performance") is not None:
++                return RuleDecision(
++                    "fan_safety_paused",
++                    rule_name=matched["name"],
++                    profile_name=matched["profile"],
++                    reason="EC 高温风扇安全保护激活，暂停自动性能切换",
++                )
++            if self.active_rule == matched["name"] and self.active_profile == matched["profile"]:
++                return RuleDecision("noop", rule_name=matched["name"], profile_name=matched["profile"])
++            if (
++                self.active_rule is not None
++                and self.last_switch_time is not None
++                and (current_time - self.last_switch_time) < cooldown
++            ):
++                return RuleDecision("hold", rule_name=self.active_rule, profile_name=self.active_profile)
++            if self.active_rule is None and capture_baseline is not None:
++                self.baseline_profile = capture_baseline()
++            self.active_rule = matched["name"]
++            self.active_profile = matched["profile"]
++            self.last_switch_time = current_time
++            return RuleDecision("apply", rule_name=matched["name"], profile_name=matched["profile"])
++
++        if self.active_rule is not None:
++            if self.missing_since is None:
++                self.missing_since = current_time
++            if (current_time - self.missing_since) < cooldown:
++                return RuleDecision("hold", rule_name=self.active_rule, profile_name=self.active_profile)
++            prev_rule = self.active_rule
++            prev_prof = self.active_profile
++            restore = self.baseline_profile if config.get("restore_previous") else None
++            if fan_safety_protect and restore and restore.get("performance") is not None:
++                # Never touch performance EC while thermal safety is active; drop perf restore only.
++                restore = {k: v for k, v in restore.items() if k != "performance"}
++            self.clear_active_keeping_yield()
++            self.last_switch_time = current_time
++            return RuleDecision(
++                "release",
++                rule_name=prev_rule,
++                profile_name=prev_prof,
++                restore_profile=restore if restore else None,
++                reason="匹配进程已退出，释放规则",
++            )
++
++        return RuleDecision("noop")
++
++
++def default_helper_runner(args: Sequence[str]) -> dict:
++    """Invoke mechrevo-profile-helper via pkexec (non-interactive) and parse JSON."""
++    proc = subprocess.run(
++        ["/usr/bin/pkexec", "--disable-internal-agent", lighting_session.HELPER, *args],
++        capture_output=True, text=True, timeout=6, check=False,
++    )
++    raw = (proc.stdout or "").strip()
++    try:
++        data = json.loads(raw)
++    except (ValueError, TypeError) as exc:
++        raise RuntimeError((proc.stderr or "").strip() or f"性能助手返回无效响应: {exc}") from exc
++    if proc.returncode or (isinstance(data, dict) and "error" in data):
++        err = data.get("error") if isinstance(data, dict) else None
++        raise RuntimeError(err or (proc.stderr or "").strip() or "性能助手执行失败")
++    if not isinstance(data, dict):
++        raise RuntimeError("性能助手响应格式无效")
++    return data
++
++
++def _read_manual_lighting(directory: Path, uid: int) -> dict:
++    lighting: dict = {}
++    saved_hid = lighting_session._read_saved(directory / "state.json", uid)
++    if isinstance(saved_hid, dict):
++        for zone in ("keyboard", "lightbar"):
++            if zone in saved_hid:
++                lighting[zone] = copy.deepcopy(saved_hid[zone])
++    saved_logo = lighting_session._read_saved(directory / "logo.json", uid)
++    if isinstance(saved_logo, dict):
++        lighting["logo"] = copy.deepcopy(saved_logo)
++    return lighting
++
++
++def capture_current_profile(
++    label: Optional[str] = None,
++    *,
++    directory: Optional[Path] = None,
++    uid: Optional[int] = None,
++    helper_runner: Callable[[Sequence[str]], dict] = default_helper_runner,
++    include_lighting: bool = True,
++    include_performance: bool = True,
++) -> dict:
++    """Snapshot current lighting state and firmware performance mode into a validated profile."""
++    profile: dict = {}
++    if label:
++        profile["label"] = _clean_text(label, 80, "label")
++    if include_performance:
++        st = helper_runner(["status"])
++        mode = st.get("mode")
++        if mode in PERF_MODES:
++            perf: dict = {"mode": mode}
++            turbo = st.get("turbo") if isinstance(st.get("turbo"), dict) else {}
++            if mode == "turbo" and turbo.get("active") and turbo.get("variant") in TURBO_VARIANTS:
++                perf["turbo"] = turbo["variant"]
++            elif mode == "custom" and st.get("tuning_active") and isinstance(st.get("tuning"), dict):
++                perf["tuning"] = st["tuning"]
++            profile["performance"] = perf
++    if include_lighting:
++        state_dir = (
++            Path(directory)
++            if directory is not None
++            else Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local/state")) / "iteglow"
++        )
++        owner = os.getuid() if uid is None else uid
++        light = _read_manual_lighting(state_dir, owner)
++        if light:
++            profile["lighting"] = light
++    return validate_profile(profile)
++
++
++def _apply_performance(
++    perf: dict,
++    *,
++    helper_runner: Callable[[Sequence[str]], dict],
++    ignore_errors: bool = False,
++) -> Optional[str]:
++    """Apply validated performance target while obeying fan_safety_protect and adapter limits."""
++    st = helper_runner(["status"])
++    if st.get("fan_safety_protect") is True:
++        msg = "EC 高温风扇安全保护激活，跳过性能切换"
++        if ignore_errors:
++            return msg
++        raise RuntimeError(msg)
++    if not st.get("switchable"):
++        msg = st.get("reason") or "当前固件状态不可通过软件切换"
++        if ignore_errors:
++            return msg
++        raise RuntimeError(msg)
++
++    target_mode = perf["mode"]
++    current_mode = st.get("mode")
++    turbo_info = st.get("turbo") if isinstance(st.get("turbo"), dict) else {}
++
++    if target_mode == "custom" and perf.get("tuning") is not None:
++        if st.get("tuning") != perf["tuning"]:
++            helper_runner(["apply", json.dumps(perf["tuning"])])
++        return None
++
++    if current_mode != target_mode or (target_mode == "custom" and st.get("tuning_active")):
++        helper_runner(["set", target_mode])
++        st = helper_runner(["status"])
++        turbo_info = st.get("turbo") if isinstance(st.get("turbo"), dict) else {}
++
++    desired_turbo = perf.get("turbo") if target_mode == "turbo" else None
++    if desired_turbo is not None:
++        eligible = (
++            turbo_info.get("available") is True
++            and turbo_info.get("round_adapter") is True
++            and turbo_info.get("combined_supported") is True
++            and not st.get("tuning_active")
++            and not st.get("tuning_recovery_pending")
++        )
++        if eligible and turbo_info.get("variant") != desired_turbo:
++            helper_runner(["turbo", desired_turbo])
++    return None
++
++
++def apply_profile(
++    profile: dict,
++    *,
++    helper_runner: Callable[[Sequence[str]], dict] = default_helper_runner,
++    hid_writer: Optional[Callable[[lighting_session.RestoreAction], object]] = None,
++    transaction=ZoneTransaction,
++    save_manual: bool = True,
++    apply_lighting: bool = True,
++    apply_performance: bool = True,
++) -> dict:
++    """Validate and apply a profile bundle's lighting and/or performance settings."""
++    clean = validate_profile(profile)
++    applied: dict = {"lighting": [], "performance": None, "warnings": []}
++    writer = hid_writer or lighting_session.apply_action
++
++    if apply_lighting and clean.get("lighting"):
++        if hid_writer is None:
++            from . import devices
++            present = {lbl for _led, _usb, lbl in devices.available_devices()}
++        else:
++            present = None
++        light = clean["lighting"]
++        for zone in ("keyboard", "lightbar"):
++            if zone not in light:
++                continue
++            if present is not None and zone not in present:
++                applied["warnings"].append(f"{zone}: device not present")
++                continue
++            action = lighting_session.validate_hid(zone, light[zone])
++            with transaction(zone):
++                if writer(action) is False:
++                    raise RuntimeError(f"{zone} writer reported failure")
++                if save_manual:
++                    state.save(zone, copy.deepcopy(light[zone]))
++            applied["lighting"].append(zone)
++        if "logo" in light:
++            action = lighting_session.validate_logo(light["logo"])
++            with transaction("logo"):
++                if writer(action) is False:
++                    raise RuntimeError("logo writer reported failure")
++                if save_manual:
++                    with transaction("manual-state"):
++                        logo_path = Path(state.user_state_path()).with_name("logo.json")
++                        state.write(str(logo_path), copy.deepcopy(light["logo"]))
++            applied["lighting"].append("logo")
++
++    if apply_performance and clean.get("performance"):
++        warning = _apply_performance(clean["performance"], helper_runner=helper_runner, ignore_errors=False)
++        if warning:
++            applied["warnings"].append(warning)
++        else:
++            applied["performance"] = clean["performance"]["mode"]
++    return applied
++
++
++class ProfileRuleRunner:
++    """Session watcher adapter connecting RuleEvaluator with /proc, WMI, and hardware."""
++
++    def __init__(
++        self,
++        *,
++        active: Callable[[], bool],
++        config: Callable[[], dict],
++        directory: Path,
++        uid: int,
++        apply: bool = False,
++        process_scanner: Optional[Callable[[], Sequence[Sequence[str]]]] = None,
++        wmi_reader: Callable[[], Optional[dict]] = read_wmi_snapshot,
++        helper_runner: Callable[[Sequence[str]], dict] = default_helper_runner,
++        hid_writer: Optional[Callable[[lighting_session.RestoreAction], object]] = None,
++        transaction=ZoneTransaction,
++        clock: Callable[[], float] = time.monotonic,
++        emit: Optional[Callable[[dict], None]] = None,
++    ):
++        self.active = active
++        self.config = config
++        self.directory = Path(directory)
++        self.uid = uid
++        self.apply = apply
++        self.scanner = process_scanner or (lambda: scan_processes(uid=self.uid))
++        self.wmi_reader = wmi_reader
++        self.helper_runner = helper_runner
++        self.hid_writer = hid_writer
++        self.transaction = transaction
++        self.clock = clock
++        self.emit = emit
++        self.evaluator = RuleEvaluator()
++        self.owns_lighting = False
++
++    def deactivate(self) -> None:
++        self.evaluator.reset()
++        self.owns_lighting = False
++
++    def _capture_baseline(self) -> Optional[dict]:
++        try:
++            return capture_current_profile(
++                directory=self.directory,
++                uid=self.uid,
++                helper_runner=self.helper_runner,
++                include_lighting=True,
++                include_performance=True,
++            )
++        except Exception:
++            # Fall back to manual lighting baseline only if helper is unavailable.
++            light = _read_manual_lighting(self.directory, self.uid)
++            return {"lighting": light} if light else None
++
++    def tick(self) -> dict:
++        result: dict = {
++            "action": "noop",
++            "active_lighting": self.owns_lighting,
++            "released_lighting": False,
++            "errors": [],
++        }
++        try:
++            if self.active() is not True:
++                self.deactivate()
++                result["action"] = "inactive"
++                result["active_lighting"] = False
++                return result
++            cfg = validate_config(self.config())
++            # Zero overhead when opt-in disabled and nothing owned.
++            if not cfg["auto_switch_enabled"] and self.evaluator.active_rule is None:
++                result["action"] = "disabled"
++                return result
++            wmi = self.wmi_reader()
++            b0_seq = latest_wmi_code_seq(wmi, WMI_MODE_KEY_CODE)
++            fan_safety = bool(wmi.get("fan_safety_protect")) if isinstance(wmi, dict) else False
++            procs = self.scanner()
++            decision = self.evaluator.step(
++                cfg,
++                processes=procs,
++                b0_seq=b0_seq,
++                fan_safety_protect=fan_safety,
++                now=self.clock(),
++                capture_baseline=self._capture_baseline,
++            )
++            result["action"] = decision.action
++            result["rule"] = decision.rule_name
++            result["profile"] = decision.profile_name
++            if decision.reason:
++                result["reason"] = decision.reason
++
++            if decision.action == "apply" and decision.profile_name:
++                target = cfg["profiles"][decision.profile_name]
++                if self.apply:
++                    apply_profile(
++                        target,
++                        helper_runner=self.helper_runner,
++                        hid_writer=self.hid_writer,
++                        transaction=self.transaction,
++                        save_manual=False,
++                    )
++                if target.get("lighting"):
++                    self.owns_lighting = True
++                result["active_lighting"] = self.owns_lighting
++            elif decision.action == "release":
++                was_owning = self.owns_lighting
++                self.owns_lighting = False
++                result["active_lighting"] = False
++                result["released_lighting"] = was_owning
++                if self.apply and decision.restore_profile:
++                    apply_profile(
++                        decision.restore_profile,
++                        helper_runner=self.helper_runner,
++                        hid_writer=self.hid_writer,
++                        transaction=self.transaction,
++                        save_manual=False,
++                    )
++            elif decision.action == "yield_mode_key":
++                was_owning = self.owns_lighting
++                self.owns_lighting = False
++                result["active_lighting"] = False
++                result["released_lighting"] = was_owning
++                if self.apply:
++                    # On 0xB0 Mode Key yield, NEVER touch firmware performance mode;
++                    # only restore saved manual lighting if a rule owned lighting.
++                    if was_owning:
++                        manual_light = _read_manual_lighting(self.directory, self.uid)
++                        if manual_light:
++                            apply_profile(
++                                {"lighting": manual_light},
++                                helper_runner=self.helper_runner,
++                                hid_writer=self.hid_writer,
++                                transaction=self.transaction,
++                                save_manual=False,
++                                apply_performance=False,
++                            )
++            if self.emit and decision.action not in ("noop", "disabled", "hold", "yielded"):
++                self.emit({"event": "profile_rule", **result})
++        except Exception as exc:
++            result["errors"].append(str(exc))
++            if self.emit:
++                self.emit({"event": "profile_rule", **result})
++        return result
+--- /dev/null
++++ b/src/iteglow/profiles_gui.py
+@@ -0,0 +1,468 @@
++"""GTK4 control panel for performance+lighting profile bundles and app rules.
++
++Constructing or editing this panel never alters hardware or writes files;
++only explicit Save/Apply clicks trigger actions.
++"""
++from __future__ import annotations
++
++import copy
++from pathlib import Path
++import threading
++from typing import Callable, Dict, List, Optional
++
++from gi.repository import GLib, Gtk
++
++from . import profiles
++
++
++def _summarize_profile(body: dict) -> str:
++    parts: List[str] = []
++    perf = body.get("performance")
++    if perf:
++        mode = perf.get("mode", "")
++        if perf.get("turbo"):
++            mode = f"{mode}/{perf['turbo']}"
++        elif perf.get("tuning"):
++            mode = f"{mode} ({perf['tuning']['pl1']}W)"
++        parts.append(f"性能: {mode}")
++    light = body.get("lighting")
++    if light:
++        zones = []
++        for z in ("keyboard", "lightbar", "logo"):
++            if z in light:
++                zmode = light[z].get("mode", "off")
++                if z == "keyboard" and zmode == "matrix" and light[z].get("preset"):
++                    zmode = f"matrix:{light[z]['preset']}"
++                zones.append(f"{z}={zmode}")
++        if zones:
++            parts.append("灯光: " + ", ".join(zones))
++    if body.get("label"):
++        parts.append(body["label"])
++    return " · ".join(parts) if parts else "空预设"
++
++
++class ProfilesPanel(Gtk.Box):
++    """Profile bundles + safe opt-in process auto-switching controls."""
++
++    def __init__(
++        self,
++        path: Optional[Path] = None,
++        *,
++        on_saved: Optional[Callable[[dict], None]] = None,
++        capture_fn: Optional[Callable[..., dict]] = None,
++        apply_fn: Optional[Callable[..., dict]] = None,
++    ):
++        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=14)
++        self.add_css_class("device-page")
++        self.path = Path(path) if path is not None else profiles.profiles_path()
++        self.on_saved = on_saved
++        self._capture_fn = capture_fn or profiles.capture_current_profile
++        self._apply_fn = apply_fn or profiles.apply_profile
++        self._closed = False
++        self._busy = False
++        self._profiles: Dict[str, dict] = {}
++        self._rules: List[dict] = []
++        self._profile_names: List[str] = []
++        self._suppress_refresh = False
++
++        header = Gtk.Label(label="情景预设与联动", xalign=0)
++        header.add_css_class("page-title")
++        self.append(header)
++        sub = Gtk.Label(
++            label="组合保存性能档位与三区灯光，并可按当前用户应用进程自动切换（默认关闭）。",
++            xalign=0,
++            wrap=True,
++        )
++        sub.add_css_class("subtitle")
++        self.append(sub)
++
++        self._build_profiles_card()
++        self._build_rules_card()
++
++        self.message = Gtk.Label(xalign=0, wrap=True)
++        self.message.add_css_class("status-text")
++        self.append(self.message)
++
++        try:
++            cfg = profiles.load_config(self.path)
++        except (OSError, ValueError, TypeError) as exc:
++            cfg = profiles.default_config()
++            self.load_values(cfg)
++            self.message.set_text("现有配置无法读取；尚未改动文件：" + str(exc))
++        else:
++            self.load_values(cfg)
++            self.message.set_text(
++                "应用自动联动已启用。" if cfg["auto_switch_enabled"] else "自动联动默认关闭；预设仅在点击应用或匹配启用规则时生效。"
++            )
++
++    def _build_profiles_card(self) -> None:
++        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
++        card.add_css_class("control-card")
++        title = Gtk.Label(label="预设组合（性能 + 灯光）", xalign=0)
++        title.add_css_class("section-title")
++        card.append(title)
++
++        select_row = Gtk.Box(spacing=10)
++        select_row.append(Gtk.Label(label="选择预设", xalign=0))
++        self.profile_dropdown = Gtk.DropDown.new_from_strings(["（暂无预设）"])
++        self.profile_dropdown.set_hexpand(True)
++        self.profile_dropdown.connect("notify::selected", self._on_profile_selected)
++        select_row.append(self.profile_dropdown)
++        card.append(select_row)
++
++        self.profile_summary = Gtk.Label(label="尚未创建预设，可导入内置模板或从当前状态保存。", xalign=0, wrap=True)
++        self.profile_summary.add_css_class("small-note")
++        card.append(self.profile_summary)
++
++        btn_row = Gtk.Box(spacing=10)
++        self.apply_button = Gtk.Button(label="立即应用预设")
++        self.apply_button.add_css_class("suggested-action")
++        self.apply_button.connect("clicked", self.apply_selected)
++        btn_row.append(self.apply_button)
++        self.template_button = Gtk.Button(label="导入内置模板")
++        self.template_button.connect("clicked", self.import_templates)
++        btn_row.append(self.template_button)
++        self.delete_button = Gtk.Button(label="删除预设")
++        self.delete_button.connect("clicked", self.delete_selected)
++        btn_row.append(self.delete_button)
++        card.append(btn_row)
++
++        card.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
++
++        cap_label = Gtk.Label(label="从当前硬件状态捕获并保存为预设", xalign=0)
++        cap_label.add_css_class("small-note")
++        card.append(cap_label)
++
++        entry_row = Gtk.Box(spacing=10)
++        self.capture_name = Gtk.Entry()
++        self.capture_name.set_placeholder_text("预设名称（如 coding / fps）")
++        self.capture_name.set_hexpand(True)
++        self.capture_label = Gtk.Entry()
++        self.capture_label.set_placeholder_text("备注说明（可选）")
++        self.capture_label.set_hexpand(True)
++        entry_row.append(self.capture_name)
++        entry_row.append(self.capture_label)
++        card.append(entry_row)
++
++        opts_row = Gtk.Box(spacing=14)
++        self.capture_perf = Gtk.CheckButton(label="包含当前性能档位")
++        self.capture_perf.set_active(True)
++        self.capture_light = Gtk.CheckButton(label="包含当前三区灯光")
++        self.capture_light.set_active(True)
++        self.capture_button = Gtk.Button(label="保存当前状态为预设")
++        self.capture_button.connect("clicked", self.capture_current)
++        opts_row.append(self.capture_perf)
++        opts_row.append(self.capture_light)
++        opts_row.append(self.capture_button)
++        card.append(opts_row)
++        self.append(card)
++
++    def _build_rules_card(self) -> None:
++        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
++        card.add_css_class("control-card")
++
++        top = Gtk.Box(spacing=12)
++        title = Gtk.Label(label="应用联动自动切换", xalign=0)
++        title.add_css_class("section-title")
++        title.set_hexpand(True)
++        top.append(title)
++        self.auto_enabled = Gtk.Switch()
++        self.auto_enabled.set_valign(Gtk.Align.CENTER)
++        self.auto_enabled.connect("notify::active", self._refresh_sensitivity)
++        top.append(self.auto_enabled)
++        card.append(top)
++
++        safety_note = Gtk.Label(
++            label="按下机身物理模式键 (0xB0) 时立即让步，不再覆盖当前档位；EC 高温风扇安全保护与圆口电源策略始终优先。",
++            xalign=0,
++            wrap=True,
++        )
++        safety_note.add_css_class("small-note")
++        card.append(safety_note)
++
++        cfg_row = Gtk.Box(spacing=14)
++        self.restore_previous = Gtk.CheckButton(label="应用退出后恢复先前状态")
++        self.restore_previous.set_active(True)
++        cfg_row.append(self.restore_previous)
++        cfg_row.append(Gtk.Label(label="退出防抖"))
++        self.cooldown_spin = Gtk.SpinButton.new_with_range(0, 120, 1)
++        self.cooldown_spin.set_numeric(True)
++        self.cooldown_spin.set_value(5)
++        cfg_row.append(self.cooldown_spin)
++        cfg_row.append(Gtk.Label(label="秒"))
++        card.append(cfg_row)
++
++        self.rules_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
++        card.append(self.rules_box)
++
++        add_row = Gtk.Box(spacing=8)
++        self.rule_name_entry = Gtk.Entry()
++        self.rule_name_entry.set_placeholder_text("规则名称")
++        self.rule_match_entry = Gtk.Entry()
++        self.rule_match_entry.set_placeholder_text("匹配进程关键词（逗号分隔）")
++        self.rule_match_entry.set_hexpand(True)
++        self.rule_profile_dropdown = Gtk.DropDown.new_from_strings(["（无可用预设）"])
++        self.add_rule_button = Gtk.Button(label="添加规则")
++        self.add_rule_button.connect("clicked", self.add_rule_clicked)
++        add_row.append(self.rule_name_entry)
++        add_row.append(self.rule_match_entry)
++        add_row.append(self.rule_profile_dropdown)
++        add_row.append(self.add_rule_button)
++        card.append(add_row)
++
++        actions = Gtk.Box(spacing=12)
++        self.save_button = Gtk.Button(label="保存预设与联动规则")
++        self.save_button.add_css_class("suggested-action")
++        self.save_button.connect("clicked", self.save)
++        actions.append(self.save_button)
++        card.append(actions)
++        self.append(card)
++
++    def _rebuild_profile_dropdowns(self, select_name: Optional[str] = None) -> None:
++        self._suppress_refresh = True
++        try:
++            self._profile_names = list(self._profiles.keys())
++            labels = self._profile_names if self._profile_names else ["（暂无预设）"]
++            self.profile_dropdown.set_model(Gtk.StringList.new(labels))
++            rule_labels = self._profile_names if self._profile_names else ["（无可用预设）"]
++            self.rule_profile_dropdown.set_model(Gtk.StringList.new(rule_labels))
++            if self._profile_names:
++                idx = self._profile_names.index(select_name) if select_name in self._profile_names else 0
++                self.profile_dropdown.set_selected(idx)
++                self.rule_profile_dropdown.set_selected(0)
++            else:
++                self.profile_dropdown.set_selected(0)
++                self.rule_profile_dropdown.set_selected(0)
++        finally:
++            self._suppress_refresh = False
++        self._on_profile_selected()
++
++    def _rebuild_rules_list(self) -> None:
++        child = self.rules_box.get_first_child()
++        while child is not None:
++            nxt = child.get_next_sibling()
++            self.rules_box.remove(child)
++            child = nxt
++        if not self._rules:
++            empty = Gtk.Label(label="尚无应用联动规则。", xalign=0)
++            empty.add_css_class("small-note")
++            self.rules_box.append(empty)
++            return
++        for idx, rule in enumerate(self._rules):
++            row = Gtk.Box(spacing=8)
++            chk = Gtk.CheckButton(label=rule["name"])
++            chk.set_active(bool(rule["enabled"]))
++            chk.connect("toggled", lambda btn, i=idx: self._toggle_rule(i, btn.get_active()))
++            row.append(chk)
++            desc = Gtk.Label(
++                label=f"匹配: {', '.join(rule['match'])}  →  预设: {rule['profile']}",
++                xalign=0,
++                wrap=True,
++            )
++            desc.set_hexpand(True)
++            desc.add_css_class("small-note")
++            row.append(desc)
++            del_btn = Gtk.Button(label="移除")
++            del_btn.connect("clicked", lambda _b, i=idx: self._remove_rule(i))
++            row.append(del_btn)
++            self.rules_box.append(row)
++
++    def _toggle_rule(self, index: int, enabled: bool) -> None:
++        if 0 <= index < len(self._rules):
++            self._rules[index]["enabled"] = bool(enabled)
++
++    def _remove_rule(self, index: int) -> None:
++        if 0 <= index < len(self._rules):
++            removed = self._rules.pop(index)
++            self._rebuild_rules_list()
++            self.message.set_text(f"已移除规则 {removed['name']!r}（点击“保存预设与联动规则”后写入文件）。")
++
++    def _selected_profile_name(self) -> Optional[str]:
++        if not self._profile_names:
++            return None
++        idx = self.profile_dropdown.get_selected()
++        if 0 <= idx < len(self._profile_names):
++            return self._profile_names[idx]
++        return None
++
++    def _on_profile_selected(self, *_args) -> None:
++        if self._suppress_refresh:
++            return
++        name = self._selected_profile_name()
++        if name is None:
++            self.profile_summary.set_text("尚未创建预设，可导入内置模板或从当前状态保存。")
++        else:
++            self.profile_summary.set_text(_summarize_profile(self._profiles[name]))
++        self._refresh_sensitivity()
++
++    def _refresh_sensitivity(self, *_args) -> None:
++        has_profiles = bool(self._profile_names)
++        enabled = self.auto_enabled.get_active()
++        self.apply_button.set_sensitive(has_profiles and not self._busy)
++        self.delete_button.set_sensitive(has_profiles and not self._busy)
++        self.capture_button.set_sensitive(not self._busy)
++        self.template_button.set_sensitive(not self._busy)
++        self.restore_previous.set_sensitive(enabled)
++        self.cooldown_spin.set_sensitive(enabled)
++        self.add_rule_button.set_sensitive(has_profiles)
++
++    def load_values(self, config: dict) -> None:
++        cfg = profiles.validate_config(config)
++        self.auto_enabled.set_active(cfg["auto_switch_enabled"])
++        self.restore_previous.set_active(cfg["restore_previous"])
++        self.cooldown_spin.set_value(cfg["cooldown_seconds"])
++        self._profiles = copy.deepcopy(cfg["profiles"])
++        self._rules = copy.deepcopy(cfg["rules"])
++        self._rebuild_profile_dropdowns()
++        self._rebuild_rules_list()
++        self._refresh_sensitivity()
++
++    def config(self) -> dict:
++        return profiles.validate_config(
++            {
++                "version": 1,
++                "auto_switch_enabled": self.auto_enabled.get_active(),
++                "restore_previous": self.restore_previous.get_active(),
++                "cooldown_seconds": self.cooldown_spin.get_value_as_int(),
++                "profiles": copy.deepcopy(self._profiles),
++                "rules": copy.deepcopy(self._rules),
++            }
++        )
++
++    def save(self, *_args) -> None:
++        try:
++            saved = profiles.save_config(self.path, self.config())
++        except (OSError, ValueError, TypeError) as exc:
++            self.message.set_text("保存失败：" + str(exc))
++            return
++        self.load_values(saved)
++        state_msg = "已保存；应用自动联动已启用。" if saved["auto_switch_enabled"] else "已保存；应用自动联动保持关闭。"
++        self.message.set_text(state_msg)
++        if self.on_saved:
++            try:
++                self.on_saved(saved)
++            except Exception as exc:
++                self.message.set_text("配置已保存，但回调通知失败：" + str(exc))
++
++    def import_templates(self, *_args) -> None:
++        added = []
++        for name, body in profiles.builtin_templates().items():
++            if name not in self._profiles:
++                self._profiles[name] = body
++                added.append(name)
++        first = added[0] if added else self._selected_profile_name()
++        self._rebuild_profile_dropdowns(select_name=first)
++        if added:
++            self.save()
++            self.message.set_text(f"已导入内置模板：{', '.join(added)}")
++        else:
++            self.message.set_text("内置模板已全部存在。")
++
++    def delete_selected(self, *_args) -> None:
++        name = self._selected_profile_name()
++        if not name:
++            return
++        self._profiles.pop(name, None)
++        self._rules = [r for r in self._rules if r["profile"] != name]
++        self._rebuild_profile_dropdowns()
++        self._rebuild_rules_list()
++        self.save()
++        self.message.set_text(f"已删除预设 {name!r}。")
++
++    def add_rule_clicked(self, *_args) -> None:
++        name = self.rule_name_entry.get_text().strip()
++        raw_match = [tok.strip().lower() for tok in self.rule_match_entry.get_text().split(",") if tok.strip()]
++        idx = self.rule_profile_dropdown.get_selected()
++        target = self._profile_names[idx] if 0 <= idx < len(self._profile_names) else ""
++        try:
++            rule = profiles.validate_rule(
++                {"name": name, "enabled": True, "match": raw_match, "profile": target},
++                self._profiles.keys(),
++            )
++        except ValueError as exc:
++            self.message.set_text("规则无效：" + str(exc))
++            return
++        self._rules = [r for r in self._rules if r["name"] != rule["name"]]
++        self._rules.append(rule)
++        self.rule_name_entry.set_text("")
++        self.rule_match_entry.set_text("")
++        self._rebuild_rules_list()
++        self.message.set_text(f"已添加规则 {rule['name']!r}（点击“保存预设与联动规则”后写入文件）。")
++
++    def _run_async(self, label: str, fn: Callable[[], object], done: Callable[[object, Optional[Exception]], None]) -> None:
++        if self._busy:
++            return
++        self._busy = True
++        self._refresh_sensitivity()
++        self.message.set_text(label)
++
++        def worker():
++            res = None
++            err: Optional[Exception] = None
++            try:
++                res = fn()
++            except Exception as exc:  # noqa: BLE001
++                err = exc
++            GLib.idle_add(lambda: self._finish_async(done, res, err))
++
++        threading.Thread(target=worker, daemon=True).start()
++
++    def _finish_async(self, done: Callable[[object, Optional[Exception]], None], res: object, err: Optional[Exception]) -> bool:
++        self._busy = False
++        if not self._closed:
++            done(res, err)
++            self._refresh_sensitivity()
++        return False
++
++    def capture_current(self, *_args) -> None:
++        name = self.capture_name.get_text().strip()
++        label = self.capture_label.get_text().strip() or None
++        inc_perf = self.capture_perf.get_active()
++        inc_light = self.capture_light.get_active()
++        try:
++            name = profiles._clean_text(name, 48, "预设名称", forbid_sep=True)
++        except ValueError as exc:
++            self.message.set_text("无法保存：" + str(exc))
++            return
++        if not inc_perf and not inc_light:
++            self.message.set_text("请至少勾选“包含当前性能档位”或“包含当前三区灯光”。")
++            return
++
++        def task():
++            return self._capture_fn(label, include_lighting=inc_light, include_performance=inc_perf)
++
++        def finish(res, err):
++            if err is not None:
++                self.message.set_text("捕获当前状态失败：" + str(err))
++                return
++            self._profiles[name] = res  # type: ignore[assignment]
++            self.capture_name.set_text("")
++            self.capture_label.set_text("")
++            self._rebuild_profile_dropdowns(select_name=name)
++            self.save()
++            self.message.set_text(f"已从当前状态保存预设 {name!r}。")
++
++        self._run_async(f"正在读取当前状态并保存预设 {name!r}…", task, finish)
++
++    def apply_selected(self, *_args) -> None:
++        name = self._selected_profile_name()
++        if not name:
++            return
++        body = copy.deepcopy(self._profiles[name])
++
++        def task():
++            return self._apply_fn(body, save_manual=True)
++
++        def finish(res, err):
++            if err is not None:
++                self.message.set_text(f"应用预设 {name!r} 失败：{err}")
++                return
++            info = res if isinstance(res, dict) else {}
++            warn = info.get("warnings") or []
++            suffix = f"（注意：{'; '.join(warn)}）" if warn else ""
++            self.message.set_text(f"已应用预设 {name!r}{suffix}。")
++
++        self._run_async(f"正在应用预设 {name!r}…", task, finish)
++
++    def close(self) -> None:
++        self._closed = True
+--- a/src/iteglow/protocol.py
++++ b/src/iteglow/protocol.py
+@@ -19,9 +19,22 @@
+ RGB = Tuple[int, int, int]
+ 
+ KBD_BRIGHTNESS_MAX = 0x32          # keyboard (ITE 8291) max brightness
++KBD_MATRIX_ROWS = 6
++KBD_MATRIX_COLS = 21
++KBD_MATRIX_CELLS = KBD_MATRIX_ROWS * KBD_MATRIX_COLS
++KBD_WIRE_SLOTS = 128
+ LB_BRIGHTNESS_MAX = 0x64           # lightbar max brightness
+ SPEED_MIN, SPEED_MAX = 0x01, 0x0A  # 1 = fastest, 10 = slowest
+ 
++# Exact per-key color compensation table from OEM WKDColor.cheatRGB_HIDKeyboard3.
++_HID_KEYBOARD3_CALIBRATION = {
++    (255, 255, 255): (125, 255, 185),
++    (255, 165, 0): (255, 125, 0),
++    (255, 255, 0): (210, 255, 0),
++    (0, 0, 255): (0, 20, 255),
++    (139, 0, 255): (110, 0, 255),
++}
++
+ LB_SELECTOR = 0x22                 # product selector byte for the 0x7001 lightbar
+ KBD_POWER_ON = 0x02                # power state: 0x01 off, 0x02 on
+ 
+@@ -146,29 +159,62 @@
+     return reps
+ 
+ 
+-def keyboard_solid(r: int, g: int, b: int, brightness: int) -> List[Report]:
+-    """Solid colour across the whole keyboard via "user mode" 0x33.
++def calibrate_keyboard3(rgb: RGB) -> RGB:
++    """Apply OEM WKDColor white/primary compensation when requested."""
++    key = (_byte(rgb[0]), _byte(rgb[1]), _byte(rgb[2]))
++    return _HID_KEYBOARD3_CALIBRATION.get(key, key)
+ 
+-    Sends the control params, announces 8 data packets, then writes 8 x 65-byte
+-    output reports whose payload repeats the ``[0, R, G, B]`` pattern.
+-    """
++
++def _pack_usermode(slots: Sequence[RGB], brightness: int) -> List[Report]:
++    """Build 0x33 / 12H feature + 8x65-byte output reports from 128 wire slots."""
+     bright = _clamp(brightness, 0, KBD_BRIGHTNESS_MAX)
+     reps: List[Report] = [
+         _feature([0x08, KBD_POWER_ON, 0x33, 0x00, bright, 0x00, 0x00, 0x00]),
+         _feature([0x12, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00]),
+     ]
+-    r, g, b = _byte(r), _byte(g), _byte(b)
+-    pkt = bytearray(65)            # pkt[0] = 0 (report id)
+-    for i in range(1, 65):
+-        if (i + 2) % 4 == 0:
+-            pkt[i] = r
+-        if (i + 1) % 4 == 0:
+-            pkt[i] = g
+-        if i % 4 == 0:
+-            pkt[i] = b
+-    reps += [_output(bytes(pkt)) for _ in range(8)]
++    for pkt_idx in range(8):
++        pkt = bytearray(65)  # pkt[0] = 0 (report id)
++        base_slot = pkt_idx * 16
++        for j in range(16):
++            slot_idx = base_slot + j
++            r, g, b = slots[slot_idx] if slot_idx < len(slots) else (0, 0, 0)
++            off = 1 + j * 4
++            pkt[off + 1] = _byte(r)
++            pkt[off + 2] = _byte(g)
++            pkt[off + 3] = _byte(b)
++        reps.append(_output(bytes(pkt)))
+     return reps
+ 
+ 
++def keyboard_solid(r: int, g: int, b: int, brightness: int) -> List[Report]:
++    """Solid colour across the whole keyboard via "user mode" 0x33.
++
++    Sends the control params, announces 8 data packets, then writes 8 x 65-byte
++    output reports whose payload repeats the ``[0, R, G, B]`` pattern.
++    """
++    rgb = (_byte(r), _byte(g), _byte(b))
++    return _pack_usermode([rgb] * KBD_WIRE_SLOTS, brightness)
++
++
++def keyboard_matrix(cells: Sequence[RGB], brightness: int,
++                    calibrate: bool = False) -> List[Report]:
++    """Per-key 6x21 matrix via 12H (``0x33``).
++
++    ``cells`` is row-major top-to-bottom (row 0 top Esc row .. row 5 bottom row).
++    Firmware 12H expects column-major slots ``col * 6 + (5 - row)`` padded to 128.
++    """
++    if len(cells) != KBD_MATRIX_CELLS:
++        raise ValueError(f"expected {KBD_MATRIX_CELLS} matrix cells, got {len(cells)}")
++    slots: List[RGB] = [(0, 0, 0)] * KBD_WIRE_SLOTS
++    for col in range(KBD_MATRIX_COLS):
++        for hw_row in range(KBD_MATRIX_ROWS):
++            top_row = KBD_MATRIX_ROWS - 1 - hw_row
++            rgb = tuple(cells[top_row * KBD_MATRIX_COLS + col])
++            if calibrate:
++                rgb = calibrate_keyboard3(rgb)  # type: ignore[arg-type]
++            slots[col * KBD_MATRIX_ROWS + hw_row] = rgb  # type: ignore[assignment]
++    return _pack_usermode(slots, brightness)
++
++
+ def keyboard_off() -> List[Report]:
+     return keyboard_brightness(0)
 --- a/src/iteglow/state.py
 +++ b/src/iteglow/state.py
 @@ -1,11 +1,12 @@

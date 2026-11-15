@@ -9,6 +9,7 @@ Importing this module does not access devices, D-Bus or saved files.
 from __future__ import annotations
 
 import argparse
+import copy
 from dataclasses import dataclass
 import json
 import os
@@ -18,9 +19,11 @@ import stat
 import subprocess
 from typing import Callable, Optional, Tuple
 
-from . import effects, protocol
+from . import effects, keymap, protocol, state
 
 HELPER = "/usr/local/libexec/mechrevo-profile-helper"
+WMI_STATE_PATH = Path("/run/mechrevo-wmi-state.json")
+WMI_KBD_BRIGHTNESS_CODE = 193
 MAX_STATE_BYTES = 65536
 LOGO_COLORS = ((255, 255, 255), (255, 0, 0), (0, 255, 0), (0, 0, 255),
                (255, 255, 0), (136, 0, 255), (0, 255, 255))
@@ -48,7 +51,8 @@ class RestoreAction:
 def validate_hid(device: str, saved: dict) -> RestoreAction:
     if device not in effects.MODES_BY_LABEL or not isinstance(saved, dict):
         raise ValueError("unknown device or invalid saved parameters")
-    allowed = {"mode", "color", "colors", "brightness", "speed", "direction", "reactive"}
+    allowed = {"mode", "color", "colors", "brightness", "speed", "direction",
+               "reactive", "matrix", "preset", "calibrate"}
     if set(saved) - allowed:
         raise ValueError("unknown saved lighting fields")
     mode = saved.get("mode")
@@ -68,14 +72,30 @@ def validate_hid(device: str, saved: dict) -> RestoreAction:
     reactive = saved.get("reactive", False)
     if type(reactive) is not bool:
         raise ValueError("reactive: expected a boolean")
+    matrix = saved.get("matrix")
+    if matrix is not None:
+        if device != "keyboard":
+            raise ValueError("matrix: only supported for keyboard")
+        if not isinstance(matrix, list) or len(matrix) != protocol.KBD_MATRIX_CELLS:
+            raise ValueError(f"matrix: expected {protocol.KBD_MATRIX_CELLS} RGB entries")
+        matrix = [_color(value) for value in matrix]
+    preset = saved.get("preset")
+    if preset is not None:
+        if device != "keyboard" or not isinstance(preset, str) or preset not in keymap.PRESETS:
+            raise ValueError("preset: unknown keyboard matrix preset")
+    calibrate = saved.get("calibrate", False)
+    if type(calibrate) is not bool:
+        raise ValueError("calibrate: expected a boolean")
     # A zero brightness is also OFF. In particular, never send lightbar
     # power-on before an OFF restore (the old cmd_restore did that).
     if mode == "off" or brightness == 0:
         reports = effects.build(device, "off")
     else:
-        reports = effects.build(device, mode, color=color, colors=palette,
-                                brightness=brightness, speed=speed,
-                                direction=direction, reactive=reactive)
+        build_kwargs = dict(color=color, colors=palette, brightness=brightness,
+                            speed=speed, direction=direction, reactive=reactive)
+        if device == "keyboard" and mode == "matrix":
+            build_kwargs.update(matrix=matrix, preset=preset, calibrate=calibrate)
+        reports = effects.build(device, mode, **build_kwargs)
         if device == "lightbar":
             reports = protocol.lightbar_power_on() + reports
     return RestoreAction(device, tuple(reports))
@@ -97,7 +117,7 @@ def validate_logo(saved: dict) -> RestoreAction:
     return RestoreAction("logo", logo_json=json.dumps(data, separators=(",", ":")))
 
 
-def _read_saved(path: Path, uid: int):
+def _read_saved(path: Path, uid: int, *, max_bytes: int = MAX_STATE_BYTES):
     try:
         fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
     except FileNotFoundError:
@@ -106,10 +126,10 @@ def _read_saved(path: Path, uid: int):
         info = os.fstat(stream.fileno())
         if not stat.S_ISREG(info.st_mode) or info.st_uid != uid or info.st_mode & 0o002:
             raise ValueError("saved state must be a user-owned regular file, not world-writable")
-        if info.st_size > MAX_STATE_BYTES:
+        if info.st_size > max_bytes:
             raise ValueError("saved state exceeds size limit")
-        data = stream.read(MAX_STATE_BYTES + 1)
-        if len(data) > MAX_STATE_BYTES:
+        data = stream.read(max_bytes + 1)
+        if len(data) > max_bytes:
             raise ValueError("saved state exceeds size limit")
         return json.loads(data)
 
@@ -191,6 +211,143 @@ def apply_action(action: RestoreAction):
         return _apply_action_locked(action)
 
 
+def _default_query_kbd() -> dict:
+    from . import devices
+    with devices.HidLed(devices.led_for_label("keyboard")) as dev:
+        return protocol.parse_keyboard_state(dev.query(protocol.QUERY_EFFECT))
+
+
+class KeyboardHotkeySync:
+    """Sync hardware Fn+F6 / Fn+F7 (and WMI 0xC1) keyboard brightness into state.json."""
+
+    def __init__(self, directory: Path, uid: int, *,
+                 wmi_state_path: Path = WMI_STATE_PATH,
+                 query_kbd: Optional[Callable[[], dict]] = None,
+                 transaction=None):
+        self.directory = Path(directory)
+        self.uid = uid
+        self.wmi_state_path = Path(wmi_state_path)
+        self._query_kbd = query_kbd or _default_query_kbd
+        self._transaction = transaction
+        self.last_manual = None
+        self.last_hw: Optional[dict] = None
+        self.last_wmi_seq: Optional[int] = None
+
+    def _tx(self, zone: str):
+        if self._transaction is not None:
+            return self._transaction(zone)
+        from .zone_lock import ZoneTransaction
+        return ZoneTransaction(zone)
+
+    def _safe_query(self) -> Optional[dict]:
+        try:
+            reply = self._query_kbd()
+            return dict(reply) if isinstance(reply, dict) else None
+        except OSError:
+            return None
+
+    def _current_wmi_seq(self) -> Optional[int]:
+        try:
+            fd = os.open(self.wmi_state_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+        except OSError:
+            return None
+        try:
+            with os.fdopen(fd, "rb") as stream:
+                info = os.fstat(stream.fileno())
+                if not stat.S_ISREG(info.st_mode) or info.st_size > 16384:
+                    return None
+                raw = json.loads(stream.read(16384))
+        except (OSError, ValueError):
+            return None
+        if not isinstance(raw, dict):
+            return None
+        seqs = [ev.get("seq") for ev in raw.get("wmi_events") or ()
+                if isinstance(ev, dict) and ev.get("code") == WMI_KBD_BRIGHTNESS_CODE
+                and isinstance(ev.get("seq"), int)]
+        if seqs:
+            return max(seqs)
+        if raw.get("wmi_last_code") == WMI_KBD_BRIGHTNESS_CODE and isinstance(raw.get("wmi_seq"), int):
+            return raw["wmi_seq"]
+        return None
+
+    def _read_manual_kbd(self):
+        try:
+            saved = _read_saved(self.directory / "state.json", self.uid)
+        except (OSError, ValueError, TypeError):
+            return None, None
+        if saved is None or not isinstance(saved, dict):
+            return saved, None
+        return saved, saved.get("keyboard")
+
+    def reset(self) -> None:
+        self.last_hw = None
+
+    def record_applied(self) -> None:
+        """Refresh manual & hardware snapshots after our own restore/policy write."""
+        _, manual = self._read_manual_kbd()
+        self.last_manual = copy.deepcopy(manual)
+        self.last_hw = self._safe_query()
+        seq = self._current_wmi_seq()
+        if seq is not None:
+            self.last_wmi_seq = seq
+
+    def sync_if_needed(self, *, force_query: bool = False) -> Optional[dict]:
+        """Detect hardware hotkey changes and update saved keyboard brightness."""
+        _, manual = self._read_manual_kbd()
+        if manual != self.last_manual:
+            self.last_manual = copy.deepcopy(manual)
+            with self._tx("keyboard"):
+                self.last_hw = self._safe_query()
+            seq = self._current_wmi_seq()
+            if seq is not None:
+                self.last_wmi_seq = seq
+            return None
+        seq = self._current_wmi_seq()
+        wmi_changed = seq is not None and seq != self.last_wmi_seq
+        if seq is not None:
+            self.last_wmi_seq = seq
+        if not (wmi_changed or force_query):
+            return None
+        with self._tx("keyboard"):
+            full_state, current_manual = self._read_manual_kbd()
+            if current_manual != self.last_manual:
+                self.last_manual = copy.deepcopy(current_manual)
+                self.last_hw = self._safe_query()
+                return None
+            actual = self._safe_query()
+            if actual is None:
+                return None
+            if self.last_hw is None:
+                self.last_hw = dict(actual)
+                return None
+            changed = (actual.get("power") != self.last_hw.get("power") or
+                       actual.get("brightness") != self.last_hw.get("brightness"))
+            if not changed and actual.get("power") != 1 and actual.get("brightness", 0) > 0:
+                changed = actual.get("mode") != self.last_hw.get("mode")
+            if not changed:
+                return None
+            self.last_hw = dict(actual)
+            new_bright = 0 if (actual.get("power") == 1 or actual.get("brightness", 0) == 0) else max(
+                0, min(protocol.KBD_BRIGHTNESS_MAX, int(actual["brightness"])))
+            if isinstance(current_manual, dict):
+                updated = dict(current_manual)
+                if updated.get("mode") == "off" and new_bright > 0:
+                    mode_name, ui_dir = effects.decode_keyboard_state(actual, saved_mode=updated.get("mode"))
+                    updated["mode"] = mode_name
+                    updated["direction"] = ui_dir
+                updated["brightness"] = new_bright
+            else:
+                mode_name, ui_dir = effects.decode_keyboard_state(actual)
+                updated = {"mode": mode_name, "brightness": new_bright, "direction": ui_dir}
+            validate_hid("keyboard", updated)
+            next_data = dict(full_state) if isinstance(full_state, dict) else {}
+            next_data["keyboard"] = updated
+            with self._tx("manual-state"):
+                state.write(str(self.directory / "state.json"), next_data)
+            self.last_manual = copy.deepcopy(updated)
+            return {"hotkey_sync": "keyboard", "mode": updated["mode"], "brightness": new_bright}
+
+
 def _apply_action_locked(action: RestoreAction):
     if action.device == "logo":
         # Revalidate even if called independently of load_actions.
@@ -199,7 +356,13 @@ def _apply_action_locked(action: RestoreAction):
             ["/usr/bin/pkexec", "--disable-internal-agent", HELPER, "logo", action.logo_json],
             capture_output=True, text=True, timeout=5, check=False)
         if result.returncode:
-            raise RuntimeError(result.stderr.strip() or "Logo helper failed")
+            err_msg = result.stderr.strip()
+            if not err_msg and result.stdout.strip():
+                try:
+                    err_msg = json.loads(result.stdout).get("error", "")
+                except ValueError:
+                    err_msg = result.stdout.strip()
+            raise RuntimeError(err_msg or "Logo helper failed")
         response = json.loads(result.stdout)
         if not isinstance(response, dict) or "error" in response:
             raise RuntimeError("Logo helper rejected restoration")
@@ -316,6 +479,7 @@ def main(argv=None):
         return 0
 
     from .lighting_policy_session import CONFIG_PATH, PolicyRunner, SessionInputs, read_config, read_manual
+    from .profiles import ProfileRuleRunner, profiles_path, read_config as read_profiles_config
     inputs = SessionInputs(
         lambda *parameters: call(system_bus, *parameters),
         lambda *parameters: call(user_bus, *parameters), GLib.Variant)
@@ -323,16 +487,32 @@ def main(argv=None):
     pending = None
     last_active = False
     lifecycle = None
+    hotkey_sync = KeyboardHotkeySync(directory, uid)
+
+    def policy_writer(action: RestoreAction):
+        result = apply_action(action)
+        if action.device == "keyboard":
+            with hotkey_sync._tx("keyboard"):
+                hotkey_sync.record_applied()
+        return result
+
     policy = PolicyRunner(
         active=lambda: lifecycle is not None and lifecycle.can_restore(),
         config=lambda: read_config(CONFIG_PATH, uid),
         manual=lambda: read_manual(directory, uid), power=inputs.power, idle=inputs.idle,
-        apply=args.apply, writer=apply_action,
+        apply=args.apply, writer=policy_writer,
+        emit=lambda event: print(json.dumps(event, ensure_ascii=False), flush=True))
+    rule_runner = ProfileRuleRunner(
+        active=lambda: lifecycle is not None and lifecycle.can_restore(),
+        config=lambda: read_profiles_config(profiles_path(), uid),
+        directory=directory, uid=uid, apply=args.apply,
         emit=lambda event: print(json.dumps(event, ensure_ascii=False), flush=True))
 
     def cancel():
         nonlocal pending, last_active
         policy.begin_restore()
+        rule_runner.deactivate()
+        hotkey_sync.reset()
         last_active = False
         if pending is not None:
             GLib.source_remove(pending)
@@ -341,12 +521,19 @@ def main(argv=None):
     def restore():
         nonlocal pending
         pending = None
+        rule_runner.deactivate()
         policy.begin_restore()
         try:
             print(json.dumps(restore_once(directory, uid, lifecycle.can_restore, apply=args.apply)), flush=True)
         finally:
             policy.finish_restore()
         policy.tick()
+        if args.apply and lifecycle.can_restore():
+            try:
+                with hotkey_sync._tx("keyboard"):
+                    hotkey_sync.record_applied()
+            except (OSError, ValueError, RuntimeError):
+                pass
         return False
 
     def schedule():
@@ -358,16 +545,45 @@ def main(argv=None):
 
     lifecycle = Lifecycle(active, schedule, cancel)
 
+    def _run_hotkey_sync(force_query: bool) -> None:
+        if not args.apply or pending is not None or not lifecycle.can_restore() or rule_runner.owns_lighting:
+            return
+        try:
+            event = hotkey_sync.sync_if_needed(force_query=force_query)
+            if event:
+                print(json.dumps(event, ensure_ascii=False), flush=True)
+        except (OSError, ValueError, TypeError, RuntimeError):
+            pass
+
+    def hotkey_tick():
+        _run_hotkey_sync(False)
+        return True
+
     def policy_tick():
         nonlocal last_active
         current = lifecycle.can_restore()
         if not current:
             policy.deactivate()
+            rule_runner.deactivate()
+            hotkey_sync.reset()
             last_active = False
         elif not last_active:
             # Inactivity drops ownership. Restore the saved manual baseline
             # before rejoining policy, so old idle-OFF cannot become stranded.
             schedule()
+        if pending is None:
+            rule_result = rule_runner.tick()
+            if rule_result.get("active_lighting"):
+                policy.begin_restore()
+            elif rule_result.get("released_lighting"):
+                policy.finish_restore()
+            if rule_result.get("action") in ("apply", "release", "yield_mode_key") and args.apply:
+                try:
+                    with hotkey_sync._tx("keyboard"):
+                        hotkey_sync.record_applied()
+                except (OSError, ValueError, RuntimeError):
+                    pass
+        _run_hotkey_sync(True)
         policy.tick()
         return True
 
@@ -384,6 +600,7 @@ def main(argv=None):
     def stop():
         lifecycle.stop()
         policy.deactivate()
+        rule_runner.deactivate()
         loop.quit()
         return False
 
@@ -394,11 +611,14 @@ def main(argv=None):
     GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, stop)
     lifecycle.startup()
     policy_timer = GLib.timeout_add_seconds(5, policy_tick)
+    hotkey_timer = GLib.timeout_add_seconds(1, hotkey_tick)
     try:
         loop.run()
     finally:
         lifecycle.stop()
         policy.deactivate()
+        rule_runner.deactivate()
+        GLib.source_remove(hotkey_timer)
         GLib.source_remove(policy_timer)
         system_bus.signal_unsubscribe(subscription)
         if lock_fd is not None:

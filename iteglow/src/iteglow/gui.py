@@ -1,23 +1,29 @@
 """Chinese GTK4 control centre. Construction and previews never write hardware."""
 from __future__ import annotations
+import json
 import math
 from pathlib import Path
 import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Gdk', '4.0')
 from gi.repository import Gdk, GLib, Gtk
-from . import devices, effects, protocol, state
+from . import devices, effects, keymap, protocol, state
 from .performance import PerformancePanel
 from .logo import LogoPanel
 from .lighting_policy_gui import LightingPolicyPanel
+from .profiles_gui import ProfilesPanel
 from .zone_lock import ZoneTransaction
 
 MODE_TEXT = {
     'off': ('关闭', '关闭当前设备的灯光'),
     'solid': ('常亮', '整个键盘保持同一种颜色'),
+    'matrix': ('单键自定义', '点击键盘键帽单独配色，或套用游戏分区预设'),
     'static': ('常亮', '灯带保持同一种颜色'),
     'breathing': ('呼吸', '灯光逐渐亮起与淡出'),
     'wave': ('彩色波浪', '色彩沿指定方向流动'),
+    'sine': ('正弦波', '色彩如正弦曲线般柔和起伏'),
+    'interlace': ('交错波', '多色光带双向交错扫过'),
+    'diagonal': ('斜向波', '色彩沿对角线方向流动'),
     'reactive': ('随机闪烁', '星点随机闪烁，也可随按键触发'),
     'rainbow': ('彩虹渐变', '自动循环彩虹色彩'),
     'ripple': ('涟漪', '灯光向周围扩散'),
@@ -116,28 +122,48 @@ class DevicePreview(Gtk.DrawingArea):
                 cr.set_source_rgb(*tint(n//7))
                 rounded(cr, width*.13+n*width*.74/48, 106, width*.74/48-1, 5, 2); cr.fill()
         else:
-            # Simplified full keyboard with numpad, deliberately labelled as an illustration.
-            cr.save(); cr.translate(max(20, (width-610)/2), 38)
+            # Simplified full keyboard with numpad; live-reflects per-key cells in matrix mode.
+            cr.save(); cr.translate(max(20, (width-610)/2), 28)
             scale = min(1.0, (width-40)/610); cr.scale(scale, scale)
-            rows = [list('1234567890−=')+['Bksp'], list('QWERTYUIOP')+['[',']','\\'],
-                    list('ASDFGHJKL')+[';','\'', 'Enter'], list('ZXCVBNM')+[',','.','/','↑'],
-                    ['Ctrl','Fn','Alt','SPACE','Alt','←','↓','→']]
-            for row, keys in enumerate(rows):
-                x = row*4 if row < 4 else 0
-                for n, key in enumerate(keys):
-                    w = 148 if key=='SPACE' else 34 if len(key)>1 else 29
-                    cr.set_source_rgb(.115,.15,.21)
-                    rounded(cr,x,row*20,w,16,3);cr.fill_preserve()
-                    cr.set_source_rgb(*tint(n//2+row));cr.set_line_width(.8);cr.stroke()
-                    cr.set_font_size(6 if key=='SPACE' else 7)
-                    cr.set_source_rgb(.75,.81,.9)
-                    if key != 'SPACE': cr.move_to(x+5,row*20+11);cr.show_text(key)
-                    x += w+4
-            for row in range(5):
-                for col in range(4):
-                    cr.set_source_rgb(.115,.15,.21)
-                    rounded(cr,460+col*32,row*20,28,16,3);cr.fill_preserve()
-                    cr.set_source_rgb(*tint(col+row+3));cr.stroke()
+            factor = (.35 + .65 * p.bright.get_value()/100) if on else 0.0
+            if mode == 'matrix' and hasattr(p, 'matrix_cells'):
+                for r_idx, caps in enumerate(keymap.KEYBOARD_101_ROWS):
+                    x = 0.0
+                    h = 15
+                    for cap in caps:
+                        w = max(21.0, cap.width * 24.0)
+                        c = p.matrix_cells[cap.primary]
+                        cr.set_source_rgb(.115, .15, .21)
+                        rounded(cr, x, r_idx * 18, w, h, 3); cr.fill_preserve()
+                        if not on or c == (0, 0, 0):
+                            cr.set_source_rgb(.20, .24, .31)
+                        else:
+                            cr.set_source_rgb(*(v / 255 * factor for v in c))
+                        cr.set_line_width(1.1); cr.stroke()
+                        cr.set_font_size(5.5 if len(cap.name) > 2 else 6.5)
+                        cr.set_source_rgb(.78, .84, .92)
+                        cr.move_to(x + 3, r_idx * 18 + 10); cr.show_text(cap.name[:5])
+                        x += w + 3.0
+            else:
+                rows = [list('1234567890−=')+['Bksp'], list('QWERTYUIOP')+['[',']','\\'],
+                        list('ASDFGHJKL')+[';','\'', 'Enter'], list('ZXCVBNM')+[',','.','/','↑'],
+                        ['Ctrl','Fn','Alt','SPACE','Alt','←','↓','→']]
+                for row, keys in enumerate(rows):
+                    x = row*4 if row < 4 else 0
+                    for n, key in enumerate(keys):
+                        w = 148 if key=='SPACE' else 34 if len(key)>1 else 29
+                        cr.set_source_rgb(.115,.15,.21)
+                        rounded(cr,x,row*20,w,16,3);cr.fill_preserve()
+                        cr.set_source_rgb(*tint(n//2+row));cr.set_line_width(.8);cr.stroke()
+                        cr.set_font_size(6 if key=='SPACE' else 7)
+                        cr.set_source_rgb(.75,.81,.9)
+                        if key != 'SPACE': cr.move_to(x+5,row*20+11);cr.show_text(key)
+                        x += w+4
+                for row in range(5):
+                    for col in range(4):
+                        cr.set_source_rgb(.115,.15,.21)
+                        rounded(cr,460+col*32,row*20,28,16,3);cr.fill_preserve()
+                        cr.set_source_rgb(*tint(col+row+3));cr.stroke()
             cr.restore()
         cr.set_font_size(9); cr.set_source_rgb(.53,.60,.71)
         cr.move_to(20,height-12); cr.show_text('颜色与布局示意 · 灯效请以实物为准')
@@ -153,6 +179,11 @@ class DevicePanel(Gtk.Box):
         self.bmax = protocol.KBD_BRIGHTNESS_MAX if device=='keyboard' else protocol.LB_BRIGHTNESS_MAX
         self.ready = False
         self.pending = None
+        self._hotkey_timer = None
+        self._last_hw_kbd = None
+        self.matrix_cells = keymap.preset_cells('gaming')
+        self.matrix_calibrate = False
+        self._key_swatches = []
         self.add_css_class('device-page')
         self.status = label('', 'status-text', wrap=True)
         self.bright = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1)
@@ -163,6 +194,9 @@ class DevicePanel(Gtk.Box):
         self.trigger = Gtk.DropDown.new_from_strings(['自动播放', '随按键触发'])
         self.color = color_button((0,255,255))
         self.palette_buttons = [color_button(c) for c in effects.RAINBOW]
+        self.brush = color_button((255, 40, 0))
+        self.calibrate_check = Gtk.CheckButton(label='OEM 白平衡/纯色校准')
+        self.matrix_card = self._build_matrix_card() if device == 'keyboard' else Gtk.Box()
         self._load()
         heading = box(False, 10)
         names = box(spacing=5)
@@ -212,6 +246,8 @@ class DevicePanel(Gtk.Box):
             swatches.attach(button,index%4,index//4,1,1)
         self.palette_row.append(swatches);controls.append(self.palette_row)
         lower.append(controls);self.append(lower)
+        if device == 'keyboard':
+            self.append(self.matrix_card)
         self.append(self.status)
         self.refresh()
         self.bright.connect('value-changed',lambda *_: self.schedule())
@@ -220,7 +256,81 @@ class DevicePanel(Gtk.Box):
         self.trigger.connect('notify::selected',lambda *_: self.schedule())
         on_color(self.color,self.schedule)
         for button in self.palette_buttons: on_color(button,self.schedule)
+        if device == 'keyboard':
+            self._hotkey_timer = GLib.timeout_add(800, self._poll_hotkey)
         self.ready = True
+
+    def _build_matrix_card(self):
+        card = box(spacing=10, css='control-card')
+        top = box(False, 8)
+        title = label('单键灯效编辑 (左键上色 · 右键熄灭)', 'section-title')
+        title.set_hexpand(True); top.append(title)
+        top.append(label('画笔', 'small-note'))
+        top.append(self.brush)
+        fill_btn = Gtk.Button(label='填满全键'); fill_btn.add_css_class('small-button')
+        fill_btn.connect('clicked', lambda *_: self.fill_matrix(rgb(self.brush.get_rgba())))
+        top.append(fill_btn)
+        clear_btn = Gtk.Button(label='全部熄灭'); clear_btn.add_css_class('small-button')
+        clear_btn.connect('clicked', lambda *_: self.fill_matrix((0, 0, 0)))
+        top.append(clear_btn)
+        self.calibrate_check.connect('toggled', self._on_calibrate_toggled)
+        top.append(self.calibrate_check)
+        card.append(top)
+        presets_bar = box(False, 6)
+        presets_bar.append(label('预设：', 'small-note'))
+        preset_names = [('gaming', '游戏分区'), ('wasd_fps', 'FPS WASD'),
+                        ('zones', '功能分区'), ('rainbow_grid', '彩虹矩阵'), ('gradient', '双色渐变')]
+        for pid, ptitle in preset_names:
+            btn = Gtk.Button(label=ptitle); btn.add_css_class('small-button')
+            btn.connect('clicked', lambda _, name=pid: self.apply_matrix_preset(name))
+            presets_bar.append(btn)
+        card.append(presets_bar)
+        rows_box = box(spacing=4)
+        for row_caps in keymap.KEYBOARD_101_ROWS:
+            rbox = box(False, 3)
+            for cap in row_caps:
+                btn = Gtk.Button(); btn.add_css_class('keycap-btn')
+                btn.set_hexpand(cap.width >= 2.5)
+                inner = box(spacing=2)
+                lbl = Gtk.Label(label=cap.name)
+                swatch = Gtk.DrawingArea(); swatch.set_content_height(4); swatch.set_hexpand(True)
+                def _draw_swatch(_a, cr, w, h, idx=cap.primary):
+                    r, g, b = self.matrix_cells[idx]
+                    cr.set_source_rgb(r / 255, g / 255, b / 255)
+                    rounded(cr, 0, 0, w, h, 2); cr.fill()
+                swatch.set_draw_func(_draw_swatch)
+                self._key_swatches.append(swatch)
+                inner.append(lbl); inner.append(swatch)
+                btn.set_child(inner)
+                btn.connect('clicked', lambda _, c=cap: self.paint_keycap(c, erase=False))
+                rclick = Gtk.GestureClick(button=3)
+                rclick.connect('pressed', lambda _g, _n, _x, _y, c=cap: self.paint_keycap(c, erase=True))
+                btn.add_controller(rclick)
+                rbox.append(btn)
+            rows_box.append(rbox)
+        card.append(rows_box)
+        return card
+
+    def _on_calibrate_toggled(self, *_):
+        self.matrix_calibrate = self.calibrate_check.get_active()
+        self.schedule()
+
+    def paint_keycap(self, cap, *, erase: bool = False):
+        col = (0, 0, 0) if erase else rgb(self.brush.get_rgba())
+        if not erase and self.matrix_cells[cap.primary] == col:
+            col = (0, 0, 0)
+        for idx in cap.indices:
+            if 0 <= idx < len(self.matrix_cells):
+                self.matrix_cells[idx] = col
+        self.schedule()
+
+    def fill_matrix(self, col):
+        self.matrix_cells = keymap.blank_cells(col)
+        self.schedule()
+
+    def apply_matrix_preset(self, preset_name: str):
+        self.matrix_cells = keymap.preset_cells(preset_name, rgb(self.brush.get_rgba()))
+        self.schedule()
 
     def _slider_row(self,title,slider,value):
         result = box(spacing=4); top=box(False,8)
@@ -242,17 +352,66 @@ class DevicePanel(Gtk.Box):
             if value==saved.get('direction'):self.direction.set_selected(i)
         if saved.get('color'):self.color.set_rgba(rgba(saved['color']))
         for button,color in zip(self.palette_buttons,saved.get('colors') or []):button.set_rgba(rgba(color))
+        if isinstance(saved.get('matrix'), list) and len(saved['matrix']) == protocol.KBD_MATRIX_CELLS:
+            self.matrix_cells = [tuple(c) for c in saved['matrix']]
+        elif saved.get('preset') in keymap.PRESETS:
+            self.matrix_cells = keymap.preset_cells(saved['preset'], tuple(saved.get('color') or (0, 255, 255)))
+        self.matrix_calibrate = bool(saved.get('calibrate', False))
+        self.calibrate_check.set_active(self.matrix_calibrate)
         if self.device=='keyboard':
             try:
                 actual=protocol.parse_keyboard_state(self.dev.query(protocol.QUERY_EFFECT))
-                if actual['power']==1 or actual['brightness']==0:self.mode='off'
-                else:
-                    self.mode=next((name for name,spec in self.modes.items() if spec['code']==actual['mode']),self.mode)
-                    self.bright.set_value(actual['brightness']/self.bmax*100)
-                    if 1<=actual['speed']<=10:self.speed.set_value(11-actual['speed'])
-                    if self.spec().get('trigger'):self.trigger.set_selected(int(actual['direction']==1))
-                    elif self.spec().get('direction') and 1<=actual['direction']<=4:self.direction.set_selected(actual['direction']-1)
+                self._last_hw_kbd = dict(actual)
+                self._sync_from_hw_state(actual, saved.get('mode'))
             except OSError:self.status.set_text('无法读取当前灯效，已显示上次保存值')
+
+    def _sync_from_hw_state(self, actual, saved_mode=None):
+        mode_name, ui_dir = effects.decode_keyboard_state(actual, saved_mode=saved_mode)
+        if mode_name == 'off':
+            self.mode = 'off'
+            self.bright.set_value(0)
+            return
+        self.mode = mode_name
+        self.bright.set_value(min(100, actual['brightness'] / self.bmax * 100))
+        if 1 <= actual['speed'] <= 10:
+            self.speed.set_value(11 - actual['speed'])
+        if self.spec().get('trigger'):
+            self.trigger.set_selected(int(actual['direction'] == 1))
+        elif self.spec().get('direction') and 1 <= ui_dir <= len(DIRECTIONS[self.device]):
+            self.direction.set_selected(ui_dir - 1)
+
+    def _poll_hotkey(self):
+        if not self.ready or self.pending is not None:
+            return True
+        try:
+            actual = protocol.parse_keyboard_state(self.dev.query(protocol.QUERY_EFFECT))
+        except Exception:
+            return True
+        if self._last_hw_kbd is None:
+            self._last_hw_kbd = dict(actual)
+            return True
+        changed = (actual.get('power') != self._last_hw_kbd.get('power') or
+                   actual.get('brightness') != self._last_hw_kbd.get('brightness'))
+        if not changed:
+            return True
+        self._last_hw_kbd = dict(actual)
+        was = self.ready; self.ready = False
+        try:
+            saved = state.load(state.user_state_path()).get(self.device) or {}
+            saved_mode = saved.get('mode') or self.mode
+            if actual['power'] == 1 or actual['brightness'] == 0:
+                self.bright.set_value(0)
+                self.status.set_text('快捷键已关闭键盘背光')
+            else:
+                if self.mode == 'off':
+                    self._sync_from_hw_state(actual, saved_mode)
+                else:
+                    self.bright.set_value(min(100, actual['brightness'] / self.bmax * 100))
+                self.status.set_text(f'已同步快捷键亮度：{round(self.bright.get_value())}%')
+            self.refresh()
+        finally:
+            self.ready = was
+        return True
 
     def spec(self):return self.modes[self.mode]
 
@@ -272,7 +431,10 @@ class DevicePanel(Gtk.Box):
         self.bright.set_sensitive(on)
         for widget,visible in [(self.speed_row,spec.get('speed')), (self.direction_row,spec.get('direction')),
                                (self.trigger_row,spec.get('trigger')), (self.single_row,spec.get('single')),
-                               (self.palette_row,spec.get('palette'))]:widget.set_visible(bool(visible))
+                               (self.palette_row,spec.get('palette')), (self.matrix_card,spec.get('matrix'))]:
+            widget.set_visible(bool(visible))
+        for swatch in self._key_swatches:
+            swatch.queue_draw()
         self.trigger_hint.set_visible(bool(spec.get('trigger')) and self.trigger.get_selected()==1)
         self.preview.queue_draw()
 
@@ -288,9 +450,14 @@ class DevicePanel(Gtk.Box):
         self.pending=GLib.timeout_add(90,self.apply)
 
     def params(self):
-        return dict(mode=self.mode,color=rgb(self.color.get_rgba()),colors=[rgb(b.get_rgba()) for b in self.palette_buttons],
+        data = dict(mode=self.mode,color=rgb(self.color.get_rgba()),colors=[rgb(b.get_rgba()) for b in self.palette_buttons],
                     brightness=round(self.bright.get_value()*self.bmax/100),speed=11-round(self.speed.get_value()),
                     direction=DIRECTIONS[self.device][self.direction.get_selected()][1],reactive=self.trigger.get_selected()==1)
+        if self.device == 'keyboard' and self.mode == 'matrix':
+            data['matrix'] = [list(c) for c in self.matrix_cells]
+            if self.matrix_calibrate:
+                data['calibrate'] = True
+        return data
 
     def apply(self):
         self.pending=None
@@ -298,6 +465,11 @@ class DevicePanel(Gtk.Box):
         try:
             with ZoneTransaction(self.device):
                 self.dev.send(effects.build(self.device,**params))
+                if self.device == 'keyboard':
+                    try:
+                        self._last_hw_kbd = protocol.parse_keyboard_state(self.dev.query(protocol.QUERY_EFFECT))
+                    except Exception:
+                        pass
                 saved=state.save(self.device,params)
             suffix=' · 按键时亮起' if self.spec().get('trigger') and params['reactive'] else ''
             self.status.set_text(('已应用：'+MODE_TEXT[self.mode][0]+suffix) if saved else '灯光已应用，但恢复设置保存失败')
@@ -305,6 +477,8 @@ class DevicePanel(Gtk.Box):
         return False
 
     def close(self):
+        if self._hotkey_timer is not None:
+            GLib.source_remove(self._hotkey_timer); self._hotkey_timer = None
         if self.pending is not None:
             GLib.source_remove(self.pending);self.pending=None
         self.dev.close()
@@ -319,7 +493,7 @@ class App(Gtk.Application):
     def do_activate(self):
         window=self.get_active_window()
         if window:window.present();return
-        self.panels=[];self.logo=None
+        self.panels=[];self.logo=None;self.profiles_panel=None
         provider=Gtk.CssProvider()
         provider.load_from_path(str(Path(__file__).with_name('control.css')))
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(),provider,Gtk.STYLE_PROVIDER_PRIORITY_USER + 1)
@@ -337,9 +511,10 @@ class App(Gtk.Application):
         self.stack.set_transition_duration(120)
         self.nav={}
         detected={label for _,_,label in devices.available_devices()}
-        for name,title,icon in [('keyboard','键盘背光','input-keyboard-symbolic'),('lightbar','机身灯带','display-brightness-symbolic'),('logo','后盖 Logo','starred-symbolic'),('lighting-policy','自动灯光','preferences-system-symbolic'),('performance','性能模式','speedometer-symbolic')]:
+        for name,title,icon in [('keyboard','键盘背光','input-keyboard-symbolic'),('lightbar','机身灯带','display-brightness-symbolic'),('logo','后盖 Logo','starred-symbolic'),('lighting-policy','自动灯光','preferences-system-symbolic'),('profiles','情景预设','view-grid-symbolic'),('performance','性能模式','speedometer-symbolic')]:
             if name=='performance':page=PerformancePanel()
             elif name=='logo':page=LogoPanel();self.logo=page
+            elif name=='profiles':page=ProfilesPanel();self.profiles_panel=page
             elif name=='lighting-policy':
                 page=box(spacing=18,css='device-page')
                 page.append(label('灯光策略','page-title'))
@@ -364,7 +539,7 @@ class App(Gtk.Application):
         off=Gtk.Button(label='关闭全部灯光');off.set_tooltip_text('关闭键盘、机身灯带与后盖 Logo，保留配色设置')
         off.add_css_class('all-off');off.connect('clicked',self.all_off);bar.append(off);right.append(bar)
         right.append(self.stack)
-        window.connect('close-request',self.window_closed,tuple(self.panels),self.logo)
+        window.connect('close-request',self.window_closed,tuple(self.panels),self.logo,self.profiles_panel)
         self.navigate('keyboard');window.present()
 
     def navigate(self,name):
@@ -383,13 +558,16 @@ class App(Gtk.Application):
             GLib.source_remove(panel.pending);panel.pending=None;panel.apply()
         panel.close()
 
-    def window_closed(self,window,panels,logo):
+    def window_closed(self,window,panels,logo,profiles_panel=None):
         for panel in panels:
             if panel in self.panels:
                 self.close_panel(panel);self.panels.remove(panel)
         if logo is not None:
             logo.close()
             if self.logo is logo:self.logo=None
+        if profiles_panel is not None:
+            profiles_panel.close()
+            if getattr(self,'profiles_panel',None) is profiles_panel:self.profiles_panel=None
         # An old Logo helper retains its own application hold and transaction
         # until the async callback saves its actual value, independently of UI.
         return False
@@ -400,6 +578,7 @@ class App(Gtk.Application):
             self.close_panel(panel)
         self.panels=[]
         if self.logo:self.logo.close();self.logo=None
+        if getattr(self,'profiles_panel',None):self.profiles_panel.close();self.profiles_panel=None
         Gtk.Application.do_shutdown(self)
 
 

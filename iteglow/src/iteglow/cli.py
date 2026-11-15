@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
+import subprocess
 import sys
 from typing import List, Optional
 
-from . import __version__, devices, effects, protocol, state
+from . import __version__, devices, effects, keymap, protocol, state
 from .protocol import RGB
 from .zone_lock import ZoneTransaction
 
@@ -22,6 +24,47 @@ def _parse_color(s: str) -> RGB:
         except ValueError:
             pass
     raise argparse.ArgumentTypeError(f"bad colour {s!r}; use #RRGGBB or r,g,b")
+
+
+def _parse_color_value(value) -> RGB:
+    if isinstance(value, str):
+        return _parse_color(value)
+    if isinstance(value, (list, tuple)) and len(value) == 3:
+        return tuple(int(c) for c in value)  # type: ignore[return-value]
+    raise argparse.ArgumentTypeError(f"bad colour entry {value!r}")
+
+
+def _parse_matrix(spec: str) -> List[RGB]:
+    text = spec.strip()
+    if text.startswith("@"):
+        text = text[1:]
+    if os.path.isfile(text):
+        with open(text) as f:
+            data = json.load(f)
+    else:
+        try:
+            data = json.loads(text)
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError(f"invalid matrix JSON or file {spec!r}: {exc}") from exc
+    if isinstance(data, dict):
+        cells = keymap.blank_cells()
+        by_name = {cap.name.lower(): cap for cap in keymap.ALL_KEYCAPS}
+        for key, raw_col in data.items():
+            cap = by_name.get(str(key).strip().lower())
+            if cap is None:
+                raise argparse.ArgumentTypeError(f"unknown key name {key!r} in matrix map")
+            col = _parse_color_value(raw_col)
+            for idx in cap.indices:
+                cells[idx] = col
+        return cells
+    if isinstance(data, list) and len(data) == protocol.KBD_MATRIX_ROWS and all(
+        isinstance(row, list) and len(row) == protocol.KBD_MATRIX_COLS for row in data
+    ):
+        return [_parse_color_value(cell) for row in data for cell in row]
+    if isinstance(data, list) and len(data) == protocol.KBD_MATRIX_CELLS:
+        return [_parse_color_value(cell) for cell in data]
+    raise argparse.ArgumentTypeError(
+        f"matrix must be 126 cells, 6x21 rows, or {{key: color}} JSON")
 
 
 def _resolve_direction(label: str, value: str) -> int:
@@ -66,7 +109,8 @@ def cmd_doctor(_args) -> int:
                     if label == "keyboard":
                         st = protocol.parse_keyboard_state(dev.query(protocol.QUERY_EFFECT))
                         onoff = "off" if st["power"] == 0x01 or st["brightness"] == 0 else "on"
-                        extra += (f"  [{onoff}, mode 0x{st['mode']:02x}, "
+                        mode_name, _ = effects.decode_keyboard_state(st)
+                        extra += (f"  [{onoff}, {mode_name} 0x{st['mode']:02x}, "
                                   f"brightness {st['brightness']}]")
             except OSError:
                 pass
@@ -88,6 +132,7 @@ def cmd_list(_args) -> int:
                          ("lightbar", effects.LIGHTBAR_MODES)):
         tag = "" if label in present else "  (not detected)"
         print(f"{label}{tag}: {', '.join(modes)}")
+    print(f"matrix presets: {', '.join(keymap.PRESETS)}")
     return 0
 
 
@@ -112,7 +157,21 @@ def cmd_set(args) -> int:
     params = dict(color=args.color, colors=args.palette or None,
                   brightness=args.brightness, speed=args.speed, direction=direction,
                   reactive=args.reactive)
-    reports = effects.build(args.device, args.mode, **params)
+    matrix = getattr(args, "matrix", None)
+    preset = getattr(args, "preset", None)
+    calibrate = bool(getattr(args, "calibrate", False))
+    build_kwargs = dict(params)
+    if args.device == "keyboard" and args.mode == "matrix":
+        if matrix is not None:
+            params["matrix"] = [list(c) for c in matrix]
+            build_kwargs["matrix"] = matrix
+        elif preset:
+            params["preset"] = preset
+            build_kwargs["preset"] = preset
+        if calibrate:
+            params["calibrate"] = True
+            build_kwargs["calibrate"] = True
+    reports = effects.build(args.device, args.mode, **build_kwargs)
     with ZoneTransaction(args.device), _open(args.device) as dev:
         dev.send(reports)
         saved = state.save(args.device, dict(mode=args.mode, **params))
@@ -140,6 +199,7 @@ def cmd_off(args) -> int:
 
 def _build_from_params(label: str, params: dict):
     colors = params.get("colors")
+    matrix = params.get("matrix")
     return effects.build(
         label, params.get("mode", "off"),
         color=tuple(params.get("color") or (0, 255, 255)),
@@ -148,6 +208,9 @@ def _build_from_params(label: str, params: dict):
         speed=params.get("speed", 5),
         direction=params.get("direction", 1),
         reactive=params.get("reactive", False),
+        matrix=[tuple(c) for c in matrix] if matrix else None,
+        preset=params.get("preset"),
+        calibrate=bool(params.get("calibrate", False)),
     )
 
 
@@ -221,6 +284,118 @@ def cmd_pin(args) -> int:
     return 0
 
 
+def cmd_profile(args) -> int:
+    if not _user_lighting_only():
+        return 1
+    from . import profiles
+    path = profiles.profiles_path()
+    try:
+        cfg = profiles.load_config(path)
+        action = args.profile_cmd
+        if action == "list":
+            print(f"config: {path}")
+            print(f"auto_switch: {'on' if cfg['auto_switch_enabled'] else 'off'} "
+                  f"(restore_previous={cfg['restore_previous']}, cooldown={cfg['cooldown_seconds']}s)")
+            if cfg["profiles"]:
+                print("profiles:")
+                for name, body in cfg["profiles"].items():
+                    perf = body.get("performance", {}).get("mode", "-")
+                    turbo = body.get("performance", {}).get("turbo")
+                    if turbo:
+                        perf = f"{perf}/{turbo}"
+                    zones = ",".join(sorted((body.get("lighting") or {}).keys())) or "-"
+                    label = f" — {body['label']}" if body.get("label") else ""
+                    print(f"  {name}: perf={perf} lights={zones}{label}")
+            else:
+                print("profiles: (none — run `iteglow profile init-templates` to add starters)")
+            if cfg["rules"]:
+                print("rules:")
+                for rule in cfg["rules"]:
+                    st = "on" if rule["enabled"] else "off"
+                    print(f"  [{st}] {rule['name']}: match={','.join(rule['match'])} -> {rule['profile']}")
+            return 0
+        if action == "init-templates":
+            added = []
+            for name, body in profiles.builtin_templates().items():
+                if name not in cfg["profiles"]:
+                    cfg["profiles"][name] = body
+                    added.append(name)
+            profiles.save_config(path, cfg)
+            print("added templates: " + (", ".join(added) if added else "none (already present)"))
+            return 0
+        if action == "save":
+            prof = profiles.capture_current_profile(
+                args.label,
+                include_lighting=not args.no_lighting,
+                include_performance=not args.no_performance,
+            )
+            cfg["profiles"][args.name] = prof
+            profiles.save_config(path, cfg)
+            print(f"saved profile {args.name!r} -> {path}")
+            return 0
+        if action == "apply":
+            if args.name not in cfg["profiles"]:
+                raise ValueError(f"unknown profile {args.name!r}")
+            res = profiles.apply_profile(
+                cfg["profiles"][args.name],
+                save_manual=True,
+                apply_lighting=not args.performance_only,
+                apply_performance=not args.lighting_only,
+            )
+            print(json.dumps({"applied": args.name, **res}, ensure_ascii=False))
+            return 0
+        if action == "delete":
+            if args.name not in cfg["profiles"]:
+                raise ValueError(f"unknown profile {args.name!r}")
+            refs = [r["name"] for r in cfg["rules"] if r["profile"] == args.name]
+            if refs and not args.force:
+                raise ValueError(f"profile {args.name!r} is referenced by rules {refs}; pass --force to delete both")
+            del cfg["profiles"][args.name]
+            if refs:
+                cfg["rules"] = [r for r in cfg["rules"] if r["profile"] != args.name]
+            profiles.save_config(path, cfg)
+            print(f"deleted profile {args.name!r}")
+            return 0
+        if action == "rule-add":
+            cfg["rules"] = [r for r in cfg["rules"] if r["name"] != args.name]
+            cfg["rules"].append({
+                "name": args.name,
+                "enabled": not args.disabled,
+                "match": list(args.match),
+                "profile": args.profile,
+            })
+            profiles.save_config(path, cfg)
+            print(f"saved rule {args.name!r} -> {args.profile!r}")
+            return 0
+        if action == "rule-del":
+            before = len(cfg["rules"])
+            cfg["rules"] = [r for r in cfg["rules"] if r["name"] != args.name]
+            if len(cfg["rules"]) == before:
+                raise ValueError(f"unknown rule {args.name!r}")
+            profiles.save_config(path, cfg)
+            print(f"deleted rule {args.name!r}")
+            return 0
+        if action == "auto":
+            if args.state in ("on", "off"):
+                cfg["auto_switch_enabled"] = (args.state == "on")
+                if args.cooldown is not None:
+                    cfg["cooldown_seconds"] = args.cooldown
+                if args.restore is not None:
+                    cfg["restore_previous"] = args.restore
+                profiles.save_config(path, cfg)
+            print(json.dumps({
+                "auto_switch_enabled": cfg["auto_switch_enabled"],
+                "restore_previous": cfg["restore_previous"],
+                "cooldown_seconds": cfg["cooldown_seconds"],
+                "rules": len(cfg["rules"]),
+            }, ensure_ascii=False))
+            return 0
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    return 1
+
+
 # --------------------------------------------------------------------- parser
 
 def build_parser() -> argparse.ArgumentParser:
@@ -244,6 +419,12 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--direction", default=None,
                    help="lightbar: forward/reverse; keyboard: ltr/rtl/btt/ttb "
                         "(default: forward / ltr)")
+    s.add_argument("--preset", choices=sorted(keymap.PRESETS), default=None,
+                   help="per-key preset when mode=matrix")
+    s.add_argument("--matrix", type=_parse_matrix, default=None,
+                   help="per-key JSON file/@file or inline JSON (126 RGB cells, 6x21, or {key: color})")
+    s.add_argument("--calibrate", action="store_true",
+                   help="apply OEM white/primary color calibration for keyboard matrix mode")
     s.set_defaults(func=cmd_set)
 
     o = sub.add_parser("off", help="turn a device (or all) off")
@@ -258,6 +439,37 @@ def build_parser() -> argparse.ArgumentParser:
     pin = sub.add_parser(
         "pin", help="export your saved state system-wide; does not enable automatic restore (sudo)")
     pin.set_defaults(func=cmd_pin)
+
+    pr = sub.add_parser("profile", help="manage performance+lighting profiles and app rules")
+    pr_sub = pr.add_subparsers(dest="profile_cmd", required=True)
+    pr_sub.add_parser("list", help="list saved profiles and auto-switch rules")
+    pr_sub.add_parser("init-templates", help="populate starter profile templates")
+    ps = pr_sub.add_parser("save", help="capture current state into a named profile")
+    ps.add_argument("name")
+    ps.add_argument("--label", default=None)
+    ps.add_argument("--no-performance", action="store_true")
+    ps.add_argument("--no-lighting", action="store_true")
+    pa = pr_sub.add_parser("apply", help="apply a saved profile")
+    pa.add_argument("name")
+    pa_g = pa.add_mutually_exclusive_group()
+    pa_g.add_argument("--lighting-only", action="store_true")
+    pa_g.add_argument("--performance-only", action="store_true")
+    pd = pr_sub.add_parser("delete", help="delete a saved profile")
+    pd.add_argument("name")
+    pd.add_argument("--force", action="store_true")
+    pra = pr_sub.add_parser("rule-add", help="add or update an app auto-switch rule")
+    pra.add_argument("name")
+    pra.add_argument("profile")
+    pra.add_argument("--match", nargs="+", required=True)
+    pra.add_argument("--disabled", action="store_true")
+    prd = pr_sub.add_parser("rule-del", help="delete an app auto-switch rule")
+    prd.add_argument("name")
+    pau = pr_sub.add_parser("auto", help="configure or inspect app auto-switching")
+    pau.add_argument("state", choices=["on", "off", "status"])
+    pau.add_argument("--cooldown", type=int, default=None)
+    pau.add_argument("--restore", dest="restore", action="store_true", default=None)
+    pau.add_argument("--no-restore", dest="restore", action="store_false")
+    pr.set_defaults(func=cmd_profile)
 
     g = sub.add_parser("gui", help="launch the graphical control panel")
     g.set_defaults(func=lambda a: _launch_gui())

@@ -11,7 +11,7 @@ import json
 import math
 from typing import Optional, Tuple
 
-from . import effects, protocol
+from . import effects, keymap, protocol
 
 DEVICES = ("keyboard", "lightbar", "logo")
 LOGO_COLORS = ((255, 255, 255), (255, 0, 0), (0, 255, 0), (0, 0, 255),
@@ -79,7 +79,10 @@ def _baseline(device, saved):
         if saved["mode"] == "breathing" and tuple(saved["color"]) not in LOGO_COLORS:
             raise ValueError("不支持的 Logo 呼吸颜色")
     else:
-        if set(saved) - {"mode", "brightness", "color", "colors", "speed", "direction", "reactive"}:
+        allowed = {"mode", "brightness", "color", "colors", "speed", "direction", "reactive"}
+        if device == "keyboard":
+            allowed |= {"matrix", "preset", "calibrate"}
+        if set(saved) - allowed:
             raise ValueError("灯光记录包含未知字段")
         if not isinstance(saved.get("mode"), str) or saved["mode"] not in effects.MODES_BY_LABEL[device]:
             raise ValueError("未知灯效")
@@ -98,6 +101,16 @@ def _baseline(device, saved):
             _integer(saved["direction"], 1, 4 if device == "keyboard" else 2, "方向")
         if "reactive" in saved and type(saved["reactive"]) is not bool:
             raise ValueError("按键响应需要布尔值")
+        if saved.get("matrix") is not None:
+            matrix = saved["matrix"]
+            if not isinstance(matrix, (tuple, list)) or len(matrix) != protocol.KBD_MATRIX_CELLS:
+                raise ValueError(f"按键矩阵需要 {protocol.KBD_MATRIX_CELLS} 个 RGB 颜色")
+            saved["matrix"] = [_color(color) for color in matrix]
+        if saved.get("preset") is not None:
+            if not isinstance(saved["preset"], str) or saved["preset"] not in keymap.PRESETS:
+                raise ValueError("未知按键矩阵预设")
+        if "calibrate" in saved and type(saved["calibrate"]) is not bool:
+            raise ValueError("色彩校准需要布尔值")
     return saved
 
 
