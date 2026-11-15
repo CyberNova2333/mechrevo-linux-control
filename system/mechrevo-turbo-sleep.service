@@ -6,8 +6,10 @@ StopWhenUnneeded=yes
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+ExecStartPre=-/usr/bin/systemctl stop mechrevo-profile-guard.service
 ExecStart=/usr/local/libexec/mechrevo-turbo-lifecycle pre
 ExecStop=/usr/local/libexec/mechrevo-turbo-lifecycle post
+ExecStopPost=-/usr/bin/systemctl --no-block start mechrevo-profile-guard.service
 TimeoutStartSec=45
 TimeoutStopSec=20
 UMask=0077

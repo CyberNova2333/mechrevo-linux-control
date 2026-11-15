@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import selectors
+import signal
 import stat
 import sys
 import time
@@ -24,6 +25,7 @@ LOGO_COLORS = [(255,255,255),(255,0,0),(0,255,0),(0,0,255),(255,255,0),(136,0,25
 TURBO_HELPER = Path('/usr/local/libexec/mechrevo-turbo-helper')
 TURBO_JOURNAL = Path('/run/mechrevo-turbo.json')
 TURBO_DEVICE = Path('/dev/mechrevo-turbo')
+SLEEP_MARKER = Path('/run/mechrevo-turbo-sleep.json')
 WMI_STATE = Path('/run/mechrevo-wmi-state.json')
 WMI_SCANCODE_MODE_SWITCH = 0xB0
 WMI_SCANCODE_SAFETY_TEMP = 0xBB
@@ -865,10 +867,16 @@ def main(args):
 def guard():
     last_error = 0
     selector = selectors.DefaultSelector()
+    wake_r, wake_w = os.pipe()
+    os.set_blocking(wake_r, False)
+    os.set_blocking(wake_w, False)
+    selector.register(wake_r, selectors.EVENT_READ)
     wmi_fd = None
     last_wmi_seq = 0
     last_release_seq = None
     pending_safety = False
+    stop_requested = False
+    prev_handlers = {}
 
     def close_watch():
         nonlocal wmi_fd
@@ -885,9 +893,27 @@ def guard():
             print(str(exc), file=sys.stderr, flush=True)
             last_error = time.monotonic()
 
+    def request_stop(_signum, _frame):
+        nonlocal stop_requested
+        stop_requested = True
+        try:
+            os.write(wake_w, b'\x00')
+        except OSError:
+            pass
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            prev_handlers[sig] = signal.getsignal(sig)
+            signal.signal(sig, request_stop)
+        except ValueError:
+            pass
+
     try:
-        while True:
-            if wmi_fd is None and TURBO_DEVICE.exists():
+        while not stop_requested:
+            sleeping = SLEEP_MARKER.exists()
+            if sleeping:
+                close_watch()
+            elif wmi_fd is None and TURBO_DEVICE.exists():
                 try:
                     wmi_fd, initial = open_wmi_watch()
                     selector.register(wmi_fd, selectors.EVENT_READ)
@@ -902,7 +928,7 @@ def guard():
                     close_watch()
                     log_error(exc)
 
-            if pending_safety or STATE.exists():
+            if not sleeping and (pending_safety or STATE.exists()):
                 try:
                     check_machine()
                     run_with_lock(lambda ec: reconcile_ec(ec, force_safety=pending_safety),
@@ -914,12 +940,23 @@ def guard():
                     pending_safety = False
                     log_error(exc)
 
-            if wmi_fd is None:
-                time.sleep(1)
-                continue
+            if stop_requested:
+                break
 
             ready = selector.select(timeout=1.0)
-            if not ready:
+            wmi_ready = False
+            for key, _ in ready:
+                if key.fileobj == wake_r:
+                    try:
+                        os.read(wake_r, 64)
+                    except OSError:
+                        pass
+                elif wmi_fd is not None and key.fileobj == wmi_fd:
+                    wmi_ready = True
+
+            if stop_requested:
+                break
+            if not wmi_ready or wmi_fd is None:
                 continue
             try:
                 bridge = read_turbo_bridge(wmi_fd)
@@ -955,8 +992,16 @@ def guard():
                 except Exception as exc:
                     log_error(exc)
     finally:
+        for sig, handler in prev_handlers.items():
+            try: signal.signal(sig, handler)
+            except ValueError: pass
         close_watch()
+        try: selector.unregister(wake_r)
+        except Exception: pass
         selector.close()
+        for fd in (wake_r, wake_w):
+            try: os.close(fd)
+            except OSError: pass
 
 
 if __name__ == '__main__':
