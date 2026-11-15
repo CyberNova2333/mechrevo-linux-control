@@ -6,9 +6,9 @@ pseudo-mode handled specially.
 """
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
-from . import protocol
+from . import keymap, protocol
 from .protocol import RGB, Report
 
 RAINBOW: List[RGB] = [
@@ -29,8 +29,14 @@ LIGHTBAR_MODES: Dict[str, dict] = {
 KEYBOARD_MODES: Dict[str, dict] = {
     "off":       dict(code=0x00, off=True),
     "solid":     dict(code=0x33, single=True),
+    "matrix":    dict(code=0x33, matrix=True),
     "breathing": dict(code=0x02, palette=True, speed=True),
     "wave":      dict(code=0x03, palette=True, speed=True, direction=True),
+    "sine":      dict(code=0x03, palette=True, speed=True, direction=True,
+                      direction_map={1: 16, 2: 17, 3: 16, 4: 17}),
+    "interlace": dict(code=0x03, palette=True, speed=True, fixed_direction=19),
+    "diagonal":  dict(code=0x03, palette=True, speed=True, direction=True,
+                      direction_map={1: 33, 2: 32, 3: 33, 4: 32}),
     "reactive":  dict(code=0x04, palette=True, speed=True, trigger=True),
     "rainbow":   dict(code=0x05, speed=True),
     "ripple":    dict(code=0x06, palette=True, speed=True, trigger=True),
@@ -48,13 +54,37 @@ MODES_BY_LABEL = {"lightbar": LIGHTBAR_MODES, "keyboard": KEYBOARD_MODES}
 DIRECTIONS_BY_LABEL = {"lightbar": LIGHTBAR_DIRECTIONS, "keyboard": KEYBOARD_DIRECTIONS}
 
 
+def decode_keyboard_state(actual: dict, saved_mode: Optional[str] = None) -> Tuple[str, int]:
+    """Map a QUERY_EFFECT 0x88 reply to ``(mode_name, direction_1_to_4)``."""
+    if actual.get("power") == 1 or actual.get("brightness", 0) == 0:
+        return ("off", 1)
+    code = actual.get("mode", 0)
+    hw_dir = actual.get("direction", 0)
+    if code == 0x03:
+        if hw_dir in (16, 17):
+            return ("sine", 1 if hw_dir == 16 else 2)
+        if hw_dir == 19:
+            return ("interlace", 1)
+        if hw_dir in (32, 33):
+            return ("diagonal", 1 if hw_dir == 33 else 2)
+        return ("wave", hw_dir if 1 <= hw_dir <= 4 else 1)
+    if code == 0x33:
+        return ("matrix" if saved_mode == "matrix" else "solid", 1)
+    fallback = saved_mode if saved_mode in KEYBOARD_MODES else "rainbow"
+    name = next((m for m, spec in KEYBOARD_MODES.items() if spec["code"] == code), fallback)
+    return (name, hw_dir if 1 <= hw_dir <= 4 else 1)
+
+
 def build(label: str, mode: str, *,
           color: RGB = (0, 255, 255),
           colors: Optional[Sequence[RGB]] = None,
           brightness: Optional[int] = None,
           speed: int = 5,
           direction: int = 1,
-          reactive: bool = False) -> List[Report]:
+          reactive: bool = False,
+          matrix: Optional[Sequence[RGB]] = None,
+          preset: Optional[str] = None,
+          calibrate: bool = False) -> List[Report]:
     """Translate a (device, mode, params) selection into protocol reports."""
     modes = MODES_BY_LABEL[label]
     if mode not in modes:
@@ -74,10 +104,24 @@ def build(label: str, mode: str, *,
     bright = protocol.KBD_BRIGHTNESS_MAX if brightness is None else brightness
     if spec.get("off"):
         return protocol.keyboard_off()
+    if spec.get("matrix"):
+        if matrix is not None:
+            cells = [tuple(c) for c in matrix]  # type: ignore[misc]
+        else:
+            cells = keymap.preset_cells(preset or "gaming", color)
+        return protocol.keyboard_matrix(cells, bright, calibrate=calibrate)
     if spec.get("single"):
         return protocol.keyboard_solid(*color, bright)
-    # Byte 6 is overloaded: wave direction vs. key trigger (0 auto, 1 reactive).
-    # Never reuse a saved wave direction for a key-trigger-capable effect.
-    behavior = int(bool(reactive)) if spec.get("trigger") else direction if spec.get("direction") else 0
+    # Byte 6 is overloaded: wave direction vs. key trigger (0 auto, 1 reactive),
+    # plus fw 34.9 sub-mode codes for sine (16/17), interlace (19), diagonal (33/32).
+    if spec.get("trigger"):
+        behavior = int(bool(reactive))
+    elif "fixed_direction" in spec:
+        behavior = int(spec["fixed_direction"])
+    elif spec.get("direction"):
+        dmap = spec.get("direction_map")
+        behavior = dmap.get(direction, next(iter(dmap.values()))) if dmap else direction
+    else:
+        behavior = 0
     return protocol.keyboard_effect(spec["code"], pal, bright, speed, behavior,
                                     use_palette=bool(spec.get("palette")))

@@ -5,6 +5,7 @@ import errno
 import json
 import os
 from pathlib import Path
+import selectors
 import stat
 import sys
 import time
@@ -16,13 +17,17 @@ MODE = 0x751
 MODES = {"office": 0xA0, "balanced": 0x20, "turbo": 0x30, "custom": 0x00}
 FLAG_MASKS = {0x726: 0x80, 0x727: 0x40}
 REGISTERS = (MODE, 0x490, 0x706, 0x726, 0x727, 0x728, 0x741, 0x743, 0x744, 0x745, 0x746,
-             0x783, 0x784, 0x785, 0x786, 0x787, 0x7AB, 0x7C5, 0x7C6, 0x7CC, 0x7D2, 0x7E8)
+             0x766, 0x783, 0x784, 0x785, 0x786, 0x787, 0x7A5, 0x7AB, 0x7AC, 0x7C5, 0x7C6, 0x7CC, 0x7D2, 0x7E8)
 GPU_UEFI = Path('/sys/firmware/efi/efivars/OemMagicVariable-9f33f85c-13ca-4fd1-9c4a-96217722c593')
 LOGO_MASKS = {0x767: 0x80, 0x769: 0xff, 0x76a: 0xff, 0x76b: 0xff, 0x7ab: 0xe0, 0x7c5: 7}
 LOGO_COLORS = [(255,255,255),(255,0,0),(0,255,0),(0,0,255),(255,255,0),(136,0,255),(0,255,255)]
 TURBO_HELPER = Path('/usr/local/libexec/mechrevo-turbo-helper')
 TURBO_JOURNAL = Path('/run/mechrevo-turbo.json')
 TURBO_DEVICE = Path('/dev/mechrevo-turbo')
+WMI_STATE = Path('/run/mechrevo-wmi-state.json')
+WMI_SCANCODE_MODE_SWITCH = 0xB0
+WMI_SCANCODE_SAFETY_TEMP = 0xBB
+MODE_KEY_CYCLE = {'turbo': 'balanced', 'balanced': 'office', 'office': 'turbo'}
 
 
 def turbo_fallback(error=None):
@@ -72,6 +77,10 @@ def status_with_turbo(ec, turbo):
     result = status(ec)
     result['turbo'] = turbo
     result['turbo_variants_supported'] = turbo.get('available', False)
+    result['wmi_bound'] = bool(turbo.get('wmi_bound', False))
+    if 'wmi_seq' in turbo:
+        result['wmi_seq'] = turbo['wmi_seq']
+        result['wmi_last_code'] = turbo.get('wmi_last_code')
     if turbo.get('active') and not turbo.get('available'):
         result['switchable'] = False
         result['reason'] = '狂暴调度后台未就绪，等待内核归还控制后再切档'
@@ -233,11 +242,19 @@ def mode_name(values):
     return 'office' if raw == 0xA0 else 'unknown'
 
 
+def fan_safety_protect(source):
+    val = source[0x7A5] if isinstance(source, dict) else source.read(0x7A5)
+    return bool(val & 0x08)
+
+
 def status(ec):
     values = snapshot(ec)
     state = read_state()
     managed = bool(state and state['phase'] == 'active' and matches(ec, state))
     standard = standard_state(values) and not state
+    safety = fan_safety_protect(values)
+    sb_sup = bool(values[0x7AC] & 0x01)
+    sb_en = bool(values[0x7AC] & 0x02)
     try:
         check_gpu_capability(ec)
         gpu_supported, gpu_reason = True, ''
@@ -256,6 +273,10 @@ def status(ec):
         'gpu_tuning_reason': gpu_reason,
         'turbo_variants_supported': False,
         'turbo_variant': 'quiet' if values[0x728] & 1 else 'extreme',
+        'fan_safety_protect': safety,
+        'smart_balance_supported': sb_sup,
+        'smart_balance_enabled': sb_en,
+        'wmi_bound': False,
     }
 
 
@@ -264,6 +285,8 @@ def set_mode(ec, name, pause=time.sleep):
     before = snapshot(ec)
     if not standard_state(before):
         raise RuntimeError('当前 EC 状态不属于已验证的基础档位，拒绝覆盖')
+    if name == 'custom' and fan_safety_protect(before):
+        raise RuntimeError('EC 处于高温风扇安全保护状态，暂停进入自定义档')
     if mode_name(before) == name:
         return status(ec)
     if snapshot(ec) != before:
@@ -476,28 +499,37 @@ def accepted_bits(state, address):
     return result
 
 
-def check_owned(ec, state, *, allow_mode_handoff):
+def check_owned(ec, state, *, allow_mode_handoff, skip_fan_ram=False):
     """Full fresh check before every write; historical baselines are not ownership."""
-    if any(g!='mode' for g in state['relinquished']):
+    allowed_relinq = {'mode', 'fan', 'appe'} if skip_fan_ram else {'mode'}
+    if any(g not in allowed_relinq for g in state['relinquished']):
         raise RuntimeError('检测到外来调校接管，保留恢复记录并暂停全部写入')
     lost=set()
     # Even CPU-only tuning uses APPE. Never enable/disable an external GPU
     # request through that shared bit; this is read-only admission, not ownership.
     if 'gpu_ctgp'not in state['config'] and not unmanaged_gpu_clean(ec):lost.add('gpu')
     for a,mask in state_masks(state).items():
+        if skip_fan_ram and 0xF00 <= a <= 0xF5F:
+            continue
         group=owned_group(a)
         if group in state['relinquished']: continue
-        if ec.read(a)&mask not in accepted_bits(state,a):lost.add(group)
+        allowed = accepted_bits(state, a)
+        if skip_fan_ram and a in (0x741, 0x7C5, 0x7C6):
+            allowed = allowed | {state['before'][a] & mask}
+        if ec.read(a)&mask not in allowed:lost.add(group)
     # Recheck shared policy/mode context after the longer fan-RAM scan.
     masks=state_masks(state)
     for a in (MODE,0x726,0x727,0x741,*GPU_OWN_MASKS):
         if a in masks and owned_group(a)not in state['relinquished']:
-            if ec.read(a)&masks[a]not in accepted_bits(state,a):lost.add(owned_group(a))
+            allowed = accepted_bits(state, a)
+            if skip_fan_ram and a in (0x741, 0x7C5, 0x7C6):
+                allowed = allowed | {state['before'][a] & masks[a]}
+            if ec.read(a)&masks[a]not in allowed:lost.add(owned_group(a))
     if 'gpu_ctgp'not in state['config'] and not unmanaged_gpu_clean(ec):lost.add('gpu')
     if lost:
         state['relinquished']=sorted(set(state['relinquished'])|lost)
         save_state(state)
-    if lost-{'mode'} or ('mode'in state['relinquished'] and not allow_mode_handoff):
+    if lost-allowed_relinq or ('mode'in state['relinquished'] and not allow_mode_handoff):
         raise RuntimeError('检测到外来控制变化，保留其GPU/APPE/风扇或模式状态')
 
 
@@ -520,25 +552,33 @@ def migrate_state(ec, state):
     return converted
 
 
-def resolve_pending(ec, state):
+def resolve_pending(ec, state, *, skip_fan_ram=False):
     if state['pending'] is None:return
-    check_owned(ec,state,allow_mode_handoff=True)
-    a=state['pending']['address'];mask=state_masks(state)[a]
+    a=state['pending']['address']
+    if skip_fan_ram and 0xF00 <= a <= 0xF5F:
+        state['pending']=None;save_state(state);return
+    check_owned(ec,state,allow_mode_handoff=True,skip_fan_ram=skip_fan_ram)
+    mask=state_masks(state)[a]
     value=ec.read(a)&mask
-    if owned_group(a) not in state['relinquished'] and value not in accepted_bits(state,a):
+    allowed = accepted_bits(state,a)
+    if skip_fan_ram and a in (0x741, 0x7C5, 0x7C6):
+        allowed = allowed | {state['before'][a] & mask}
+    if owned_group(a) not in state['relinquished'] and value not in allowed:
         state['relinquished']=sorted(set(state['relinquished'])|{owned_group(a)})
         save_state(state)
         raise RuntimeError('pending恢复时发现外来写入')
     state['confirmed'][a]=value;state['pending']=None;save_state(state)
 
 
-def tuning_put(ec, state, address, value, *, restoring=False):
+def tuning_put(ec, state, address, value, *, restoring=False, skip_fan_ram=False):
     if state['pending'] is not None:raise RuntimeError('存在未确认写入，停止后续调校')
     if restoring and owned_group(address) in state['relinquished']:return
-    check_owned(ec,state,allow_mode_handoff=restoring)
+    check_owned(ec,state,allow_mode_handoff=restoring,skip_fan_ram=skip_fan_ram)
     if restoring and owned_group(address) in state['relinquished']:return
     mask=state_masks(state)[address];bits=value&mask
     current=ec.read(address)
+    if restoring and skip_fan_ram and address in (0x741, 0x7C5, 0x7C6) and current&mask == bits:
+        state['confirmed'][address]=bits;return
     if current&mask != state['confirmed'][address]:
         state['relinquished']=sorted(set(state['relinquished'])|{owned_group(address)})
         save_state(state)
@@ -548,10 +588,12 @@ def tuning_put(ec, state, address, value, *, restoring=False):
     # fsync may take time. Recheck ownership afterward and merge the newest
     # unowned bits; pending is crash recovery evidence, not permission to accept
     # an external write of our intended target before we have written anything.
-    check_owned(ec,state,allow_mode_handoff=restoring)
+    check_owned(ec,state,allow_mode_handoff=restoring,skip_fan_ram=skip_fan_ram)
     if restoring and owned_group(address)in state['relinquished']:
         state['pending']=None;save_state(state);return
     current=ec.read(address)
+    if restoring and skip_fan_ram and address in (0x741, 0x7C5, 0x7C6) and current&mask == bits:
+        state['confirmed'][address]=bits;state['pending']=None;save_state(state);return
     if current&mask!=state['confirmed'][address]:
         state['relinquished']=sorted(set(state['relinquished'])|{owned_group(address)})
         save_state(state)
@@ -561,30 +603,34 @@ def tuning_put(ec, state, address, value, *, restoring=False):
     state['confirmed'][address]=bits;state['pending']=None;save_state(state)
 
 
-def restore_tuning(ec):
+def restore_tuning(ec, *, skip_fan_ram=False):
     state=read_state()
     if not state:return
+    skip_fan_ram = skip_fan_ram or fan_safety_protect(ec)
     state=migrate_state(ec,state)
-    resolve_pending(ec,state)
+    resolve_pending(ec,state,skip_fan_ram=skip_fan_ram)
     state['phase']='restoring';save_state(state)
-    check_owned(ec,state,allow_mode_handoff=True)
+    check_owned(ec,state,allow_mode_handoff=True,skip_fan_ram=skip_fan_ram)
     before=state['before']
-    def put(a,value):tuning_put(ec,state,a,value,restoring=True)
+    def put(a,value):tuning_put(ec,state,a,value,restoring=True,skip_fan_ram=skip_fan_ram)
     # Remove custom GPU execution before targets, APPE or custom-mode context.
     if 'gpu_ctgp'in state['config']:
         for a in (0x743,0x745,0x746,0x744):put(a,before[a])
     for a in (0x783,0x784):put(a,before[a])
     put(0x7C6,0)
-    for a in range(0xF00,0xF60):put(a,before[a])
+    if not skip_fan_ram:
+        for a in range(0xF00,0xF60):put(a,before[a])
     put(0x7C5,before[0x7C5]);put(0x7C6,before[0x7C6])
     put(0x741,before[0x741])
     for a in (0x726,0x727,MODE):put(a,before[a])
-    check_owned(ec,state,allow_mode_handoff=True)
+    check_owned(ec,state,allow_mode_handoff=True,skip_fan_ram=skip_fan_ram)
     STATE.unlink()
 
 
 def apply_tuning(ec, config, pause=time.sleep):
     validate_config(config)  # Reject before undoing an existing profile.
+    if fan_safety_protect(ec):
+        raise RuntimeError('EC 处于高温风扇安全保护状态，暂停自定义调校')
     if 'gpu_ctgp'in config:
         check_gpu_capability(ec)
         check_gpu_runtime()
@@ -592,6 +638,8 @@ def apply_tuning(ec, config, pause=time.sleep):
     restore_tuning(ec)
     initial = snapshot(ec)
     if not standard_state(initial): raise RuntimeError('当前控制状态不允许接管自定义设置')
+    if fan_safety_protect(initial):
+        raise RuntimeError('EC 处于高温风扇安全保护状态，暂停自定义调校')
     masks=state_masks({'config':config});addresses=list(masks)
     if not unmanaged_gpu_clean(ec):
         raise RuntimeError('已有外来自定义GPU请求，拒绝接管')
@@ -614,6 +662,7 @@ def apply_tuning(ec, config, pause=time.sleep):
     save_state(state)  # Persist recovery information before the first write.
     try:
         def put(a,value):
+            if fan_safety_protect(ec):raise RuntimeError('EC 触发高温风扇安全保护，撤销自定义调校')
             if 'gpu_ctgp'in config and not gpu_round_adapter(ec):raise RuntimeError('圆口电源失去，撤销GPU调校')
             tuning_put(ec,state,a,value)
         for a in (0x727,MODE,0x726):put(a,target[a])
@@ -649,6 +698,120 @@ def acquire_profile_lock(fd, *, background=False):
             time.sleep(min(0.02,remaining))
 
 
+def sanitize_wmi_state(bridge):
+    events = [
+        {'seq': e['seq'], 'code': e['code'], 'ms': e['ms']}
+        for e in bridge.get('wmi_events', [])
+        if isinstance(e, dict) and all(isinstance(e.get(k), int) for k in ('seq', 'code', 'ms'))
+    ]
+    return {
+        'abi': 1,
+        'wmi_bound': bool(bridge.get('wmi_bound', False)),
+        'wmi_seq': int(bridge.get('wmi_seq', 0) or 0),
+        'wmi_last_code': bridge.get('wmi_last_code'),
+        'wmi_events': events[-16:],
+        'fan_safety_protect': bool(bridge.get('fan_safety_protect', False)),
+        'smart_balance_supported': bool(bridge.get('smart_balance_supported', False)),
+        'smart_balance_enabled': bool(bridge.get('smart_balance_enabled', False)),
+        'updated_monotonic_ms': int(time.monotonic() * 1000),
+    }
+
+
+def write_wmi_state(payload):
+    WMI_STATE.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(prefix='.mechrevo-wmi-', dir=WMI_STATE.parent)
+    temp = Path(temp_name)
+    try:
+        raw = json.dumps(payload, ensure_ascii=False).encode()
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(raw); stream.flush(); os.fsync(stream.fileno())
+        os.chmod(temp, 0o644)
+        os.replace(temp, WMI_STATE)
+    finally:
+        if temp.exists(): temp.unlink()
+
+
+def read_turbo_bridge(fd):
+    raw = os.pread(fd, 16384, 0)
+    if not raw:
+        raise OSError('空设备状态')
+    data = json.loads(raw)
+    if data.get('abi') != 1 or not isinstance(data.get('active'), bool):
+        raise RuntimeError('内核 WMI 桥接状态格式异常')
+    return data
+
+
+def open_wmi_watch():
+    fd = os.open(TURBO_DEVICE, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISCHR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o077:
+            raise RuntimeError('狂暴调度设备权限异常')
+        return fd, read_turbo_bridge(fd)
+    except Exception:
+        os.close(fd)
+        raise
+
+
+def reconcile_ec(ec, *, force_safety=False):
+    state = read_state()
+    if not state:
+        return
+    safety = fan_safety_protect(ec)
+    if (force_safety or safety or state['phase'] != 'active' or not matches(ec, state)
+            or ('gpu_ctgp' in state['config'] and not gpu_round_adapter(ec))):
+        restore_tuning(ec, skip_fan_ram=safety or force_safety)
+
+
+def run_with_lock(fn, *, writable=True, background=False):
+    fd = os.open('/run/mechrevo-profile.lock', os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise RuntimeError('性能控制锁文件权限异常')
+        acquire_profile_lock(fd, background=background)
+        ec = EC(writable=writable)
+        try:
+            return fn(ec)
+        finally:
+            ec.close()
+    finally:
+        os.close(fd)
+
+
+def handle_mode_key_wmi(bridge, last_release_seq):
+    wmi_turbo = bool(bridge.get('active')) or (
+        bridge.get('stop_reason') == 'mode_key_wmi' and bridge.get('sequence') != last_release_seq
+    )
+    if wmi_turbo:
+        released = turbo_request(['release'], optional=True)
+        if released.get('stop_reason') == 'mode_key_wmi' and released.get('sequence') is not None:
+            last_release_seq = released['sequence']
+        elif bridge.get('stop_reason') == 'mode_key_wmi':
+            last_release_seq = bridge.get('sequence')
+        if released.get('active') or released.get('recovery_needed'):
+            raise RuntimeError('狂暴调度尚未释放，暂不执行模式键切换')
+    elif bridge.get('stop_reason') == 'mode_key_wmi':
+        last_release_seq = bridge.get('sequence')
+
+    def step(ec):
+        has_state = read_state() is not None
+        appe_set = bool(ec.read(0x741) & 1)
+        if has_state:
+            restore_tuning(ec, skip_fan_ram=fan_safety_protect(ec))
+            snap = snapshot(ec)
+            if standard_state(snap) and mode_name(snap) != 'office':
+                set_mode(ec, 'office')
+        elif appe_set or wmi_turbo:
+            snap = snapshot(ec)
+            current = mode_name(snap)
+            if standard_state(snap) and current in MODE_KEY_CYCLE:
+                set_mode(ec, MODE_KEY_CYCLE[current])
+
+    run_with_lock(step, writable=True, background=False)
+    return last_release_seq
+
+
 def main(args):
     valid = args in (['status'],['reset'],['reconcile'],['logo-status'],['turbo-status']) or (len(args)==2 and
             ((args[0]=='set' and args[1] in MODES) or args[0] in ('apply','logo') or
@@ -675,48 +838,125 @@ def main(args):
             raise RuntimeError('狂暴调度尚未释放，拒绝切换或调校')
     turbo = (turbo_request(['status'], optional=True) if args[0]=='status' else
              released if args[0] in ('set','apply','reset') else None)
-    fd = os.open('/run/mechrevo-profile.lock', os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
-    try:
-        info = os.fstat(fd)
-        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
-            raise RuntimeError('性能控制锁文件权限异常')
-        acquire_profile_lock(fd,background=args[0]=='reconcile')
-        ec = EC(writable=args[0] not in ('status','logo-status'))
-        try:
-            if args[0]=='logo-status': return logo_status(ec)
-            if args[0]=='logo':
-                if logo_config is None:
-                    current=logo_status(ec)
-                    logo_config={k:current[k] for k in ('mode','brightness','color')}
-                    logo_config['brightness']=(current['brightness'] or 25) if args[1]=='on' else 0
-                    if args[1]=='on' and not any(logo_config['color']):logo_config['color']=[255,255,255]
-                return set_logo(ec,logo_config)
-            if args[0]=='apply':
-                apply_tuning(ec,config)
-                return status_with_turbo(ec,turbo)
-            if args[0] in ('set','reset'): restore_tuning(ec)
-            if args[0]=='set':
-                set_mode(ec,args[1])
-                return status_with_turbo(ec,turbo)
-            if args[0]=='reconcile':
-                state=read_state()
-                if state and (state['phase']!='active' or not matches(ec,state)
-                              or 'gpu_ctgp'in state['config'] and not gpu_round_adapter(ec)):
-                    restore_tuning(ec)
-            return status_with_turbo(ec, turbo) if turbo is not None else status(ec)
-        finally: ec.close()
-    finally: os.close(fd)
+    def execute(ec):
+        if args[0]=='logo-status': return logo_status(ec)
+        if args[0]=='logo':
+            target_logo = logo_config
+            if target_logo is None:
+                current=logo_status(ec)
+                target_logo={k:current[k] for k in ('mode','brightness','color')}
+                target_logo['brightness']=(current['brightness'] or 25) if args[1]=='on' else 0
+                if args[1]=='on' and not any(target_logo['color']):target_logo['color']=[255,255,255]
+            return set_logo(ec,target_logo)
+        if args[0]=='apply':
+            apply_tuning(ec,config)
+            return status_with_turbo(ec,turbo)
+        if args[0] in ('set','reset'): restore_tuning(ec)
+        if args[0]=='set':
+            set_mode(ec,args[1])
+            return status_with_turbo(ec,turbo)
+        if args[0]=='reconcile':
+            reconcile_ec(ec)
+        return status_with_turbo(ec, turbo) if turbo is not None else status(ec)
+
+    return run_with_lock(execute, writable=args[0] not in ('status','logo-status'), background=args[0]=='reconcile')
 
 
 def guard():
     last_error = 0
-    while True:
-        try: main(['reconcile'])
-        except BlockingIOError: pass  # Another helper transaction owns the lock.
-        except Exception as exc:
-            if time.monotonic()-last_error>30:
-                print(str(exc),file=sys.stderr,flush=True); last_error=time.monotonic()
-        time.sleep(1)
+    selector = selectors.DefaultSelector()
+    wmi_fd = None
+    last_wmi_seq = 0
+    last_release_seq = None
+    pending_safety = False
+
+    def close_watch():
+        nonlocal wmi_fd
+        if wmi_fd is not None:
+            try: selector.unregister(wmi_fd)
+            except Exception: pass
+            try: os.close(wmi_fd)
+            except OSError: pass
+            wmi_fd = None
+
+    def log_error(exc):
+        nonlocal last_error
+        if time.monotonic() - last_error > 30:
+            print(str(exc), file=sys.stderr, flush=True)
+            last_error = time.monotonic()
+
+    try:
+        while True:
+            if wmi_fd is None and TURBO_DEVICE.exists():
+                try:
+                    wmi_fd, initial = open_wmi_watch()
+                    selector.register(wmi_fd, selectors.EVENT_READ)
+                    last_wmi_seq = max(
+                        [e['seq'] for e in initial.get('wmi_events', [])
+                         if isinstance(e, dict) and isinstance(e.get('seq'), int)],
+                        default=int(initial.get('wmi_seq', 0) or 0),
+                    )
+                    last_release_seq = initial.get('sequence') if initial.get('stop_reason') == 'mode_key_wmi' else None
+                    write_wmi_state(sanitize_wmi_state(initial))
+                except Exception as exc:
+                    close_watch()
+                    log_error(exc)
+
+            if pending_safety or STATE.exists():
+                try:
+                    check_machine()
+                    run_with_lock(lambda ec: reconcile_ec(ec, force_safety=pending_safety),
+                                  writable=True, background=not pending_safety)
+                    pending_safety = False
+                except BlockingIOError:
+                    pass  # Another helper transaction owns the lock.
+                except Exception as exc:
+                    pending_safety = False
+                    log_error(exc)
+
+            if wmi_fd is None:
+                time.sleep(1)
+                continue
+
+            ready = selector.select(timeout=1.0)
+            if not ready:
+                continue
+            try:
+                bridge = read_turbo_bridge(wmi_fd)
+            except Exception as exc:
+                close_watch()
+                log_error(exc)
+                continue
+
+            events = [
+                e for e in bridge.get('wmi_events', [])
+                if isinstance(e, dict) and isinstance(e.get('seq'), int) and e['seq'] > last_wmi_seq
+            ]
+            if events:
+                last_wmi_seq = max(e['seq'] for e in events)
+            try:
+                write_wmi_state(sanitize_wmi_state(bridge))
+            except Exception as exc:
+                log_error(exc)
+
+            codes = [e.get('code') for e in events]
+            if WMI_SCANCODE_SAFETY_TEMP in codes:
+                pending_safety = True
+                try:
+                    check_machine()
+                    run_with_lock(lambda ec: reconcile_ec(ec, force_safety=True), writable=True, background=False)
+                    pending_safety = False
+                except Exception as exc:
+                    log_error(exc)
+            if WMI_SCANCODE_MODE_SWITCH in codes:
+                try:
+                    check_machine()
+                    last_release_seq = handle_mode_key_wmi(bridge, last_release_seq)
+                except Exception as exc:
+                    log_error(exc)
+    finally:
+        close_watch()
+        selector.close()
 
 
 if __name__ == '__main__':

@@ -1,0 +1,26 @@
+[
+  {
+    "file": "ITE_SPEC.cs",
+    "strings": 0,
+    "delegates": 1,
+    "raw_sha256": "08ad7ccaa64ee97fef8aa5b82fb3e8092b9670a2afd7568fcb7d3778b79eb1d8"
+  },
+  {
+    "file": "KeytoLightMapping.cs",
+    "strings": 6,
+    "delegates": 68,
+    "raw_sha256": "cfee057b453f76de3efd178c8cf2e683b63354807661564758eea50823e796e3"
+  },
+  {
+    "file": "WKDColor.cs",
+    "strings": 3,
+    "delegates": 3,
+    "raw_sha256": "7809d02e93378b031721d69f051e728578c14f7ea95ddb714d423afc2b956bb7"
+  },
+  {
+    "file": "OemAcpiWmiListener.cs",
+    "strings": 25,
+    "delegates": 84,
+    "raw_sha256": "2e4b55df5b3114c50f903360015e1a79e9d7b99cdc7631c5ab1628e3762e8b98"
+  }
+]

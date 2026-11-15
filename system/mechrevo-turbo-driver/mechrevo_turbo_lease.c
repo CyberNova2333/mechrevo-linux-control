@@ -8,33 +8,48 @@
 #include <linux/dmi.h>
 #include <linux/fs.h>
 #include <linux/jiffies.h>
+#include <linux/ktime.h>
 #include <linux/miscdevice.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/pm.h>
+#include <linux/poll.h>
 #include <linux/slab.h>
+#include <linux/spinlock.h>
 #include <linux/suspend.h>
 #include <linux/uaccess.h>
 #include <linux/user_namespace.h>
 #include <linux/utsname.h>
 #include <linux/version.h>
+#include <linux/wait.h>
+#include <linux/wmi.h>
 #include <linux/workqueue.h>
 #include <generated/utsrelease.h>
 
 #define OEM_GUID "ABBC0F6F-8EA1-11D1-00A0-C90629100000"
+#define WMI_EVENT_GUID "ABBC0F72-8EA1-11D1-00A0-C90629100000"
 #define EXPECTED_RELEASE "6.8.0-149-generic"
 #define LEASE_MS 8000
 #define GUARD_MS 250
 #define RECOVERY_MS 1000
 #define MAX_RECOVERY_ATTEMPTS 8
-#define STATUS_SIZE 4096
+#define WMI_EVENT_RING 16
+#define WMI_SCANCODE_MODE_SWITCH 0xB0
+#define WMI_SCANCODE_HIGH_TEMP 0xBB
+#define STATUS_SIZE 6144
 #define REG_APPE 0x741
 #define REG_TB43 0x728
 #define REG_APTC 0x786
 #define REG_MODE 0x751
+#define REG_LED_CFG 0x766
+#define REG_LOGO_TRIG 0x78c
+#define REG_FAN_CFG 0x7a5
+#define REG_SMART_BAL 0x7ac
 
 static DEFINE_MUTEX(control_lock);
 static acpi_handle ec_reader, ec_writer, policy, inou;
+static DEFINE_SPINLOCK(wmi_lock);
+static DECLARE_WAIT_QUEUE_HEAD(wmi_waitq);
 static bool shutting_down, pm_blocked;
 static struct file *lease_owner;
 static unsigned long lease_deadline;
@@ -46,6 +61,18 @@ static bool quiet;
 static bool recovery_pin, restoring, policy_uncertain;
 static unsigned int recovery_attempts;
 static unsigned long recovery_next;
+static bool wmi_bound;
+static u64 wmi_seq, wmi_non_int, wmi_mode_seq, wmi_handled_mode_seq;
+static bool wmi_has_last;
+static u32 wmi_last_code;
+
+struct wmi_event_entry {
+	u64 seq;
+	u64 ms;
+	u32 code;
+};
+
+static struct wmi_event_entry wmi_ring[WMI_EVENT_RING];
 
 struct receipt {
 	acpi_status status;
@@ -62,8 +89,8 @@ static bool combined_supported, game_supported;
 
 static const u16 registers[] = {
 	0x490, 0x706, 0x726, 0x727, 0x728, 0x72b, 0x741, 0x743, 0x751,
-	0x783, 0x784, 0x785, 0x786, 0x787, 0x7ab, 0x7c5, 0x7c6,
-	0x7c7, 0x7cc, 0x7e8, 0x7f7,
+	0x766, 0x783, 0x784, 0x785, 0x786, 0x787, 0x78c, 0x7a5, 0x7ab,
+	0x7ac, 0x7c5, 0x7c6, 0x7c7, 0x7cc, 0x7e8, 0x7f7,
 };
 
 struct snapshot {
@@ -92,6 +119,7 @@ static u32 restore_skipped;
 struct client {
 	bool text;
 	size_t length;
+	u64 wmi_seen_seq;
 	char status[STATUS_SIZE];
 };
 
@@ -720,33 +748,64 @@ static ssize_t bridge_write(struct file *file, const char __user *buffer,
 	return ret ? ret : count;
 }
 
-static size_t format_status(char *buf, bool text)
+static size_t format_status(char *buf, bool text, u64 *out_wmi_seq)
 {
 	struct snapshot s;
+	struct wmi_event_entry events[WMI_EVENT_RING];
+	unsigned long flags;
+	u64 wseq, wnon, wstart;
+	bool wbound, whas;
+	u32 wlast;
+	size_t count = 0, k;
 	int ret, i, n = 0;
 	long remaining = active ? max_t(long, 0, (long)(lease_deadline - jiffies)) : 0;
-	char ack[32];
+	char ack[32], last_code[16];
+
+	spin_lock_irqsave(&wmi_lock, flags);
+	wbound = READ_ONCE(wmi_bound);
+	wseq = wmi_seq;
+	wnon = wmi_non_int;
+	whas = wmi_has_last;
+	wlast = wmi_last_code;
+	wstart = wseq > WMI_EVENT_RING ? wseq - WMI_EVENT_RING + 1 : 1;
+	for (k = 0; wstart + k <= wseq && k < WMI_EVENT_RING; k++)
+		events[count++] = wmi_ring[(size_t)((wstart + k - 1) % WMI_EVENT_RING)];
+	spin_unlock_irqrestore(&wmi_lock, flags);
+	if (out_wmi_seq)
+		*out_wmi_seq = wseq;
 
 	ret = read_snapshot(&s);
 	if (command_reply.present && command_reply.type == ACPI_TYPE_INTEGER)
 		scnprintf(ack, sizeof(ack), "%llu", command_reply.value);
 	else
 		strscpy(ack, "null", sizeof(ack));
+	if (whas)
+		scnprintf(last_code, sizeof(last_code), "%u", wlast);
+	else
+		strscpy(last_code, "null", sizeof(last_code));
+
 	if (text) {
 		n += scnprintf(buf + n, STATUS_SIZE - n,
 			"abi=1\nactive=%u\nvariant=%s\nsequence=%llu\nlast_ack=%s\n"
 			"return_present=%u\nlast_rc=%d\nacpi_status=%u\nstop_reason=%s\n"
 			"lease_remaining_ms=%u\nrecovery_needed=%u\nrestore_rc=%d\nrestore_skipped=%u\nread_rc=%d\nrecovery_attempts=%u\nrecovery_pin=%u\n"
-			"combined_supported=%u\ngame_supported=%u\ncombined_support_ack=%llu\ngame_support_ack=%llu\npolicy_uncertain=%u\n",
+			"combined_supported=%u\ngame_supported=%u\ncombined_support_ack=%llu\ngame_support_ack=%llu\npolicy_uncertain=%u\n"
+			"wmi_bound=%u\nwmi_seq=%llu\nwmi_non_int=%llu\nwmi_last_code=%s\n",
 			active, quiet ? "quiet" : "extreme", sequence, ack,
 			command_reply.present, last_rc, command_reply.status, stop_reason,
 			jiffies_to_msecs(remaining), recovery_needed, restore_rc, restore_skipped, ret,
 			recovery_attempts, recovery_pin, combined_supported, game_supported,
-			combined_support_reply.value, game_support_reply.value, policy_uncertain);
+			combined_support_reply.value, game_support_reply.value, policy_uncertain,
+			wbound, wseq, wnon, last_code);
 		if (!ret) {
+			bool safety = !!(value(&s, REG_FAN_CFG) & BIT(3));
+			bool sb_sup = !!(value(&s, REG_SMART_BAL) & BIT(0));
+			bool sb_en = !!(value(&s, REG_SMART_BAL) & BIT(1));
 			n += scnprintf(buf + n, STATUS_SIZE - n,
-				"cstm=%llu\ngatm=%llu\nstandard_turbo=%u\nround_adapter=%u\n",
-				s.cstm, s.gatm, standard_turbo(&s), round_adapter(&s));
+				"cstm=%llu\ngatm=%llu\nstandard_turbo=%u\nround_adapter=%u\n"
+				"fan_safety_protect=%u\nsmart_balance_supported=%u\nsmart_balance_enabled=%u\n",
+				s.cstm, s.gatm, standard_turbo(&s), round_adapter(&s),
+				safety, sb_sup, sb_en);
 			for (i = 0; i < ARRAY_SIZE(registers); i++)
 				n += scnprintf(buf + n, STATUS_SIZE - n, "%03x=%02x\n", registers[i], s.value[i]);
 		}
@@ -758,22 +817,34 @@ static size_t format_status(char *buf, bool text)
 		"\"acpi_status\":%u,\"stop_reason\":\"%s\",\"lease_remaining_ms\":%u,"
 		"\"recovery_needed\":%s,\"restore_rc\":%d,\"restore_skipped\":%u,\"read_rc\":%d,"
 		"\"recovery_attempts\":%u,\"recovery_pin\":%s,"
-		"\"combined_supported\":%s,\"game_supported\":%s,\"combined_support_ack\":%llu,\"game_support_ack\":%llu,\"policy_uncertain\":%s,",
+		"\"combined_supported\":%s,\"game_supported\":%s,\"combined_support_ack\":%llu,\"game_support_ack\":%llu,\"policy_uncertain\":%s,"
+		"\"wmi_bound\":%s,\"wmi_seq\":%llu,\"wmi_non_int\":%llu,\"wmi_last_code\":%s,\"wmi_events\":[",
 		active ? "true" : "false", quiet ? "quiet" : "extreme", sequence,
 		ack, command_reply.present ? "true" : "false", command_reply.type, last_rc,
 		command_reply.status, stop_reason, jiffies_to_msecs(remaining),
 		recovery_needed ? "true" : "false", restore_rc, restore_skipped, ret,
 		recovery_attempts, recovery_pin ? "true" : "false",
 		combined_supported ? "true" : "false", game_supported ? "true" : "false",
-		combined_support_reply.value, game_support_reply.value, policy_uncertain ? "true" : "false");
+		combined_support_reply.value, game_support_reply.value, policy_uncertain ? "true" : "false",
+		wbound ? "true" : "false", wseq, wnon, last_code);
+	for (k = 0; k < count; k++)
+		n += scnprintf(buf + n, STATUS_SIZE - n,
+			"%s{\"seq\":%llu,\"code\":%u,\"ms\":%llu}",
+			k ? "," : "", events[k].seq, events[k].code, events[k].ms);
+	n += scnprintf(buf + n, STATUS_SIZE - n, "],");
 	if (ret) {
 		n += scnprintf(buf + n, STATUS_SIZE - n,
-			"\"cstm\":null,\"gatm\":null,\"standard_turbo\":false,\"round_adapter\":false,\"regs\":{}}\n");
+			"\"cstm\":null,\"gatm\":null,\"standard_turbo\":false,\"round_adapter\":false,"
+			"\"fan_safety_protect\":false,\"smart_balance_supported\":false,\"smart_balance_enabled\":false,\"regs\":{}}\n");
 		return n;
 	}
 	n += scnprintf(buf + n, STATUS_SIZE - n,
-		"\"cstm\":%llu,\"gatm\":%llu,\"standard_turbo\":%s,\"round_adapter\":%s,\"regs\":{",
-		s.cstm, s.gatm, standard_turbo(&s) ? "true" : "false", round_adapter(&s) ? "true" : "false");
+		"\"cstm\":%llu,\"gatm\":%llu,\"standard_turbo\":%s,\"round_adapter\":%s,"
+		"\"fan_safety_protect\":%s,\"smart_balance_supported\":%s,\"smart_balance_enabled\":%s,\"regs\":{",
+		s.cstm, s.gatm, standard_turbo(&s) ? "true" : "false", round_adapter(&s) ? "true" : "false",
+		(value(&s, REG_FAN_CFG) & BIT(3)) ? "true" : "false",
+		(value(&s, REG_SMART_BAL) & BIT(0)) ? "true" : "false",
+		(value(&s, REG_SMART_BAL) & BIT(1)) ? "true" : "false");
 	for (i = 0; i < ARRAY_SIZE(registers); i++)
 		n += scnprintf(buf + n, STATUS_SIZE - n, "%s\"%03x\":%u", i ? "," : "", registers[i], s.value[i]);
 	n += scnprintf(buf + n, STATUS_SIZE - n, "},\"calls\":{");
@@ -793,16 +864,40 @@ static ssize_t bridge_read(struct file *file, char __user *buffer, size_t count,
 			   loff_t *position)
 {
 	struct client *client = file->private_data;
+	unsigned long flags;
+	u64 seen = 0;
 	ssize_t ret;
 
 	if (!privileged())
 		return -EPERM;
 	mutex_lock(&control_lock);
-	if (!*position || !client->length)
-		client->length = format_status(client->status, client->text);
+	if (!*position || !client->length) {
+		client->length = format_status(client->status, client->text, &seen);
+		spin_lock_irqsave(&wmi_lock, flags);
+		client->wmi_seen_seq = seen;
+		spin_unlock_irqrestore(&wmi_lock, flags);
+	}
 	ret = simple_read_from_buffer(buffer, count, position, client->status, client->length);
 	mutex_unlock(&control_lock);
 	return ret;
+}
+
+static __poll_t bridge_poll(struct file *file, poll_table *wait)
+{
+	struct client *client = file->private_data;
+	unsigned long flags;
+	u64 seq, seen;
+
+	if (!privileged())
+		return EPOLLERR;
+	poll_wait(file, &wmi_waitq, wait);
+	spin_lock_irqsave(&wmi_lock, flags);
+	seq = wmi_seq;
+	seen = client->wmi_seen_seq;
+	spin_unlock_irqrestore(&wmi_lock, flags);
+	if (seq != seen)
+		return EPOLLIN | EPOLLRDNORM;
+	return 0;
 }
 
 static int bridge_open(struct inode *inode, struct file *file)
@@ -827,7 +922,8 @@ static int bridge_close(struct inode *inode, struct file *file)
 
 static const struct file_operations bridge_fops = {
 	.owner = THIS_MODULE, .open = bridge_open, .release = bridge_close,
-	.read = bridge_read, .write = bridge_write, .llseek = default_llseek,
+	.read = bridge_read, .write = bridge_write, .poll = bridge_poll,
+	.llseek = default_llseek,
 };
 
 static struct miscdevice bridge = {
@@ -837,6 +933,102 @@ static struct miscdevice bridge = {
 
 static void watchdog(struct work_struct *work);
 static DECLARE_DELAYED_WORK(lease_work, watchdog);
+
+static bool record_wmi_event(u32 code, u64 now_ms)
+{
+	unsigned long flags;
+	size_t slot;
+
+	spin_lock_irqsave(&wmi_lock, flags);
+	wmi_seq++;
+	wmi_has_last = true;
+	wmi_last_code = code;
+	slot = (size_t)((wmi_seq - 1) % WMI_EVENT_RING);
+	wmi_ring[slot].seq = wmi_seq;
+	wmi_ring[slot].ms = now_ms;
+	wmi_ring[slot].code = code;
+	if (code == WMI_SCANCODE_MODE_SWITCH)
+		wmi_mode_seq = wmi_seq;
+	spin_unlock_irqrestore(&wmi_lock, flags);
+	wake_up_interruptible(&wmi_waitq);
+	return code == WMI_SCANCODE_MODE_SWITCH;
+}
+
+static bool handle_wmi_mode_switch(void)
+{
+	unsigned long flags;
+	u64 target;
+	bool released = false;
+
+	spin_lock_irqsave(&wmi_lock, flags);
+	target = wmi_mode_seq;
+	spin_unlock_irqrestore(&wmi_lock, flags);
+
+	mutex_lock(&control_lock);
+	if (target > wmi_handled_mode_seq) {
+		wmi_handled_mode_seq = target;
+		if (active) {
+			last_rc = release_lease("mode_key_wmi");
+			sequence++;
+			released = true;
+		}
+	}
+	mutex_unlock(&control_lock);
+	if (released)
+		wake_up_interruptible(&wmi_waitq);
+	return released;
+}
+
+static void wmi_work_handler(struct work_struct *work)
+{
+	handle_wmi_mode_switch();
+}
+
+static DECLARE_WORK(wmi_work, wmi_work_handler);
+
+static int wmi_event_probe(struct wmi_device *wdev, const void *context)
+{
+	WRITE_ONCE(wmi_bound, true);
+	return 0;
+}
+
+static void wmi_event_remove(struct wmi_device *wdev)
+{
+	WRITE_ONCE(wmi_bound, false);
+}
+
+static void wmi_event_notify(struct wmi_device *wdev, union acpi_object *obj)
+{
+	unsigned long flags;
+	bool is_mode;
+
+	if (!obj || obj->type != ACPI_TYPE_INTEGER) {
+		spin_lock_irqsave(&wmi_lock, flags);
+		wmi_non_int++;
+		spin_unlock_irqrestore(&wmi_lock, flags);
+		wake_up_interruptible(&wmi_waitq);
+		return;
+	}
+	is_mode = record_wmi_event((u32)obj->integer.value,
+				   ktime_get_boottime_ns() / 1000000ULL);
+	if (is_mode && !READ_ONCE(shutting_down))
+		schedule_work(&wmi_work);
+}
+
+static const struct wmi_device_id wmi_event_ids[] = {
+	{ .guid_string = WMI_EVENT_GUID },
+	{ }
+};
+
+static struct wmi_driver wmi_event_driver = {
+	.driver = {
+		.name = "mechrevo_turbo_wmi",
+	},
+	.id_table = wmi_event_ids,
+	.probe = wmi_event_probe,
+	.remove = wmi_event_remove,
+	.notify = wmi_event_notify,
+};
 
 static void watchdog(struct work_struct *work)
 {
@@ -935,8 +1127,14 @@ static int __init bridge_init(void)
 	ret = register_pm_notifier(&pm_notifier);
 	if (ret)
 		return ret;
+	ret = wmi_driver_register(&wmi_event_driver);
+	if (ret) {
+		unregister_pm_notifier(&pm_notifier);
+		return ret;
+	}
 	ret = misc_register(&bridge);
 	if (ret) {
+		wmi_driver_unregister(&wmi_event_driver);
 		unregister_pm_notifier(&pm_notifier);
 		return ret;
 	}
@@ -948,10 +1146,12 @@ static int __init bridge_init(void)
 static void __exit bridge_exit(void)
 {
 	mutex_lock(&control_lock);
-	shutting_down = true;
+	WRITE_ONCE(shutting_down, true);
 	mutex_unlock(&control_lock);
 	misc_deregister(&bridge);
+	wmi_driver_unregister(&wmi_event_driver);
 	unregister_pm_notifier(&pm_notifier);
+	cancel_work_sync(&wmi_work);
 	cancel_delayed_work_sync(&lease_work);
 	mutex_lock(&control_lock);
 	if (release_lease("module_exit"))

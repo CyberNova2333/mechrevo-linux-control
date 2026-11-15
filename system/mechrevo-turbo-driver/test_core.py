@@ -33,7 +33,7 @@ names = ['read_snapshot', 'value', 'custom_state', 'standard_turbo', 'round_adap
          'remember_ap_tc', 'refresh_policy', 'probe_support', 'wmi_workload',
          'set_owned', 'check_active', 'restore_byte', 'restore_name', 'finish_recovery',
          'relinquish_policy', 'foreign_bits', 'release_lease', 'acquire_lease',
-         'run_command', 'watchdog', 'pm_event']
+         'run_command', 'record_wmi_event', 'handle_wmi_mode_switch', 'watchdog', 'pm_event']
 functions = [function(name) for name in names]
 declarations = source[source.index('static bool shutting_down'):source.index('struct client {')]
 commands = re.search(r'(?s)enum command \{.*?\};', source).group()
@@ -68,12 +68,18 @@ struct acpi_object_list { int unused; };
 #define NOTIFY_OK 0
 #define mutex_lock(x) ((void)(x))
 #define mutex_unlock(x) ((void)(x))
+#define DEFINE_SPINLOCK(x) int x
+#define DECLARE_WAIT_QUEUE_HEAD(x) int x
+#define spin_lock_irqsave(l, f) do { (void)(l); (f) = 0; } while (0)
+#define spin_unlock_irqrestore(l, f) do { (void)(l); (void)(f); } while (0)
+#define READ_ONCE(x) (x)
 #define msecs_to_jiffies(x) (x)
 #define time_after_eq(a,b) ((long)((a)-(b)) >= 0)
 #define notifier_from_errno(x) (x)
-static int control_lock, lease_work, policy;
+static int control_lock, wmi_lock, wmi_waitq, lease_work, policy;
 static unsigned long jiffies;
-static int pins, schedules;
+static int pins, schedules, wmi_wakes;
+static void wake_up_interruptible(int *q) { (void)q; wmi_wakes++; }
 static void __module_get(int unused) { (void)unused; pins++; }
 static void module_put(int unused) { (void)unused; assert(pins>0); pins--; }
 static void schedule_delayed_work(int *work, unsigned delay) { (void)work;(void)delay;schedules++; }
@@ -148,6 +154,8 @@ static void reset(void) {
  writes=aptc_writes=pmsfs=wmis=io_count=fail_at=persistent_fail=0;
  fail_after=false;support_game=support_combined=true;
  jiffies=0;sequence=0;recovery_attempts=restore_skipped=0;
+ wmi_bound=false;wmi_seq=wmi_non_int=wmi_mode_seq=wmi_handled_mode_seq=0;
+ wmi_has_last=false;wmi_last_code=0;wmi_wakes=0;memset(wmi_ring,0,sizeof(wmi_ring));
 }
 static void acquire(void) {
  assert(run_command(&owner,ACQUIRE_QUIET)==0);
@@ -250,6 +258,16 @@ int main(void) {
   released();
  }
  printf("PASS %d active WMI I/O positions, each before/after acceptance; all original state restored\n",game_steps);
+ reset();acquire();assert(!run_command(&owner,COMBINED_ON));
+ for(n=0;n<20;n++)assert(record_wmi_event(0xB4,(u64)(n+1)*10)==false);
+ assert(wmi_seq==20&&wmi_wakes==20&&wmi_last_code==0xB4&&wmi_has_last);
+ assert(wmi_ring[0].seq==17&&wmi_ring[3].seq==20);
+ assert(handle_wmi_mode_switch()==false&&active);
+ assert(record_wmi_event(WMI_SCANCODE_MODE_SWITCH,250)==true);
+ assert(handle_wmi_mode_switch()==true&&!active&&!strcmp(stop_reason,"mode_key_wmi"));
+ released();
+ assert(handle_wmi_mode_switch()==false);
+ puts("PASS WMI ring wraparound and 0xB0 immediate lease release");
  return 0;
 }
 '''
