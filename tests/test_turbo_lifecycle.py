@@ -240,6 +240,8 @@ class LifecycleTest(unittest.TestCase):
         main = (SOURCE / "mechrevo-turbo.service").read_text()
         self.assertIn("RequiredBy=sleep.target", sleep)
         self.assertIn("Before=sleep.target mechrevo-profile-sleep.service mechrevo-powerd-sleep.service", sleep)
+        self.assertIn("ExecStartPre=-/usr/bin/systemctl stop mechrevo-profile-guard.service", sleep)
+        self.assertIn("ExecStopPost=-/usr/bin/systemctl --no-block start mechrevo-profile-guard.service", sleep)
         self.assertNotIn("After=mechrevo-turbo.service", sleep)
         self.assertNotIn("ConditionPathExists", sleep)
         self.assertIn("ExecCondition=/usr/bin/systemctl is-active --quiet nvidia-powerd.service", main)

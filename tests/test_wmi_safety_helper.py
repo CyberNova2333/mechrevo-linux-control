@@ -2,8 +2,10 @@
 import json
 import os
 from pathlib import Path
+import signal
 import sys
 import tempfile
+import threading
 import unittest
 from unittest.mock import Mock, patch
 
@@ -189,6 +191,57 @@ class WmiAndSafetyHelperTest(unittest.TestCase):
             self.assertEqual(res_off['brightness'], 0)
             res_on = helper.main(['logo', 'on'])
             self.assertEqual(res_on['brightness'], 25)
+
+    def test_guard_stops_cleanly_on_sigterm_and_skips_open_during_sleep(self):
+        fake_dev = Path(self.temp.name) / 'dev-turbo'
+        fake_dev.write_text('')
+        fake_sleep = Path(self.temp.name) / 'sleep.json'
+        fake_sleep.write_text('{}')
+
+        open_mock = Mock()
+        timer = threading.Timer(0.05, lambda: os.kill(os.getpid(), signal.SIGTERM))
+        timer.start()
+        try:
+            with patch.object(helper, 'TURBO_DEVICE', fake_dev), \
+                 patch.object(helper, 'SLEEP_MARKER', fake_sleep), \
+                 patch.object(helper, 'open_wmi_watch', open_mock):
+                helper.guard()
+        finally:
+            timer.cancel()
+        open_mock.assert_not_called()
+
+        fake_sleep.unlink()
+        r_fd, w_fd = os.pipe()
+        os.write(w_fd, b'x')
+        prev_term = signal.getsignal(signal.SIGTERM)
+
+        def fake_read(_fd):
+            fake_sleep.write_text('{}')
+            return {'wmi_events': [], 'wmi_seq': 0}
+
+        timer2 = threading.Timer(0.05, lambda: os.kill(os.getpid(), signal.SIGTERM))
+        try:
+            with patch.object(helper, 'TURBO_DEVICE', fake_dev), \
+                 patch.object(helper, 'SLEEP_MARKER', fake_sleep), \
+                 patch.object(helper, 'open_wmi_watch', return_value=(r_fd, {'wmi_events': [], 'wmi_seq': 0})) as open_watch, \
+                 patch.object(helper, 'read_turbo_bridge', side_effect=fake_read), \
+                 patch.object(helper, 'write_wmi_state'):
+                timer2.start()
+                helper.guard()
+            open_watch.assert_called_once()
+            self.assertIs(signal.getsignal(signal.SIGTERM), prev_term)
+            with self.assertRaises(OSError):
+                os.fstat(r_fd)
+        finally:
+            timer2.cancel()
+            try:
+                os.close(w_fd)
+            except OSError:
+                pass
+            try:
+                os.close(r_fd)
+            except OSError:
+                pass
 
 
 class PerformancePanelSafetyGuiTest(unittest.TestCase):
