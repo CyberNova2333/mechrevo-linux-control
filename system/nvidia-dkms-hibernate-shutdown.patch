@@ -1,0 +1,61 @@
+diff -u -r a/common/inc/nv-proto.h b/common/inc/nv-proto.h
+--- a/common/inc/nv-proto.h	2026-11-16 17:46:18.405098716 +0800
++++ b/common/inc/nv-proto.h	2026-11-16 17:46:18.427099409 +0800
+@@ -75,6 +75,7 @@
+ 
+ #if defined(CONFIG_PM)
+ NV_STATUS     nv_set_system_power_state (nv_power_state_t, nv_pm_action_depth_t);
++NvBool        nv_is_in_hibernate        (void);
+ #endif
+ 
+ void          nvidia_modeset_suspend           (NvU32 gpuId);
+diff -u -r a/nvidia/nv.c b/nvidia/nv.c
+--- a/nvidia/nv.c	2026-11-16 17:46:18.407098779 +0800
++++ b/nvidia/nv.c	2026-11-16 17:46:18.427099409 +0800
+@@ -5027,6 +5027,12 @@
+     return status;
+ }
+ 
++NvBool
++nv_is_in_hibernate(void)
++{
++    return READ_ONCE(nv_system_power_state) == NV_POWER_STATE_IN_HIBERNATE;
++}
++
+ int nv_pmops_suspend(
+     struct device *dev
+ )
+diff -u -r a/nvidia/nv-pci.c b/nvidia/nv-pci.c
+--- a/nvidia/nv-pci.c	2026-11-16 17:46:18.409098842 +0800
++++ b/nvidia/nv-pci.c	2026-11-16 17:46:18.428099441 +0800
+@@ -2488,15 +2488,25 @@
+         return;
+     }
+ 
++#if defined(CONFIG_PM)
++    /*
++     * mechrevo-nvidia-hibernate-patch: Skip device removal/unload during shutdown
++     * if the GPU is already suspended/frozen for hibernation (e.g. HibernateMode=shutdown).
++     * Calling nv_pci_remove_helper() while PM locks are held deadlocks before poweroff.
++     */
++    if (!nv_is_in_hibernate() && !(READ_ONCE(nvl->nv_state.flags) & NV_FLAG_SUSPENDED))
++#endif
++    {
+ #if defined(CONFIG_PM_DEVFREQ)
+-    nv_pci_tegra_unregister_devfreq(pci_dev);
++        nv_pci_tegra_unregister_devfreq(pci_dev);
+ #endif
+ 
+-    nv_pci_remove_helper(pci_dev, false);
++        nv_pci_remove_helper(pci_dev, false);
+ 
+-    if (pci_get_drvdata(pci_dev) != NULL)
+-    {
+-        nvl->nv_state.is_shutdown = NV_TRUE;
++        if (pci_get_drvdata(pci_dev) != NULL)
++        {
++            nvl->nv_state.is_shutdown = NV_TRUE;
++        }
+     }
+ 
+     /* pci_clear_master is not defined for !CONFIG_PCI */

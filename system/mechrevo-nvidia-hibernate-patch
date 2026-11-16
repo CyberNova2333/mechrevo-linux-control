@@ -1,0 +1,207 @@
+#!/usr/bin/python3
+"""Apply and verify the minimal NVIDIA DKMS hibernate-shutdown fix."""
+
+import argparse
+import os
+from pathlib import Path
+import re
+import sys
+
+MARKER = "mechrevo-nvidia-hibernate-patch"
+
+NV_PROTO_OLD = """#if defined(CONFIG_PM)
+NV_STATUS     nv_set_system_power_state (nv_power_state_t, nv_pm_action_depth_t);
+#endif"""
+
+NV_PROTO_NEW = """#if defined(CONFIG_PM)
+NV_STATUS     nv_set_system_power_state (nv_power_state_t, nv_pm_action_depth_t);
+NvBool        nv_is_in_hibernate        (void);
+#endif"""
+
+NV_C_OLD = """    nv_system_power_state = power_state;
+
+done:
+    up(&nv_system_power_state_lock);
+
+    return status;
+}"""
+
+NV_C_NEW = """    nv_system_power_state = power_state;
+
+done:
+    up(&nv_system_power_state_lock);
+
+    return status;
+}
+
+NvBool
+nv_is_in_hibernate(void)
+{
+    return READ_ONCE(nv_system_power_state) == NV_POWER_STATE_IN_HIBERNATE;
+}"""
+
+NV_PCI_OLD = """    if (nvl->is_forced_shutdown)
+    {
+        nvl->is_forced_shutdown = NV_FALSE;
+        return;
+    }
+
+#if defined(CONFIG_PM_DEVFREQ)
+    nv_pci_tegra_unregister_devfreq(pci_dev);
+#endif
+
+    nv_pci_remove_helper(pci_dev, false);
+
+    if (pci_get_drvdata(pci_dev) != NULL)
+    {
+        nvl->nv_state.is_shutdown = NV_TRUE;
+    }"""
+
+NV_PCI_NEW = """    if (nvl->is_forced_shutdown)
+    {
+        nvl->is_forced_shutdown = NV_FALSE;
+        return;
+    }
+
+#if defined(CONFIG_PM)
+    /*
+     * mechrevo-nvidia-hibernate-patch: Skip device removal/unload during shutdown
+     * if the GPU is already suspended/frozen for hibernation (e.g. HibernateMode=shutdown).
+     * Calling nv_pci_remove_helper() while PM locks are held deadlocks before poweroff.
+     */
+    if (!nv_is_in_hibernate() && !(READ_ONCE(nvl->nv_state.flags) & NV_FLAG_SUSPENDED))
+#endif
+    {
+#if defined(CONFIG_PM_DEVFREQ)
+        nv_pci_tegra_unregister_devfreq(pci_dev);
+#endif
+
+        nv_pci_remove_helper(pci_dev, false);
+
+        if (pci_get_drvdata(pci_dev) != NULL)
+        {
+            nvl->nv_state.is_shutdown = NV_TRUE;
+        }
+    }"""
+
+
+def _extract_nv_pci_shutdown(nv_pci_text: str) -> str:
+    match = re.search(
+        r"static\s+void\s+nv_pci_shutdown\s*\(\s*struct\s+pci_dev\s*\*\s*pci_dev\s*\)\s*\{",
+        nv_pci_text,
+    )
+    if not match:
+        raise RuntimeError("Could not locate nv_pci_shutdown() in nvidia/nv-pci.c")
+    depth = 1
+    idx = match.end()
+    while idx < len(nv_pci_text) and depth > 0:
+        ch = nv_pci_text[idx]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+        idx += 1
+    if depth != 0:
+        raise RuntimeError("Unbalanced braces while parsing nv_pci_shutdown() in nvidia/nv-pci.c")
+    return nv_pci_text[match.start():idx]
+
+
+def _replace_once(text: str, old: str, new: str, label: str) -> str:
+    count = text.count(old)
+    if count != 1:
+        raise RuntimeError(f"Expected 1 match for {label}, found {count}")
+    return text.replace(old, new, 1)
+
+
+def inspect_tree(build_dir: Path) -> str:
+    """Return patch status for an NVIDIA open-gpu-kernel-modules source/build tree."""
+    nv_proto = build_dir / "common/inc/nv-proto.h"
+    nv_c = build_dir / "nvidia/nv.c"
+    nv_pci = build_dir / "nvidia/nv-pci.c"
+    for path in (nv_proto, nv_c, nv_pci):
+        if not path.is_file():
+            raise RuntimeError(f"Missing expected NVIDIA source file: {path}")
+
+    proto_text = nv_proto.read_text()
+    c_text = nv_c.read_text()
+    pci_text = nv_pci.read_text()
+
+    patched_flags = (
+        "nv_is_in_hibernate" in proto_text,
+        "nv_is_in_hibernate(" in c_text,
+        MARKER in pci_text and "nv_is_in_hibernate()" in pci_text,
+    )
+    if all(patched_flags):
+        return "already_patched"
+    if any(patched_flags):
+        raise RuntimeError("Partially patched NVIDIA tree detected")
+
+    shutdown_fn = _extract_nv_pci_shutdown(pci_text)
+    if "nv_pci_remove_helper" not in shutdown_fn:
+        return "upstream_no_remove_helper"
+    if any(sym in shutdown_fn for sym in ("NV_FLAG_SUSPENDED", "NV_POWER_STATE_IN_HIBERNATE", "nv_system_power_state")):
+        return "upstream_already_guarded"
+
+    return "needs_patch"
+
+
+def apply_patch(build_dir: Path) -> str:
+    """Apply the minimal hibernate shutdown guard atomically to build_dir."""
+    status = inspect_tree(build_dir)
+    if status != "needs_patch":
+        return status
+
+    files = {
+        build_dir / "common/inc/nv-proto.h": (NV_PROTO_OLD, NV_PROTO_NEW, "nv-proto.h"),
+        build_dir / "nvidia/nv.c": (NV_C_OLD, NV_C_NEW, "nv.c"),
+        build_dir / "nvidia/nv-pci.c": (NV_PCI_OLD, NV_PCI_NEW, "nv-pci.c"),
+    }
+
+    originals: dict[Path, str] = {}
+    updated: dict[Path, str] = {}
+    for path, (old, new, label) in files.items():
+        orig = path.read_text()
+        originals[path] = orig
+        updated[path] = _replace_once(orig, old, new, label)
+
+    pci_fn = _extract_nv_pci_shutdown(updated[build_dir / "nvidia/nv-pci.c"])
+    if NV_PCI_OLD not in originals[build_dir / "nvidia/nv-pci.c"] or "nv_is_in_hibernate()" not in pci_fn:
+        raise RuntimeError("Patched nv_pci_shutdown() sanity check failed")
+
+    written: list[Path] = []
+    try:
+        for path, content in updated.items():
+            path.write_text(content)
+            written.append(path)
+    except Exception:
+        for path in written:
+            try:
+                path.write_text(originals[path])
+            except Exception:
+                pass
+        raise
+
+    return "applied"
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Apply/check MECHREVO NVIDIA hibernate shutdown fix.")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--apply", action="store_true", help="Apply patch to the build directory.")
+    mode.add_argument("--check", action="store_true", help="Check patch status without modifying files.")
+    parser.add_argument("dir", nargs="?", default=".", help="NVIDIA source/build directory (default: cwd).")
+    args = parser.parse_args(argv)
+
+    target = Path(args.dir).resolve()
+    try:
+        result = apply_patch(target) if args.apply else inspect_tree(target)
+    except Exception as exc:
+        print(f"{MARKER}: ERROR: {exc}", file=sys.stderr, flush=True)
+        return 1
+
+    print(f"{MARKER}: {result} ({target})", flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
