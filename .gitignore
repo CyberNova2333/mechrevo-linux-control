@@ -3,3 +3,11 @@ __pycache__/
 .pytest_cache/
 private/
 *.log
+*.o
+*.ko
+*.mod
+*.mod.c
+.*.cmd
+Module.symvers
+modules.order
+.tmp_versions/
