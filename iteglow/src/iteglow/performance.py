@@ -141,21 +141,27 @@ class TuningEditor(Gtk.Box):
 
     def draw_curve(self,area,cr,width,height,name):
         left,right,top,bottom=36,width-14,12,height-25
-        cr.set_source_rgb(.96,.97,.99);cr.paint();cr.set_line_width(1);cr.set_font_size(11)
+        cr.set_source_rgb(.06,.08,.12);cr.paint();cr.set_line_width(1);cr.set_font_size(11)
         for value in (40,70,100):
             y=bottom-(value-30)/70*(bottom-top)
-            cr.set_source_rgb(.86,.89,.94);cr.move_to(left,y);cr.line_to(right,y);cr.stroke()
-            cr.set_source_rgb(.4,.46,.56);cr.move_to(3,y+4);cr.show_text(str(value)+'%')
+            cr.set_source_rgb(.13,.17,.24);cr.move_to(left,y);cr.line_to(right,y);cr.stroke()
+            cr.set_source_rgb(.52,.60,.72);cr.move_to(3,y+4);cr.show_text(str(value)+'%')
         points=[]
         for i,spin in enumerate(self.spins.get(name,[])):
             temp=TEMPS[name][i];x=left+(temp-40)/50*(right-left);y=bottom-(spin.get_value()-30)/70*(bottom-top);points.append((x,y))
-        cr.set_source_rgb(*((.23,.45,.85) if name=='cpu_fan' else (.58,.34,.79)));cr.set_line_width(2.5)
+        col=(.22,.64,.96) if name=='cpu_fan' else (.68,.42,.98)
+        cr.set_source_rgba(col[0],col[1],col[2],0.22);cr.set_line_width(6.0)
         for i,(x,y) in enumerate(points):
             if i==0:cr.move_to(x,y)
             else:cr.line_to(x,y)
         cr.stroke()
-        for x,y in points:cr.arc(x,y,3,0,6.284);cr.fill()
-        cr.set_source_rgb(.4,.46,.56)
+        cr.set_source_rgb(*col);cr.set_line_width(2.4)
+        for i,(x,y) in enumerate(points):
+            if i==0:cr.move_to(x,y)
+            else:cr.line_to(x,y)
+        cr.stroke()
+        for x,y in points:cr.arc(x,y,3.2,0,6.284);cr.fill()
+        cr.set_source_rgb(.52,.60,.72)
         for temp in (40,60,80,90):cr.move_to(left+(temp-40)/50*(right-left)-9,height-6);cr.show_text(str(temp)+' C')
 
 
@@ -247,16 +253,19 @@ class PerformancePanel(Gtk.Box):
         self.append(row)
         self.message = Gtk.Label(xalign=0, wrap=True)
         self.message.add_css_class('status-text'); self.append(self.message)
-        note = Gtk.Label(label='点击模式卡片立即切换。机身模式键在各档位（含狂暴子模式与自定义调校期间）均可响应，当前状态每 3 秒刷新。', xalign=0, wrap=True)
-        note.add_css_class('subtitle'); self.append(note)
-        note2 = Gtk.Label(label='启动、开机与唤醒时保持当前档位，不自动切换。', xalign=0, wrap=True)
-        note2.add_css_class('subtitle'); self.append(note2)
-        telemetry = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        note = Gtk.Label(label='点击卡片立即切换固件档位，与机身模式键同步（启动/唤醒保持当前状态，每 3 秒自动刷新）。', xalign=0, wrap=True)
+        note.add_css_class('small-note'); self.append(note)
+        telemetry = Gtk.Grid(column_spacing=12, row_spacing=10, column_homogeneous=True)
         telemetry.add_css_class('control-card')
+        tile1 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3); tile1.add_css_class('metric-tile')
+        tile1.append(Gtk.Label(label='温控保护', xalign=0))
         self.safety_label = Gtk.Label(label='EC 高温风扇安全保护：正在读取…', xalign=0, wrap=True)
-        self.safety_label.add_css_class('small-note'); telemetry.append(self.safety_label)
+        self.safety_label.add_css_class('small-note'); tile1.append(self.safety_label)
+        tile2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3); tile2.add_css_class('metric-tile')
+        tile2.append(Gtk.Label(label='功耗特性', xalign=0))
         self.smart_balance_label = Gtk.Label(label='SmartBalance：正在读取…', xalign=0, wrap=True)
-        self.smart_balance_label.add_css_class('small-note'); telemetry.append(self.smart_balance_label)
+        self.smart_balance_label.add_css_class('small-note'); tile2.append(self.smart_balance_label)
+        telemetry.attach(tile1, 0, 0, 1, 1); telemetry.attach(tile2, 1, 0, 1, 1)
         self.append(telemetry)
         self.tuning = TuningEditor(self.request)
         self.turbo = TurboEditor(self.request)
@@ -333,6 +342,10 @@ class PerformancePanel(Gtk.Box):
             else:
                 self.smart_balance_label.set_text('SmartBalance：未知')
             self.current.set_text('当前：' + LABELS.get(mode, '未知档位') + (' · 已应用调校' if data.get('tuning_active') else ''))
+            for cls in ('perf-office', 'perf-balanced', 'perf-turbo', 'perf-custom'):
+                self.current.remove_css_class(cls)
+            if mode in ('office', 'balanced', 'turbo', 'custom'):
+                self.current.add_css_class(f'perf-{mode}')
             self.tuning.update_status(data)
             self.turbo.update_status(data)
             self.message.set_text(data['reason'] or ('设置已生效，硬件回读一致' if operation != 'status' else '已连接固件档位控制'))

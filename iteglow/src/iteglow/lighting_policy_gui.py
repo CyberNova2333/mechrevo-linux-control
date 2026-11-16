@@ -56,6 +56,7 @@ class LightingPolicyPanel(Gtk.Box):
         self.path = Path(path) if path is not None else CONFIG_PATH
         self.on_saved = on_saved
         row = Gtk.Box(spacing=12)
+        row.add_css_class("well")
         title = Gtk.Label(label="自动灯光", xalign=0)
         title.add_css_class("section-title"); title.set_hexpand(True); row.append(title)
         self.enabled = Gtk.Switch(); self.enabled.set_valign(Gtk.Align.CENTER)
@@ -66,6 +67,7 @@ class LightingPolicyPanel(Gtk.Box):
         self.power_enabled = Gtk.CheckButton(label="分别设置插电与电池亮度")
         self.append(self.power_enabled)
         self.grid = Gtk.Grid(column_spacing=18, row_spacing=10)
+        self.grid.add_css_class("well")
         for column, caption in enumerate(("灯区", "插电", "电池")):
             label = Gtk.Label(label=caption, xalign=0)
             label.add_css_class("small-note"); self.grid.attach(label, column, 0, 1, 1)

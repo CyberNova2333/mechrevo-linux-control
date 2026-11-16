@@ -1,10 +1,11 @@
 """Asynchronous controls for the verified, independent EC logo light."""
 import json
+import math
 import time
 from pathlib import Path
 from gi.repository import Gio, GLib, Gtk
-from .performance import HELPER
 from . import state
+from .performance import HELPER
 from .zone_lock import ZoneTransaction
 
 MODES = [('solid', '常亮'), ('breathing', '呼吸'), ('rainbow', '七彩渐变')]
@@ -12,6 +13,63 @@ COLORS = [('白色', [255,255,255]), ('红色', [255,0,0]), ('绿色', [0,255,0]
           ('蓝色', [0,0,255]), ('黄色', [255,255,0]), ('紫色', [136,0,255]), ('青色', [0,255,255])]
 APPLIED = Path.home()/'.local/state/iteglow/logo.json'
 PREFS = Path.home()/'.local/state/iteglow/logo-prefs.json'
+
+
+class LogoEmblemPreview(Gtk.DrawingArea):
+    """Rear-lid backlit logo emblem preview; reads UI controls only."""
+    def __init__(self, panel):
+        super().__init__()
+        self._panel = panel
+        self.set_content_height(132)
+        self.set_hexpand(True)
+        self.set_draw_func(self._draw)
+
+    def _draw(self, _area, cr, width, height):
+        cr.set_source_rgb(0.055, 0.072, 0.105)
+        cr.rectangle(0, 0, width, height)
+        cr.fill()
+        cr.set_source_rgb(0.14, 0.18, 0.25)
+        cr.set_line_width(1.0)
+        cr.rectangle(0.5, 0.5, width - 1, height - 1)
+        cr.stroke()
+
+        cfg = self._panel.config()
+        br = cfg['brightness'] / 100.0
+        mode = cfg['mode']
+        r, g, b = [v / 255.0 for v in cfg['color']]
+        if mode == 'rainbow':
+            r, g, b = (0.28, 0.78, 0.98)
+
+        # Brushed A-cover metal bezel silhouette
+        lw, lh = min(width * 0.56, 360.0), height - 28.0
+        lx, ly = (width - lw) / 2.0, 14.0
+        cr.set_source_rgb(0.10, 0.13, 0.19)
+        cr.rectangle(lx, ly, lw, lh); cr.fill_preserve()
+        cr.set_source_rgb(0.20, 0.26, 0.36); cr.stroke()
+
+        cx, cy = width / 2.0, height / 2.0
+        if br > 0:
+            for rad, alpha in ((34, 0.12 * br), (22, 0.22 * br)):
+                cr.arc(cx, cy, rad, 0, 2 * math.pi)
+                cr.set_source_rgba(r, g, b, alpha)
+                cr.fill()
+        cr.set_line_width(3.4)
+        cr.set_line_cap(1)
+        if br > 0:
+            cr.set_source_rgba(r, g, b, 0.35 + 0.65 * br)
+        else:
+            cr.set_source_rgb(0.24, 0.29, 0.38)
+        cr.move_to(cx - 22, cy + 12)
+        cr.line_to(cx - 10, cy - 12)
+        cr.line_to(cx, cy + 4)
+        cr.line_to(cx + 10, cy - 12)
+        cr.line_to(cx + 22, cy + 12)
+        cr.stroke()
+
+        cr.select_font_face('sans-serif', 0, 0)
+        cr.set_font_size(10)
+        cr.set_source_rgb(0.54, 0.63, 0.76)
+        cr.move_to(16, 22); cr.show_text('REAR LID EMBLEM  /  ' + dict(MODES)[mode])
 
 
 class LogoPanel(Gtk.Box):
@@ -32,23 +90,28 @@ class LogoPanel(Gtk.Box):
         self.brightness = Gtk.DropDown.new_from_strings(['关闭', '25%', '50%', '75%', '100%'])
         self.brightness.set_selected(1)
         self.palette = Gtk.DropDown.new_from_strings([caption for caption,_ in COLORS]+['自选颜色'])
+        self.preview = LogoEmblemPreview(self)
+        card.append(self.preview)
         for caption, widget in [('灯光效果',self.mode), ('亮度',self.brightness), ('颜色',self.palette)]:
-            row=Gtk.Box(spacing=12); label=Gtk.Label(label=caption,xalign=0);label.set_hexpand(True)
+            row=Gtk.Box(spacing=12); row.add_css_class('well'); label=Gtk.Label(label=caption,xalign=0);label.set_hexpand(True)
             row.append(label);row.append(widget);card.append(row)
         self.rgb_row=Gtk.Box(spacing=10); self.rgb=[]
         for name in ('红','绿','蓝'):
             self.rgb_row.append(Gtk.Label(label=name)); spin=Gtk.SpinButton.new_with_range(0,255,1)
-            spin.set_value(255);spin.set_numeric(True);self.rgb.append(spin);self.rgb_row.append(spin)
+            spin.set_value(255);spin.set_numeric(True)
+            spin.connect('value-changed', lambda *_: self.preview.queue_draw())
+            self.rgb.append(spin);self.rgb_row.append(spin)
         card.append(self.rgb_row)
         self.palette.connect('notify::selected',self.selection_changed)
         self.mode.connect('notify::selected',self.selection_changed)
+        self.brightness.connect('notify::selected', lambda *_: self.preview.queue_draw())
         self.selection_changed()
         note=Gtk.Label(label='呼吸支持七种固定颜色；常亮可自选颜色。编辑后点击“应用灯光”。',xalign=0,wrap=True)
         note.add_css_class('small-note');card.append(note)
         row=Gtk.Box(spacing=12)
         self.apply_button=Gtk.Button(label='应用灯光');self.apply_button.add_css_class('suggested-action')
         self.apply_button.connect('clicked',self.apply); row.append(self.apply_button)
-        self.off_button=Gtk.Button(label='关闭 Logo');self.off_button.connect('clicked',lambda *_:self.set_enabled(False));row.append(self.off_button)
+        self.off_button=Gtk.Button(label='关闭 Logo');self.off_button.add_css_class('destructive-action');self.off_button.connect('clicked',lambda *_:self.set_enabled(False));row.append(self.off_button)
         self.buttons=[self.apply_button,self.off_button]
         for button in self.buttons:button.set_sensitive(False)
         card.append(row)
@@ -61,6 +124,8 @@ class LogoPanel(Gtk.Box):
         if mode=='breathing' and self.palette.get_selected()==7:self.palette.set_selected(0)
         self.palette.set_sensitive(mode!='rainbow')
         self.rgb_row.set_visible(mode=='solid' and self.palette.get_selected()==7)
+        if hasattr(self, 'preview'):
+            self.preview.queue_draw()
 
     def load_values(self,config):
         try:

@@ -12,6 +12,7 @@ from .performance import PerformancePanel
 from .logo import LogoPanel
 from .lighting_policy_gui import LightingPolicyPanel
 from .profiles_gui import ProfilesPanel
+from .watercooling_gui import WaterCoolingPanel
 from .zone_lock import ZoneTransaction
 
 MODE_TEXT = {
@@ -87,23 +88,43 @@ def rounded(cr, x, y, w, h, radius):
     cr.close_path()
 
 
+class BrandBadge(Gtk.DrawingArea):
+    """Crisp machined geometric crest for sidebar branding."""
+    def __init__(self):
+        super().__init__()
+        self.set_content_width(34)
+        self.set_content_height(26)
+        self.set_draw_func(self.draw)
+
+    def draw(self, _area, cr, width, height):
+        rounded(cr, 0, 0, width, height, 6)
+        cr.set_source_rgb(0.10, 0.16, 0.27); cr.fill_preserve()
+        cr.set_source_rgb(0.23, 0.51, 0.96); cr.set_line_width(1.2); cr.stroke()
+        cr.set_line_width(2.2)
+        cr.set_line_cap(1)
+        cr.set_source_rgb(0.38, 0.75, 0.98)
+        cr.move_to(7, 19); cr.line_to(13, 7); cr.line_to(17, 15); cr.line_to(21, 7); cr.line_to(27, 19)
+        cr.stroke()
+
+
 class DevicePreview(Gtk.DrawingArea):
     """Illustration only; never emits USB writes or captures keyboard input."""
     def __init__(self, panel):
         super().__init__()
         self.panel = panel
-        self.set_content_height(158)
+        self.set_content_height(166)
         self.set_hexpand(True)
         self.set_draw_func(self.draw)
 
     def draw(self, _area, cr, width, height):
         p = self.panel
-        cr.set_source_rgb(.065, .085, .135)
-        rounded(cr, 0, 0, width, height, 16); cr.fill()
+        cr.set_source_rgb(.055, .072, .105)
+        rounded(cr, 0, 0, width, height, 14); cr.fill_preserve()
+        cr.set_source_rgb(.14, .18, .25); cr.set_line_width(1.0); cr.stroke()
         cr.select_font_face('sans-serif', 0, 0)
         cr.set_font_size(10)
-        cr.set_source_rgb(.60, .67, .78)
-        cr.move_to(20, 22); cr.show_text('RGB  /  '+('KEYBOARD' if p.device == 'keyboard' else 'LIGHTBAR'))
+        cr.set_source_rgb(.54, .63, .76)
+        cr.move_to(20, 22); cr.show_text('RGB  /  '+('KEYBOARD 101-KEY' if p.device == 'keyboard' else 'CHASSIS LIGHTBAR'))
         mode = p.mode
         on = mode != 'off' and p.bright.get_value() > 0
         palette = [rgb(b.get_rgba()) for b in p.palette_buttons]
@@ -494,56 +515,100 @@ class App(Gtk.Application):
         window=self.get_active_window()
         if window:window.present();return
         self.panels=[];self.logo=None;self.profiles_panel=None
+        settings = Gtk.Settings.get_default()
+        if settings is not None:
+            settings.set_property('gtk-application-prefer-dark-theme', True)
         provider=Gtk.CssProvider()
         provider.load_from_path(str(Path(__file__).with_name('control.css')))
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(),provider,Gtk.STYLE_PROVIDER_PRIORITY_USER + 1)
         Gtk.Window.set_default_icon_name('mechrevo-control')
         window=Gtk.ApplicationWindow(application=self,title='机械革命控制中心')
-        window.add_css_class('mechrevo-shell');window.set_default_size(1040,760)
+        window.add_css_class('mechrevo-shell');window.set_default_size(1100,790)
         root=box(False);window.set_child(root)
-        sidebar=box(spacing=10,css='sidebar');sidebar.set_size_request(170,-1)
-        brand=label('M / R','brand-mark');sidebar.append(brand)
-        sidebar.append(label('机械革命','brand-title'))
-        sidebar.append(label('本机控制中心','subtitle'))
-        section=label('设备控制','nav-section');sidebar.append(section)
+        sidebar=box(spacing=6,css='sidebar');sidebar.set_size_request(196,-1)
+        brand_row=box(False,10,css='brand-row');brand_row.set_valign(Gtk.Align.CENTER)
+        brand_row.append(BrandBadge())
+        brand_text=box(spacing=1)
+        brand_text.append(label('MECHREVO','brand-mark'))
+        brand_text.append(label('YAOSHI 控制中心','subtitle'))
+        brand_row.append(brand_text);sidebar.append(brand_row)
+        section=label('硬件与控制','nav-section');sidebar.append(section)
         self.stack=Gtk.Stack();self.stack.set_hexpand(True);self.stack.set_vexpand(True)
         self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         self.stack.set_transition_duration(120)
         self.nav={}
+        self._page_meta={}
         detected={label for _,_,label in devices.available_devices()}
-        for name,title,icon in [('keyboard','键盘背光','input-keyboard-symbolic'),('lightbar','机身灯带','display-brightness-symbolic'),('logo','后盖 Logo','starred-symbolic'),('lighting-policy','自动灯光','preferences-system-symbolic'),('profiles','情景预设','view-grid-symbolic'),('performance','性能模式','speedometer-symbolic')]:
+        for name,title,icon,subtitle in [
+            ('keyboard','键盘背光','input-keyboard-symbolic','101 键灯效与单键矩阵编辑器'),
+            ('lightbar','机身灯带','display-brightness-symbolic','前缘与侧翼氛围灯带控制'),
+            ('logo','后盖 Logo','starred-symbolic','屏幕后盖独立发光徽标'),
+            ('lighting-policy','自动灯光','preferences-system-symbolic','供电切换亮度与空闲自动熄灯'),
+            ('profiles','情景预设','view-grid-symbolic','性能与三区灯光组合规则联动'),
+            ('performance','性能模式','speedometer-symbolic','固件运行档位、功耗调校与风扇曲线'),
+            ('watercooling','水冷控制','weather-showers-scattered-symbolic','外置蓝牙水冷泵扇、水流保护与双区灯控'),
+        ]:
+            self._page_meta[name]=(title,subtitle)
             if name=='performance':page=PerformancePanel()
             elif name=='logo':page=LogoPanel();self.logo=page
             elif name=='profiles':page=ProfilesPanel();self.profiles_panel=page
+            elif name=='watercooling':page=WaterCoolingPanel();self.watercooling_panel=page
             elif name=='lighting-policy':
                 page=box(spacing=18,css='device-page')
                 page.append(label('灯光策略','page-title'))
                 page.append(LightingPolicyPanel())
             elif name in detected:
                 try:page=DevicePanel(name);self.panels.append(page)
-                except Exception as exc:page=label('设备暂不可用：'+str(exc),wrap=True)
-            else:page=label('未检测到该灯光设备，请检查设备连接',wrap=True)
+                except Exception as exc:
+                    page=self._empty_device_page(title,'设备访问受限',str(exc),icon)
+            else:
+                hint='请检查 USB HID 设备连接，或确认已安装 udev 权限规则（70-mechrevo-lights.rules）。'
+                page=self._empty_device_page(title,'未检测到该硬件灯区',hint,icon)
             scroll=Gtk.ScrolledWindow();scroll.set_policy(Gtk.PolicyType.NEVER,Gtk.PolicyType.AUTOMATIC)
             scroll.set_child(page);scroll.add_css_class('page-scroll')
             self.stack.add_named(scroll,name)
             button=Gtk.Button();button.add_css_class('nav-button')
-            content=box(False,10);content.append(Gtk.Image.new_from_icon_name(icon));content.append(label(title));button.set_child(content)
+            content=box(False,10);content.set_valign(Gtk.Align.CENTER)
+            content.append(Gtk.Image.new_from_icon_name(icon));content.append(label(title));button.set_child(content)
             button.connect('clicked',lambda _,value=name:self.navigate(value));sidebar.append(button);self.nav[name]=button
         spacer=box();spacer.set_vexpand(True);sidebar.append(spacer)
-        sidebar.append(label('YAOSHI Series','device-name'))
-        sidebar.append(label('Linux 本机适配','small-note'))
+        footer=box(spacing=2,css='sidebar-footer')
+        footer.append(label('YAOSHI Series','device-name'))
+        footer.append(label('Linux 本机控制套件','small-note'))
+        sidebar.append(footer)
         root.append(sidebar)
         right=box();right.set_hexpand(True);root.append(right)
         bar=box(False,12,css='topbar')
-        welcome=label('设备个性化','topbar-label');welcome.set_hexpand(True);bar.append(welcome)
+        bar.set_valign(Gtk.Align.CENTER)
+        self.topbar_title=label('硬件控制控制台','topbar-label')
+        self.topbar_title.set_hexpand(True)
+        bar.append(self.topbar_title)
         off=Gtk.Button(label='关闭全部灯光');off.set_tooltip_text('关闭键盘、机身灯带与后盖 Logo，保留配色设置')
         off.add_css_class('all-off');off.connect('clicked',self.all_off);bar.append(off);right.append(bar)
         right.append(self.stack)
         window.connect('close-request',self.window_closed,tuple(self.panels),self.logo,self.profiles_panel)
         self.navigate('keyboard');window.present()
 
+    def _empty_device_page(self, title_text, heading, detail, icon):
+        outer=box(spacing=18,css='device-page')
+        outer.append(label(title_text,'page-title'))
+        card=box(spacing=10,css='empty-card')
+        card.set_halign(Gtk.Align.FILL)
+        badge=Gtk.Image.new_from_icon_name(icon)
+        badge.set_pixel_size(36)
+        badge.set_halign(Gtk.Align.START)
+        card.append(badge)
+        head=label(heading,'section-title')
+        body=label(detail,'subtitle',wrap=True)
+        card.append(head);card.append(body)
+        outer.append(card)
+        return outer
+
     def navigate(self,name):
         self.stack.set_visible_child_name(name)
+        meta=getattr(self,'_page_meta',{}).get(name)
+        if meta and hasattr(self,'topbar_title'):
+            self.topbar_title.set_text(f'控制中心  /  {meta[0]}')
         for key,button in self.nav.items():
             if key==name:button.add_css_class('selected')
             else:button.remove_css_class('selected')
@@ -568,6 +633,10 @@ class App(Gtk.Application):
         if profiles_panel is not None:
             profiles_panel.close()
             if getattr(self,'profiles_panel',None) is profiles_panel:self.profiles_panel=None
+        wc_panel=getattr(self,'watercooling_panel',None)
+        if wc_panel is not None:
+            wc_panel.close()
+            self.watercooling_panel=None
         # An old Logo helper retains its own application hold and transaction
         # until the async callback saves its actual value, independently of UI.
         return False
@@ -579,6 +648,7 @@ class App(Gtk.Application):
         self.panels=[]
         if self.logo:self.logo.close();self.logo=None
         if getattr(self,'profiles_panel',None):self.profiles_panel.close();self.profiles_panel=None
+        if getattr(self,'watercooling_panel',None):self.watercooling_panel.close();self.watercooling_panel=None
         Gtk.Application.do_shutdown(self)
 
 
