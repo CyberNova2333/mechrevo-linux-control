@@ -1,6 +1,8 @@
+diff --git a/src/iteglow/cli.py b/src/iteglow/cli.py
+index c1ab013..c546b1d 100644
 --- a/src/iteglow/cli.py
 +++ b/src/iteglow/cli.py
-@@ -2,12 +2,15 @@
+@@ -2,12 +2,18 @@
  from __future__ import annotations
  
  import argparse
@@ -12,12 +14,15 @@
  
 -from . import __version__, devices, effects, protocol, state
 +from . import __version__, devices, effects, keymap, protocol, state
++from . import watercooling as wc
  from .protocol import RGB
++from .watercooling_ble import CoolerBleClient
++from .watercooling_service import is_service_running, run_daemon, service_request
 +from .zone_lock import ZoneTransaction
  
  
  def _parse_color(s: str) -> RGB:
-@@ -23,6 +26,47 @@
+@@ -23,6 +29,47 @@ def _parse_color(s: str) -> RGB:
      raise argparse.ArgumentTypeError(f"bad colour {s!r}; use #RRGGBB or r,g,b")
  
  
@@ -65,7 +70,7 @@
  def _resolve_direction(label: str, value: str) -> int:
      table = effects.DIRECTIONS_BY_LABEL[label]
      if value in table:
-@@ -37,7 +81,8 @@
+@@ -37,7 +84,8 @@ def _resolve_direction(label: str, value: str) -> int:
  # --------------------------------------------------------------------- commands
  
  def cmd_doctor(_args) -> int:
@@ -75,7 +80,7 @@
      mods = ""
      try:
          with open("/proc/modules") as f:
-@@ -63,18 +108,19 @@
+@@ -63,18 +111,19 @@ def cmd_doctor(_args) -> int:
                      extra = f"  fw {fw[0]}.{fw[1]}"
                      if label == "keyboard":
                          st = protocol.parse_keyboard_state(dev.query(protocol.QUERY_EFFECT))
@@ -99,7 +104,7 @@
          print("  * NO ACCESS            -> sudo install -m644 data/60-iteglow.rules "
                "/etc/udev/rules.d/ && sudo udevadm control --reload && reboot")
      return 0 if ok else 1
-@@ -86,6 +132,7 @@
+@@ -86,6 +135,7 @@ def cmd_list(_args) -> int:
                           ("lightbar", effects.LIGHTBAR_MODES)):
          tag = "" if label in present else "  (not detected)"
          print(f"{label}{tag}: {', '.join(modes)}")
@@ -107,7 +112,7 @@
      return 0
  
  
-@@ -93,33 +140,66 @@
+@@ -93,33 +143,66 @@ def _open(label: str) -> devices.HidLed:
      return devices.HidLed(devices.led_for_label(label))
  
  
@@ -180,7 +185,7 @@
      return effects.build(
          label, params.get("mode", "off"),
          color=tuple(params.get("color") or (0, 255, 255)),
-@@ -127,31 +207,56 @@
+@@ -127,31 +210,56 @@ def _build_from_params(label: str, params: dict):
          brightness=params.get("brightness"),
          speed=params.get("speed", 5),
          direction=params.get("direction", 1),
@@ -246,7 +251,7 @@
  
  
  def cmd_pin(args) -> int:
-@@ -174,10 +279,123 @@
+@@ -174,10 +282,256 @@ def cmd_pin(args) -> int:
          return 1
      state.write(state.SYSTEM_STATE_PATH, data)
      print(f"pinned {', '.join(sorted(data))} -> {state.SYSTEM_STATE_PATH}")
@@ -368,10 +373,143 @@
 +    return 1
 +
 +
++def _save_local_wc_patch(patch: dict) -> dict:
++    cur = wc.load_config()
++    merged = dict(cur)
++    for k, v in patch.items():
++        if k in ("manual", "curve", "led") and isinstance(v, dict) and isinstance(merged.get(k), dict):
++            sub = dict(merged[k])
++            sub.update(v)
++            merged[k] = sub
++        else:
++            merged[k] = v
++    return wc.save_config(merged)
++
++
++def cmd_cooler(args) -> int:
++    action = args.cooler_action
++    try:
++        if action == "daemon":
++            return run_daemon()
++        if action == "ec-status":
++            print(json.dumps({
++                "temp_c": wc.read_host_temp_c(),
++                "ec": wc.read_ec_watercooler_state(),
++            }, ensure_ascii=False, indent=2))
++            return 0
++        if action == "status":
++            if is_service_running():
++                res = service_request({"op": "status"})
++            else:
++                res = {
++                    "service_running": False,
++                    "connected": False,
++                    "temp_c": wc.read_host_temp_c(),
++                    "ec": wc.read_ec_watercooler_state(),
++                    "config": wc.load_config(),
++                }
++            print(json.dumps(res, ensure_ascii=False, indent=2))
++            return 0
++
++        if not _user_lighting_only():
++            return 1
++
++        if action == "scan":
++            if is_service_running():
++                devs = service_request({"op": "scan", "timeout_s": args.timeout}).get("devices", [])
++            else:
++                devs = CoolerBleClient().scan(timeout_s=args.timeout, target_mac=args.mac or "")
++            print(json.dumps({"devices": devs}, ensure_ascii=False, indent=2))
++            return 0
++        if action == "connect":
++            if not is_service_running():
++                raise RuntimeError("水冷守护进程未运行，请先执行 `systemctl --user start iteglow-watercooling.service` 或 `iteglow cooler daemon`")
++            res = service_request({"op": "connect", "mac": args.mac or ""}, timeout_s=24.0)
++            print(json.dumps(res, ensure_ascii=False, indent=2))
++            return 0
++        if action == "disconnect":
++            if not is_service_running():
++                raise RuntimeError("水冷守护进程未运行")
++            res = service_request({"op": "disconnect", "send_sleep": not args.no_sleep})
++            print(json.dumps(res, ensure_ascii=False, indent=2))
++            return 0
++        if action == "sleep":
++            if is_service_running():
++                res = service_request({"op": "disconnect", "send_sleep": True})
++            else:
++                cli = CoolerBleClient()
++                cli.connect(target_mac=args.mac or wc.load_config().get("mac", ""))
++                cli.disconnect(send_sleep=True, stop_actuators=True)
++                res = {"connected": False, "sleep_sent": True}
++            print(json.dumps(res, ensure_ascii=False, indent=2))
++            return 0
++        if action == "reset-fault":
++            res = service_request({"op": "reset_fault"})
++            print(json.dumps(res, ensure_ascii=False, indent=2))
++            return 0
++        if action == "emergency-stop":
++            if is_service_running():
++                res = service_request({"op": "emergency_stop"})
++            else:
++                saved = _save_local_wc_patch({"strategy": "preset", "preset": "stop", "led": {"mode": "off"}})
++                res = {"service_running": False, "config": saved}
++            print(json.dumps(res, ensure_ascii=False, indent=2))
++            return 0
++        if action == "set":
++            patch = {}
++            if args.strategy is not None:
++                patch["strategy"] = args.strategy
++            if args.preset is not None:
++                patch["preset"] = args.preset
++            if args.mac is not None:
++                patch["mac"] = args.mac
++            if args.auto_connect is not None:
++                patch["auto_connect"] = args.auto_connect == "on"
++            if args.flow_protection is not None:
++                patch["flow_protection"] = args.flow_protection == "on"
++            if args.sleep_on_disconnect is not None:
++                patch["sleep_on_disconnect"] = args.sleep_on_disconnect == "on"
++            manual = {}
++            if args.pump_volt is not None:
++                manual["pump_volt"] = args.pump_volt
++            if args.pump_duty is not None:
++                manual["pump_duty"] = args.pump_duty
++            if args.fan_duty is not None:
++                manual["fan_duty"] = args.fan_duty
++            if manual:
++                base_manual = dict(wc.load_config()["manual"])
++                base_manual.update(manual)
++                patch["manual"] = base_manual
++            if is_service_running():
++                res = service_request({"op": "set_config", "config": patch, "apply_now": not args.no_apply})
++            else:
++                res = {"service_running": False, "config": _save_local_wc_patch(patch)}
++            print(json.dumps(res, ensure_ascii=False, indent=2))
++            return 0
++        if action == "led":
++            led_patch = {"mode": args.mode}
++            if args.color is not None:
++                led_patch["color"] = list(args.color)
++            if args.fan_policy is not None:
++                led_patch["fan_policy"] = args.fan_policy
++            if args.fan_color is not None:
++                led_patch["fan_color"] = list(args.fan_color)
++            if is_service_running():
++                res = service_request({"op": "set_config", "config": {"led": led_patch}, "apply_now": True})
++            else:
++                res = {"service_running": False, "config": _save_local_wc_patch({"led": led_patch})}
++            print(json.dumps(res, ensure_ascii=False, indent=2))
++            return 0
++    except (OSError, ValueError, RuntimeError) as exc:
++        print(f"error: {exc}", file=sys.stderr)
++        return 1
++    return 1
++
++
  # --------------------------------------------------------------------- parser
  
  def build_parser() -> argparse.ArgumentParser:
-@@ -197,9 +415,16 @@
+@@ -197,9 +551,16 @@ def build_parser() -> argparse.ArgumentParser:
                     help="up to 7 colours for multi-colour effects")
      s.add_argument("--brightness", type=int, default=None, help="0..100 (lightbar) / 0..50 (keyboard)")
      s.add_argument("--speed", type=int, default=5, help="1 (fast) .. 10 (slow)")
@@ -388,7 +526,7 @@
      s.set_defaults(func=cmd_set)
  
      o = sub.add_parser("off", help="turn a device (or all) off")
-@@ -208,13 +433,44 @@
+@@ -208,13 +569,78 @@ def build_parser() -> argparse.ArgumentParser:
  
      r = sub.add_parser("restore", help="re-apply the last saved state")
      r.add_argument("--system", action="store_true",
@@ -432,66 +570,623 @@
 +    pau.add_argument("--no-restore", dest="restore", action="store_false")
 +    pr.set_defaults(func=cmd_profile)
 +
++    wc_p = sub.add_parser("cooler", help="control external BLE water cooler (LCT22002 / LCT21001)")
++    wc_sub = wc_p.add_subparsers(dest="cooler_action", required=True)
++    wc_sub.add_parser("status", help="show cooler status, telemetry, and saved config")
++    wc_sub.add_parser("ec-status", help="show read-only host EC/WMI cooler telemetry")
++    wc_sc = wc_sub.add_parser("scan", help="scan nearby BLE water coolers")
++    wc_sc.add_argument("--timeout", type=float, default=5.0)
++    wc_sc.add_argument("--mac", default="")
++    wc_cn = wc_sub.add_parser("connect", help="connect to water cooler via user daemon")
++    wc_cn.add_argument("--mac", default="")
++    wc_dc = wc_sub.add_parser("disconnect", help="safely stop and disconnect cooler")
++    wc_dc.add_argument("--no-sleep", action="store_true")
++    wc_sl = wc_sub.add_parser("sleep", help="send GoToSleepLC (0x19 00 01) and disconnect")
++    wc_sl.add_argument("--mac", default="")
++    wc_sub.add_parser("reset-fault", help="reset latched flow-safety fault")
++    wc_sub.add_parser("emergency-stop", help="stop pump/fan/LEDs and put cooler to sleep")
++    wc_st = wc_sub.add_parser("set", help="update cooler strategy, preset, manual stage, or safety flags")
++    wc_st.add_argument("--strategy", choices=wc.STRATEGIES)
++    wc_st.add_argument("--preset", choices=tuple(wc.PRESETS))
++    wc_st.add_argument("--pump-volt", type=int, choices=wc.VALID_PUMP_VOLTS)
++    wc_st.add_argument("--pump-duty", type=int)
++    wc_st.add_argument("--fan-duty", type=int)
++    wc_st.add_argument("--mac", default=None)
++    wc_st.add_argument("--auto-connect", choices=("on", "off"))
++    wc_st.add_argument("--flow-protection", choices=("on", "off"))
++    wc_st.add_argument("--sleep-on-disconnect", choices=("on", "off"))
++    wc_st.add_argument("--no-apply", action="store_true")
++    wc_ld = wc_sub.add_parser("led", help="configure cooler dual-zone LED (0x1E + 0x33)")
++    wc_ld.add_argument("mode", choices=tuple(wc.LED_MODES))
++    wc_ld.add_argument("--color", type=_parse_color)
++    wc_ld.add_argument("--fan-policy", choices=wc.FAN_LED_POLICIES)
++    wc_ld.add_argument("--fan-color", type=_parse_color)
++    wc_sub.add_parser("daemon", help="run unprivileged desktop-user water-cooling BLE daemon")
++    wc_p.set_defaults(func=cmd_cooler)
++
      g = sub.add_parser("gui", help="launch the graphical control panel")
      g.set_defaults(func=lambda a: _launch_gui())
      return p
+diff --git a/b/src/iteglow/control.css b/src/iteglow/control.css
+new file mode 100644
+index 0000000..18226f0
 --- /dev/null
 +++ b/src/iteglow/control.css
-@@ -0,0 +1,51 @@
-+.mechrevo-shell { background: #f4f6fa; color: #1d2940; font-size: 13px; }
-+.mechrevo-shell .sidebar { background: #eaf0f7; padding: 28px 16px 20px; border-right: 1px solid #dfe6f0; }
-+.mechrevo-shell .brand-mark { font-size: 28px; font-weight: 900; letter-spacing: 3px; color: #2f63db; margin-bottom: 6px; }
-+.mechrevo-shell .brand-title { font-size: 20px; font-weight: 700; letter-spacing: 2px; }
-+.mechrevo-shell .subtitle { color: #66758a; font-size: 12px; }
-+.mechrevo-shell .small-note { color: #718096; font-size: 11px; }
-+.mechrevo-shell .nav-section { color: #7b879b; font-size: 11px; margin: 32px 10px 8px; }
-+.mechrevo-shell button { background: #fff; background-image: none; color: #34435a; border: 1px solid #dbe3ee; border-radius: 9px; box-shadow: none; text-shadow: none; padding: 8px 12px; min-height: 20px; font-weight: 500; }
-+.mechrevo-shell button:hover { background: #f0f5ff; border-color: #afc6ef; }
-+.mechrevo-shell button:focus-visible { outline: 2px solid #719cf0; outline-offset: 2px; }
-+.mechrevo-shell button.selected { background: #eaf2ff; color: #2459c4; border-color: #81a8f2; }
-+.mechrevo-shell button:disabled { opacity: .55; }
-+.mechrevo-shell .nav-button { background: transparent; border: 1px solid transparent; padding: 13px 12px; font-weight: 600; }
-+.mechrevo-shell .nav-button.selected { background: #fff; border-color: #d9e5fa; color: #275dc6; box-shadow: 0 3px 8px alpha(#315b9c,.06); }
-+.mechrevo-shell .device-name { font-size: 12px; font-weight: 600; color: #4c5e77; }
-+.mechrevo-shell .topbar { background: #fff; padding: 14px 24px; border-bottom: 1px solid #e4eaf2; }
-+.mechrevo-shell .topbar-label { color: #8290a5; font-size: 12px; }
-+.mechrevo-shell .all-off { font-size: 12px; }
-+.mechrevo-shell .device-page, .mechrevo-shell .performance-page { padding: 22px 24px; }
-+.mechrevo-shell .page-title { font-size: 24px; font-weight: 750; color: #1d2c44; }
-+.mechrevo-shell .connection-pill { color: #20815d; background: #e8f5ef; border-radius: 20px; padding: 7px 12px; font-size: 11px; }
-+.mechrevo-shell .control-card { background: #fff; border: 1px solid #e1e7f0; border-radius: 14px; padding: 16px; }
-+.mechrevo-shell .section-title { font-size: 14px; font-weight: 700; color: #24344e; }
-+.mechrevo-shell .effect-tile { min-height: 35px; padding: 7px 8px; font-size: 12px; font-weight: 600; }
-+.mechrevo-shell .value-label { font-size: 11px; color: #5874a1; }
-+.mechrevo-shell .status-text { font-size: 11px; color: #526f93; min-height: 16px; }
-+.mechrevo-shell .small-button { padding: 2px 8px; font-size: 10px; min-height: 16px; }
-+.mechrevo-shell .color-swatch { padding: 3px; min-width: 24px; min-height: 23px; border-radius: 7px; }
-+.mechrevo-shell colorswatch { border-radius: 5px; }
-+.mechrevo-shell scale { padding: 10px 0; }
-+.mechrevo-shell scale trough { background: #e7edf6; min-height: 5px; border: none; border-radius: 8px; }
-+.mechrevo-shell scale highlight { background: #477ce5; border: none; border-radius: 8px; }
-+.mechrevo-shell scale slider { background: #fff; border: 2px solid #477ce5; box-shadow: 0 1px 3px alpha(#1b3f80,.15); min-width: 12px; min-height: 12px; margin: -6px 0; }
-+.mechrevo-shell dropdown button { padding: 5px 8px; font-size: 11px; }
-+.mechrevo-shell .mode-card { min-height: 90px; padding: 18px 12px; }
-+.mechrevo-shell .mode-name { font-size: 17px; font-weight: 700; }
-+.mechrevo-shell .mode-led { font-size: 12px; }
-+.mechrevo-shell .green-led { color: #20966c; }
-+.mechrevo-shell .blue-led { color: #4074df; }
-+.mechrevo-shell .purple-led { color: #9660db; }
-+.mechrevo-shell .performance-current { background: #142238; color: #edf4ff; border-radius: 15px; padding: 26px; font-size: 21px; font-weight: 700; }
+@@ -0,0 +1,569 @@
++.mechrevo-shell {
++  background: #0d1118;
++  color: #e8eef7;
++  font-size: 13px;
++}
 +
-+.mechrevo-shell .page-scroll > viewport { background: #f4f6fa; }
-+.mechrevo-shell scale highlight { min-width: 1px; min-height: 5px; padding: 0; margin: 0; }
-+.mechrevo-shell scale trough { padding: 0; margin: 0; }
-+.mechrevo-shell .mode-card.selected:disabled { opacity: 1; color: #2459c4; background: #eaf2ff; border-color: #81a8f2; }
++.mechrevo-shell .sidebar {
++  background: #090c12;
++  padding: 22px 14px 18px;
++  border-right: 1px solid #1d2534;
++}
 +
-+.mechrevo-shell scale:disabled { opacity: .4; }
++.mechrevo-shell .brand-row {
++  padding: 2px 6px 4px;
++}
 +
-+.mechrevo-shell .white-led { color: #64748b; }
-+.mechrevo-shell .keycap-btn { padding: 3px 4px; min-height: 28px; min-width: 24px; font-size: 10px; border-radius: 6px; }
++.mechrevo-shell .brand-mark {
++  font-size: 18px;
++  font-weight: 800;
++  letter-spacing: 2.5px;
++  color: #f8fafc;
++}
++
++.mechrevo-shell .brand-title {
++  font-size: 15px;
++  font-weight: 700;
++  letter-spacing: 0.6px;
++  color: #e2e8f0;
++}
++
++.mechrevo-shell .subtitle {
++  color: #8b9bb4;
++  font-size: 12px;
++}
++
++.mechrevo-shell .small-note {
++  color: #7c8ca4;
++  font-size: 11px;
++}
++
++.mechrevo-shell .nav-section {
++  color: #607089;
++  font-size: 11px;
++  font-weight: 700;
++  letter-spacing: 0.8px;
++  margin: 18px 10px 6px;
++}
++
++.mechrevo-shell .device-name {
++  font-size: 12px;
++  font-weight: 700;
++  color: #cbd5e1;
++}
++
++.mechrevo-shell .sidebar-footer {
++  background: #111620;
++  border: 1px solid #1e2736;
++  border-radius: 10px;
++  padding: 10px 12px;
++}
++
++.mechrevo-shell .topbar {
++  background: #0f141d;
++  padding: 12px 24px;
++  border-bottom: 1px solid #1d2534;
++}
++
++.mechrevo-shell .topbar-label {
++  color: #e2e8f0;
++  font-size: 14px;
++  font-weight: 700;
++}
++
++.mechrevo-shell .topbar-sub {
++  color: #7c8ca4;
++  font-size: 11px;
++}
++
++.mechrevo-shell button,
++.mechrevo-shell button label {
++  color: inherit;
++}
++
++.mechrevo-shell button {
++  background: #1a212e;
++  background-image: none;
++  color: #e6edf7;
++  border: 1px solid #2b374b;
++  border-radius: 9px;
++  box-shadow: none;
++  text-shadow: none;
++  padding: 7px 14px;
++  min-height: 22px;
++  font-weight: 600;
++  transition: all 140ms ease;
++}
++
++.mechrevo-shell button:hover {
++  background: #222b3b;
++  border-color: #465a7a;
++  color: #ffffff;
++}
++
++.mechrevo-shell button:active {
++  background: #171e2b;
++}
++
++.mechrevo-shell button:focus-visible {
++  outline: 2px solid #3b82f6;
++  outline-offset: 2px;
++}
++
++.mechrevo-shell button.selected {
++  background: #172b4d;
++  color: #93c5fd;
++  border-color: #3b82f6;
++}
++
++.mechrevo-shell button.suggested-action {
++  background: #2563eb;
++  color: #ffffff;
++  border-color: #3b82f6;
++}
++
++.mechrevo-shell button.suggested-action:hover {
++  background: #1d4ed8;
++  border-color: #60a5fa;
++}
++
++.mechrevo-shell button.destructive-action,
++.mechrevo-shell button.all-off {
++  background: #2a151b;
++  color: #fda4af;
++  border-color: #692330;
++  font-size: 12px;
++}
++
++.mechrevo-shell button.destructive-action:hover,
++.mechrevo-shell button.all-off:hover {
++  background: #3d1b24;
++  border-color: #be123c;
++  color: #ffe4e6;
++}
++
++.mechrevo-shell button:disabled {
++  opacity: 0.42;
++}
++
++.mechrevo-shell .nav-button {
++  background: transparent;
++  border: 1px solid transparent;
++  border-left: 3px solid transparent;
++  border-radius: 9px;
++  padding: 10px 12px;
++  font-weight: 600;
++  color: #9aaac2;
++}
++
++.mechrevo-shell .nav-button:hover {
++  background: #141a24;
++  border-color: transparent;
++  border-left-color: #2f4364;
++  color: #e2e8f0;
++}
++
++.mechrevo-shell .nav-button.selected {
++  background: linear-gradient(90deg, alpha(#3b82f6, 0.16), alpha(#3b82f6, 0.04));
++  border-color: alpha(#3b82f6, 0.22);
++  border-left: 3px solid #3b82f6;
++  color: #f8fafc;
++}
++
++.mechrevo-shell .page-scroll > viewport {
++  background: #0d1118;
++}
++
++.mechrevo-shell .device-page,
++.mechrevo-shell .performance-page {
++  padding: 22px 26px 28px;
++}
++
++.mechrevo-shell .page-title {
++  font-size: 22px;
++  font-weight: 800;
++  letter-spacing: -0.2px;
++  color: #f1f5f9;
++}
++
++.mechrevo-shell .control-card {
++  background: #141a24;
++  border: 1px solid #222c3c;
++  border-radius: 14px;
++  padding: 18px 20px;
++}
++
++.mechrevo-shell .hero-deck {
++  background: linear-gradient(135deg, #18202e, #121822);
++  border: 1px solid #2a374c;
++  border-radius: 14px;
++  padding: 18px 20px;
++}
++
++.mechrevo-shell .well {
++  background: #1a2230;
++  border: 1px solid #253042;
++  border-radius: 10px;
++  padding: 11px 14px;
++}
++
++.mechrevo-shell .metric-tile {
++  background: #10151e;
++  border: 1px solid #212b3b;
++  border-radius: 10px;
++  padding: 11px 14px;
++}
++
++.mechrevo-shell .kpi-label {
++  color: #7c8ca4;
++  font-size: 11px;
++  font-weight: 600;
++}
++
++.mechrevo-shell .kpi-value {
++  color: #f1f5f9;
++  font-size: 18px;
++  font-weight: 800;
++}
++
++.mechrevo-shell .section-title {
++  font-size: 14px;
++  font-weight: 700;
++  color: #edf2fa;
++}
++
++.mechrevo-shell .connection-pill {
++  color: #34d399;
++  background: #0c2b21;
++  border: 1px solid #165942;
++  border-radius: 20px;
++  padding: 5px 12px;
++  font-size: 11px;
++  font-weight: 700;
++}
++
++.mechrevo-shell .connection-pill.pill-warn {
++  color: #fbbf24;
++  background: #2c200b;
++  border-color: #634612;
++}
++
++.mechrevo-shell .connection-pill.pill-danger {
++  color: #fb7185;
++  background: #31121a;
++  border-color: #6d1f32;
++}
++
++.mechrevo-shell .connection-pill.pill-muted {
++  color: #94a3b8;
++  background: #19212e;
++  border-color: #293549;
++}
++
++.mechrevo-shell .empty-card {
++  background: #141a24;
++  border: 1px solid #222c3c;
++  border-radius: 16px;
++  padding: 36px 32px;
++}
++
++.mechrevo-shell .effect-tile {
++  min-height: 36px;
++  padding: 7px 10px;
++  font-size: 12px;
++  font-weight: 600;
++}
++
++.mechrevo-shell .value-label {
++  font-size: 11px;
++  font-weight: 700;
++  color: #60a5fa;
++}
++
++.mechrevo-shell .status-text {
++  font-size: 12px;
++  color: #8ea5c4;
++  min-height: 18px;
++}
++
++.mechrevo-shell .small-button {
++  padding: 3px 10px;
++  font-size: 11px;
++  min-height: 18px;
++}
++
++.mechrevo-shell .color-swatch {
++  padding: 3px;
++  min-width: 26px;
++  min-height: 24px;
++  border-radius: 7px;
++}
++
++.mechrevo-shell colorswatch {
++  border-radius: 5px;
++}
++
++.mechrevo-shell entry {
++  background: #0f141d;
++  color: #edf2fa;
++  border: 1px solid #283447;
++  border-radius: 8px;
++  padding: 6px 10px;
++  min-height: 22px;
++  caret-color: #60a5fa;
++}
++
++.mechrevo-shell entry:focus-within {
++  border-color: #3b82f6;
++}
++
++.mechrevo-shell spinbutton {
++  background: #0f141d;
++  color: #edf2fa;
++  border: 1px solid #283447;
++  border-radius: 8px;
++  min-height: 26px;
++}
++
++.mechrevo-shell spinbutton text {
++  color: #edf2fa;
++  background: transparent;
++  padding: 2px 6px;
++}
++
++.mechrevo-shell spinbutton button {
++  background: #192130;
++  color: #cbd5e1;
++  border: none;
++  border-left: 1px solid #253042;
++  border-radius: 0;
++  padding: 2px 8px;
++  min-height: 18px;
++}
++
++.mechrevo-shell spinbutton button:hover {
++  background: #232e42;
++  color: #ffffff;
++}
++
++.mechrevo-shell dropdown button,
++.mechrevo-shell dropdown button label,
++.mechrevo-shell dropdown label,
++.mechrevo-shell dropdown image {
++  background: #101621;
++  color: #eef4fc;
++}
++
++.mechrevo-shell dropdown button {
++  border: 1px solid #2c3a50;
++  padding: 6px 12px;
++  font-size: 12px;
++  border-radius: 8px;
++}
++
++.mechrevo-shell dropdown button:disabled,
++.mechrevo-shell dropdown button:disabled label {
++  color: #7e8ea6;
++  opacity: 0.72;
++}
++
++.mechrevo-shell dropdown button:hover {
++  background: #161f2e;
++  border-color: #465d82;
++}
++
++.mechrevo-shell popover contents,
++.mechrevo-shell popover listview {
++  background: #141a24;
++  color: #eef4fc;
++  border: 1px solid #2a374c;
++  border-radius: 10px;
++}
++
++.mechrevo-shell popover label,
++.mechrevo-shell popover listview row,
++.mechrevo-shell popover listview row label {
++  color: #eef4fc;
++}
++
++.mechrevo-shell popover listview row:hover {
++  background: #1e2838;
++}
++
++.mechrevo-shell popover listview row:selected,
++.mechrevo-shell popover listview row:selected label {
++  background: #1b3259;
++  color: #93c5fd;
++}
++
++.mechrevo-shell checkbutton,
++.mechrevo-shell checkbutton label {
++  color: #e2e8f0;
++}
++
++.mechrevo-shell checkbutton:disabled,
++.mechrevo-shell checkbutton:disabled label {
++  color: #8292aa;
++  opacity: 0.75;
++}
++
++.mechrevo-shell switch {
++  background: #1f2837;
++  border: 1px solid #303d54;
++  border-radius: 16px;
++  min-width: 44px;
++  min-height: 24px;
++}
++
++.mechrevo-shell switch:checked {
++  background: #2563eb;
++  border-color: #3b82f6;
++}
++
++.mechrevo-shell switch slider {
++  background: #e2e8f0;
++  border-radius: 50%;
++  min-width: 18px;
++  min-height: 18px;
++  margin: 2px;
++}
++
++.mechrevo-shell checkbutton check {
++  background: #0f141d;
++  border: 1px solid #33425a;
++  border-radius: 5px;
++  min-width: 16px;
++  min-height: 16px;
++}
++
++.mechrevo-shell checkbutton:checked check {
++  background: #2563eb;
++  border-color: #3b82f6;
++  color: #ffffff;
++}
++
++.mechrevo-shell separator {
++  background: #222c3c;
++  min-height: 1px;
++  min-width: 1px;
++}
++
++.mechrevo-shell expander title {
++  color: #cbd5e1;
++  font-weight: 600;
++  padding: 4px 2px;
++}
++
++.mechrevo-shell scale {
++  padding: 10px 0;
++}
++
++.mechrevo-shell scale trough {
++  background: #202938;
++  min-height: 6px;
++  border: none;
++  border-radius: 8px;
++  padding: 0;
++  margin: 0;
++}
++
++.mechrevo-shell scale highlight {
++  background: linear-gradient(90deg, #2563eb, #38bdf8);
++  border: none;
++  border-radius: 8px;
++  min-width: 1px;
++  min-height: 6px;
++  padding: 0;
++  margin: 0;
++}
++
++.mechrevo-shell scale slider {
++  background: #f8fafc;
++  border: 2px solid #3b82f6;
++  box-shadow: 0 1px 4px alpha(#000000, 0.45);
++  min-width: 14px;
++  min-height: 14px;
++  margin: -6px 0;
++  border-radius: 50%;
++}
++
++.mechrevo-shell scale:disabled {
++  opacity: 0.35;
++}
++
++.mechrevo-shell .mode-card {
++  background: #18202d;
++  border: 1px solid #263245;
++  min-height: 86px;
++  padding: 16px 16px;
++  border-radius: 12px;
++}
++
++.mechrevo-shell .mode-card:hover {
++  background: #1e2838;
++  border-color: #3c4f6d;
++}
++
++.mechrevo-shell .mode-card.selected {
++  background: #172844;
++  border-color: #3b82f6;
++}
++
++.mechrevo-shell .mode-card.selected:disabled {
++  opacity: 1;
++  color: #f1f5f9;
++  background: #172844;
++  border-color: #3b82f6;
++}
++
++.mechrevo-shell .mode-name {
++  font-size: 16px;
++  font-weight: 700;
++  color: #f1f5f9;
++}
++
++.mechrevo-shell .mode-led {
++  font-size: 12px;
++  font-weight: 600;
++}
++
++.mechrevo-shell .green-led { color: #34d399; }
++.mechrevo-shell .blue-led { color: #38bdf8; }
++.mechrevo-shell .purple-led { color: #c084fc; }
++.mechrevo-shell .white-led { color: #cbd5e1; }
++
++.mechrevo-shell .performance-current {
++  background: linear-gradient(135deg, #162235, #111824);
++  color: #f1f5f9;
++  border: 1px solid #2a3a54;
++  border-radius: 14px;
++  padding: 20px 24px;
++  font-size: 20px;
++  font-weight: 800;
++}
++
++.mechrevo-shell .performance-current.perf-office {
++  border-left: 4px solid #34d399;
++}
++
++.mechrevo-shell .performance-current.perf-balanced {
++  border-left: 4px solid #38bdf8;
++}
++
++.mechrevo-shell .performance-current.perf-turbo {
++  border-left: 4px solid #a855f7;
++}
++
++.mechrevo-shell .performance-current.perf-custom {
++  border-left: 4px solid #e2e8f0;
++}
++
++.mechrevo-shell .keycap-btn {
++  padding: 3px 4px;
++  min-height: 28px;
++  min-width: 24px;
++  font-size: 10px;
++  border-radius: 6px;
++  background: #121822;
++  border-color: #242f42;
++}
+diff --git a/src/iteglow/devices.py b/src/iteglow/devices.py
+index 346f6e5..1050248 100644
 --- a/src/iteglow/devices.py
 +++ b/src/iteglow/devices.py
-@@ -8,11 +8,13 @@
+@@ -8,11 +8,13 @@ from __future__ import annotations
  
  import fcntl
  import os
@@ -505,7 +1200,7 @@
  
  # (led node, USB vendor:product, friendly label)
  KEYBOARD = ("rgb:kbd_backlight", "048d:600b", "keyboard")
-@@ -43,8 +45,20 @@
+@@ -43,8 +45,20 @@ def hidraw_for_led(led_name: str) -> Optional[str]:
      try:
          nodes = os.listdir(base)
      except OSError:
@@ -527,7 +1222,7 @@
  
  
  class HidLed:
-@@ -63,6 +77,14 @@
+@@ -63,6 +77,14 @@ class HidLed:
          self.fd = os.open(path, os.O_RDWR)
  
      def send(self, reports: Iterable[Report]) -> None:
@@ -542,7 +1237,7 @@
          for kind, data in reports:
              if kind == "feature":
                  fcntl.ioctl(self.fd, _HIDIOCSFEATURE(len(data)), data)
-@@ -76,10 +98,11 @@
+@@ -76,10 +98,11 @@ class HidLed:
      def query(self, command: int) -> bytes:
          """Send a query command (``protocol.QUERY_*``) and return the 8-byte
          reply, starting with an echo of the command byte."""
@@ -558,9 +1253,11 @@
  
      def close(self) -> None:
          try:
+diff --git a/src/iteglow/effects.py b/src/iteglow/effects.py
+index ce2f1de..ffc61ca 100644
 --- a/src/iteglow/effects.py
 +++ b/src/iteglow/effects.py
-@@ -6,9 +6,9 @@
+@@ -6,9 +6,9 @@ pseudo-mode handled specially.
  """
  from __future__ import annotations
  
@@ -572,7 +1269,7 @@
  from .protocol import RGB, Report
  
  RAINBOW: List[RGB] = [
-@@ -29,15 +29,21 @@
+@@ -29,15 +29,21 @@ LIGHTBAR_MODES: Dict[str, dict] = {
  KEYBOARD_MODES: Dict[str, dict] = {
      "off":       dict(code=0x00, off=True),
      "solid":     dict(code=0x33, single=True),
@@ -598,7 +1295,7 @@
  }
  
  # direction name -> byte
-@@ -48,12 +54,37 @@
+@@ -48,12 +54,37 @@ MODES_BY_LABEL = {"lightbar": LIGHTBAR_MODES, "keyboard": KEYBOARD_MODES}
  DIRECTIONS_BY_LABEL = {"lightbar": LIGHTBAR_DIRECTIONS, "keyboard": KEYBOARD_DIRECTIONS}
  
  
@@ -637,7 +1334,7 @@
      """Translate a (device, mode, params) selection into protocol reports."""
      modes = MODES_BY_LABEL[label]
      if mode not in modes:
-@@ -73,7 +104,24 @@
+@@ -73,7 +104,24 @@ def build(label: str, mode: str, *,
      bright = protocol.KBD_BRIGHTNESS_MAX if brightness is None else brightness
      if spec.get("off"):
          return protocol.keyboard_off()
@@ -663,9 +1360,11 @@
 +        behavior = 0
 +    return protocol.keyboard_effect(spec["code"], pal, bright, speed, behavior,
                                      use_palette=bool(spec.get("palette")))
+diff --git a/src/iteglow/gui.py b/src/iteglow/gui.py
+index ea93ad4..b4cc8a4 100644
 --- a/src/iteglow/gui.py
 +++ b/src/iteglow/gui.py
-@@ -1,308 +1,589 @@
+@@ -1,308 +1,659 @@
 -"""GTK4 control panel. Optional front-end; the CLI/library has no GUI deps.
 -
 -Uses the system PyGObject (python3-gi + gir1.2-gtk-4.0). One tab per detected
@@ -692,6 +1391,7 @@
 +from .logo import LogoPanel
 +from .lighting_policy_gui import LightingPolicyPanel
 +from .profiles_gui import ProfilesPanel
++from .watercooling_gui import WaterCoolingPanel
 +from .zone_lock import ZoneTransaction
 +
 +MODE_TEXT = {
@@ -768,22 +1468,20 @@
 -        btn.connect("notify::rgba", lambda *_: cb())
 -    except Exception:  # noqa: BLE001
 -        btn.connect("color-set", lambda *_: cb())
--
--
--# direction options shown per device (label -> byte)
--_DIR_LABELS = {
--    "lightbar": [("Forward", 1), ("Reverse", 2)],
--    "keyboard": [("Left → Right", 1), ("Right → Left", 2),
--                 ("Bottom → Top", 3), ("Top → Bottom", 4)],
--}
 +        button = Gtk.ColorDialogButton.new(Gtk.ColorDialog(title='选择灯光颜色'))
 +    except AttributeError:
 +        button = Gtk.ColorButton()
 +    button.set_rgba(rgba(color))
 +    button.add_css_class('color-swatch')
 +    return button
-+
-+
+ 
+ 
+-# direction options shown per device (label -> byte)
+-_DIR_LABELS = {
+-    "lightbar": [("Forward", 1), ("Reverse", 2)],
+-    "keyboard": [("Left → Right", 1), ("Right → Left", 2),
+-                 ("Bottom → Top", 3), ("Top → Bottom", 4)],
+-}
 +def on_color(button, callback):
 +    signal = 'notify::rgba' if isinstance(button, Gtk.ColorDialogButton) else 'color-set'
 +    button.connect(signal, lambda *_: callback())
@@ -797,23 +1495,43 @@
 +    cr.close_path()
 +
 +
++class BrandBadge(Gtk.DrawingArea):
++    """Crisp machined geometric crest for sidebar branding."""
++    def __init__(self):
++        super().__init__()
++        self.set_content_width(34)
++        self.set_content_height(26)
++        self.set_draw_func(self.draw)
++
++    def draw(self, _area, cr, width, height):
++        rounded(cr, 0, 0, width, height, 6)
++        cr.set_source_rgb(0.10, 0.16, 0.27); cr.fill_preserve()
++        cr.set_source_rgb(0.23, 0.51, 0.96); cr.set_line_width(1.2); cr.stroke()
++        cr.set_line_width(2.2)
++        cr.set_line_cap(1)
++        cr.set_source_rgb(0.38, 0.75, 0.98)
++        cr.move_to(7, 19); cr.line_to(13, 7); cr.line_to(17, 15); cr.line_to(21, 7); cr.line_to(27, 19)
++        cr.stroke()
++
++
 +class DevicePreview(Gtk.DrawingArea):
 +    """Illustration only; never emits USB writes or captures keyboard input."""
 +    def __init__(self, panel):
 +        super().__init__()
 +        self.panel = panel
-+        self.set_content_height(158)
++        self.set_content_height(166)
 +        self.set_hexpand(True)
 +        self.set_draw_func(self.draw)
 +
 +    def draw(self, _area, cr, width, height):
 +        p = self.panel
-+        cr.set_source_rgb(.065, .085, .135)
-+        rounded(cr, 0, 0, width, height, 16); cr.fill()
++        cr.set_source_rgb(.055, .072, .105)
++        rounded(cr, 0, 0, width, height, 14); cr.fill_preserve()
++        cr.set_source_rgb(.14, .18, .25); cr.set_line_width(1.0); cr.stroke()
 +        cr.select_font_face('sans-serif', 0, 0)
 +        cr.set_font_size(10)
-+        cr.set_source_rgb(.60, .67, .78)
-+        cr.move_to(20, 22); cr.show_text('RGB  /  '+('KEYBOARD' if p.device == 'keyboard' else 'LIGHTBAR'))
++        cr.set_source_rgb(.54, .63, .76)
++        cr.move_to(20, 22); cr.show_text('RGB  /  '+('KEYBOARD 101-KEY' if p.device == 'keyboard' else 'CHASSIS LIGHTBAR'))
 +        mode = p.mode
 +        on = mode != 'off' and p.bright.get_value() > 0
 +        palette = [rgb(b.get_rgba()) for b in p.palette_buttons]
@@ -1076,6 +1794,27 @@
 +            rows_box.append(rbox)
 +        card.append(rows_box)
 +        return card
++
++    def _on_calibrate_toggled(self, *_):
++        self.matrix_calibrate = self.calibrate_check.get_active()
++        self.schedule()
++
++    def paint_keycap(self, cap, *, erase: bool = False):
++        col = (0, 0, 0) if erase else rgb(self.brush.get_rgba())
++        if not erase and self.matrix_cells[cap.primary] == col:
++            col = (0, 0, 0)
++        for idx in cap.indices:
++            if 0 <= idx < len(self.matrix_cells):
++                self.matrix_cells[idx] = col
++        self.schedule()
++
++    def fill_matrix(self, col):
++        self.matrix_cells = keymap.blank_cells(col)
++        self.schedule()
++
++    def apply_matrix_preset(self, preset_name: str):
++        self.matrix_cells = keymap.preset_cells(preset_name, rgb(self.brush.get_rgba()))
++        self.schedule()
  
 -        # ---- initial values: defaults, then the device's actual state ----
 -        if "off" in self.mode_names and len(self.mode_names) > 1:
@@ -1121,66 +1860,6 @@
 -        """Reflect the device's current state (keyboard only; the lightbar
 -        firmware does not report its state back)."""
 -        if self.label != "keyboard":
--            return
--        try:
--            st = protocol.parse_keyboard_state(self.dev.query(protocol.QUERY_EFFECT))
--        except OSError:
--            return
--        if st["power"] == 0x01:
--            self.mode_dd.set_selected(self.mode_names.index("off"))
--        else:
--            for i, name in enumerate(self.mode_names):
--                if self.modes[name].get("code") == st["mode"] and not self.modes[name].get("off"):
--                    self.mode_dd.set_selected(i)
--                    break
--        self.bright.set_value(min(st["brightness"], self.bmax))
--        if protocol.SPEED_MIN <= st["speed"] <= protocol.SPEED_MAX:
--            self.speed.set_value(st["speed"])
--        for i, (_name, byte) in enumerate(self.dirs):
--            if byte == st.get("direction"):
--                self.dir_dd.set_selected(i)
--
--    def _reset_rainbow(self, *_):
--        for b, c in zip(self.palette_btns, effects.RAINBOW):
--            b.set_rgba(_make_rgba(c))
-+    def _on_calibrate_toggled(self, *_):
-+        self.matrix_calibrate = self.calibrate_check.get_active()
-         self.schedule()
- 
--    def _spec(self):
--        return self.modes[self.mode_names[self.mode_dd.get_selected()]]
-+    def paint_keycap(self, cap, *, erase: bool = False):
-+        col = (0, 0, 0) if erase else rgb(self.brush.get_rgba())
-+        if not erase and self.matrix_cells[cap.primary] == col:
-+            col = (0, 0, 0)
-+        for idx in cap.indices:
-+            if 0 <= idx < len(self.matrix_cells):
-+                self.matrix_cells[idx] = col
-+        self.schedule()
- 
--    def _update_visibility(self):
--        spec = self._spec()
--        for w in (self.speed_lbl, self.speed):
--            w.set_visible(bool(spec.get("speed")))
--        for w in (self.dir_lbl, self.dir_dd):
--            w.set_visible(bool(spec.get("direction")))
--        for w in (self.color_lbl, self.color_btn):
--            w.set_visible(bool(spec.get("single")))
--        for w in (self.palette_lbl, self.palette_box):
--            w.set_visible(bool(spec.get("palette")))
-+    def fill_matrix(self, col):
-+        self.matrix_cells = keymap.blank_cells(col)
-+        self.schedule()
- 
--    def schedule(self, *_):
--        if not self._ready:
--            return
--        self._update_visibility()
--        if self._pending:
-+    def apply_matrix_preset(self, preset_name: str):
-+        self.matrix_cells = keymap.preset_cells(preset_name, rgb(self.brush.get_rgba()))
-+        self.schedule()
-+
 +    def _slider_row(self,title,slider,value):
 +        result = box(spacing=4); top=box(False,8)
 +        name=label(title);name.set_hexpand(True);top.append(name);top.append(value)
@@ -1220,8 +1899,6 @@
 +            self.mode = 'off'
 +            self.bright.set_value(0)
              return
--        self._pending = True
--        GLib.timeout_add(50, self._do_apply)
 +        self.mode = mode_name
 +        self.bright.set_value(min(100, actual['brightness'] / self.bmax * 100))
 +        if 1 <= actual['speed'] <= 10:
@@ -1234,7 +1911,27 @@
 +    def _poll_hotkey(self):
 +        if not self.ready or self.pending is not None:
 +            return True
-+        try:
+         try:
+-            st = protocol.parse_keyboard_state(self.dev.query(protocol.QUERY_EFFECT))
+-        except OSError:
+-            return
+-        if st["power"] == 0x01:
+-            self.mode_dd.set_selected(self.mode_names.index("off"))
+-        else:
+-            for i, name in enumerate(self.mode_names):
+-                if self.modes[name].get("code") == st["mode"] and not self.modes[name].get("off"):
+-                    self.mode_dd.set_selected(i)
+-                    break
+-        self.bright.set_value(min(st["brightness"], self.bmax))
+-        if protocol.SPEED_MIN <= st["speed"] <= protocol.SPEED_MAX:
+-            self.speed.set_value(st["speed"])
+-        for i, (_name, byte) in enumerate(self.dirs):
+-            if byte == st.get("direction"):
+-                self.dir_dd.set_selected(i)
+-
+-    def _reset_rainbow(self, *_):
+-        for b, c in zip(self.palette_btns, effects.RAINBOW):
+-            b.set_rgba(_make_rgba(c))
 +            actual = protocol.parse_keyboard_state(self.dev.query(protocol.QUERY_EFFECT))
 +        except Exception:
 +            return True
@@ -1269,10 +1966,30 @@
 +    def choose(self,mode):
 +        self.mode=mode
 +        if mode!='off' and self.bright.get_value()==0:self.bright.set_value(60)
-+        self.schedule()
+         self.schedule()
  
--    def _do_apply(self):
--        self._pending = False
+-    def _spec(self):
+-        return self.modes[self.mode_names[self.mode_dd.get_selected()]]
+-
+-    def _update_visibility(self):
+-        spec = self._spec()
+-        for w in (self.speed_lbl, self.speed):
+-            w.set_visible(bool(spec.get("speed")))
+-        for w in (self.dir_lbl, self.dir_dd):
+-            w.set_visible(bool(spec.get("direction")))
+-        for w in (self.color_lbl, self.color_btn):
+-            w.set_visible(bool(spec.get("single")))
+-        for w in (self.palette_lbl, self.palette_box):
+-            w.set_visible(bool(spec.get("palette")))
+-
+-    def schedule(self, *_):
+-        if not self._ready:
+-            return
+-        self._update_visibility()
+-        if self._pending:
+-            return
+-        self._pending = True
+-        GLib.timeout_add(50, self._do_apply)
 +    def refresh(self):
 +        spec=self.spec();on=not spec.get('off')
 +        for name,button in self.effect_buttons.items():
@@ -1311,7 +2028,9 @@
 +            if self.matrix_calibrate:
 +                data['calibrate'] = True
 +        return data
-+
+ 
+-    def _do_apply(self):
+-        self._pending = False
 +    def apply(self):
 +        self.pending=None
 +        params=self.params()
@@ -1415,56 +2134,100 @@
 +        window=self.get_active_window()
 +        if window:window.present();return
 +        self.panels=[];self.logo=None;self.profiles_panel=None
++        settings = Gtk.Settings.get_default()
++        if settings is not None:
++            settings.set_property('gtk-application-prefer-dark-theme', True)
 +        provider=Gtk.CssProvider()
 +        provider.load_from_path(str(Path(__file__).with_name('control.css')))
 +        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(),provider,Gtk.STYLE_PROVIDER_PRIORITY_USER + 1)
 +        Gtk.Window.set_default_icon_name('mechrevo-control')
 +        window=Gtk.ApplicationWindow(application=self,title='机械革命控制中心')
-+        window.add_css_class('mechrevo-shell');window.set_default_size(1040,760)
++        window.add_css_class('mechrevo-shell');window.set_default_size(1100,790)
 +        root=box(False);window.set_child(root)
-+        sidebar=box(spacing=10,css='sidebar');sidebar.set_size_request(170,-1)
-+        brand=label('M / R','brand-mark');sidebar.append(brand)
-+        sidebar.append(label('机械革命','brand-title'))
-+        sidebar.append(label('本机控制中心','subtitle'))
-+        section=label('设备控制','nav-section');sidebar.append(section)
++        sidebar=box(spacing=6,css='sidebar');sidebar.set_size_request(196,-1)
++        brand_row=box(False,10,css='brand-row');brand_row.set_valign(Gtk.Align.CENTER)
++        brand_row.append(BrandBadge())
++        brand_text=box(spacing=1)
++        brand_text.append(label('MECHREVO','brand-mark'))
++        brand_text.append(label('YAOSHI 控制中心','subtitle'))
++        brand_row.append(brand_text);sidebar.append(brand_row)
++        section=label('硬件与控制','nav-section');sidebar.append(section)
 +        self.stack=Gtk.Stack();self.stack.set_hexpand(True);self.stack.set_vexpand(True)
 +        self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
 +        self.stack.set_transition_duration(120)
 +        self.nav={}
++        self._page_meta={}
 +        detected={label for _,_,label in devices.available_devices()}
-+        for name,title,icon in [('keyboard','键盘背光','input-keyboard-symbolic'),('lightbar','机身灯带','display-brightness-symbolic'),('logo','后盖 Logo','starred-symbolic'),('lighting-policy','自动灯光','preferences-system-symbolic'),('profiles','情景预设','view-grid-symbolic'),('performance','性能模式','speedometer-symbolic')]:
++        for name,title,icon,subtitle in [
++            ('keyboard','键盘背光','input-keyboard-symbolic','101 键灯效与单键矩阵编辑器'),
++            ('lightbar','机身灯带','display-brightness-symbolic','前缘与侧翼氛围灯带控制'),
++            ('logo','后盖 Logo','starred-symbolic','屏幕后盖独立发光徽标'),
++            ('lighting-policy','自动灯光','preferences-system-symbolic','供电切换亮度与空闲自动熄灯'),
++            ('profiles','情景预设','view-grid-symbolic','性能与三区灯光组合规则联动'),
++            ('performance','性能模式','speedometer-symbolic','固件运行档位、功耗调校与风扇曲线'),
++            ('watercooling','水冷控制','weather-showers-scattered-symbolic','外置蓝牙水冷泵扇、水流保护与双区灯控'),
++        ]:
++            self._page_meta[name]=(title,subtitle)
 +            if name=='performance':page=PerformancePanel()
 +            elif name=='logo':page=LogoPanel();self.logo=page
 +            elif name=='profiles':page=ProfilesPanel();self.profiles_panel=page
++            elif name=='watercooling':page=WaterCoolingPanel();self.watercooling_panel=page
 +            elif name=='lighting-policy':
 +                page=box(spacing=18,css='device-page')
 +                page.append(label('灯光策略','page-title'))
 +                page.append(LightingPolicyPanel())
 +            elif name in detected:
 +                try:page=DevicePanel(name);self.panels.append(page)
-+                except Exception as exc:page=label('设备暂不可用：'+str(exc),wrap=True)
-+            else:page=label('未检测到该灯光设备，请检查设备连接',wrap=True)
++                except Exception as exc:
++                    page=self._empty_device_page(title,'设备访问受限',str(exc),icon)
++            else:
++                hint='请检查 USB HID 设备连接，或确认已安装 udev 权限规则（70-mechrevo-lights.rules）。'
++                page=self._empty_device_page(title,'未检测到该硬件灯区',hint,icon)
 +            scroll=Gtk.ScrolledWindow();scroll.set_policy(Gtk.PolicyType.NEVER,Gtk.PolicyType.AUTOMATIC)
 +            scroll.set_child(page);scroll.add_css_class('page-scroll')
 +            self.stack.add_named(scroll,name)
 +            button=Gtk.Button();button.add_css_class('nav-button')
-+            content=box(False,10);content.append(Gtk.Image.new_from_icon_name(icon));content.append(label(title));button.set_child(content)
++            content=box(False,10);content.set_valign(Gtk.Align.CENTER)
++            content.append(Gtk.Image.new_from_icon_name(icon));content.append(label(title));button.set_child(content)
 +            button.connect('clicked',lambda _,value=name:self.navigate(value));sidebar.append(button);self.nav[name]=button
 +        spacer=box();spacer.set_vexpand(True);sidebar.append(spacer)
-+        sidebar.append(label('YAOSHI Series','device-name'))
-+        sidebar.append(label('Linux 本机适配','small-note'))
++        footer=box(spacing=2,css='sidebar-footer')
++        footer.append(label('YAOSHI Series','device-name'))
++        footer.append(label('Linux 本机控制套件','small-note'))
++        sidebar.append(footer)
 +        root.append(sidebar)
 +        right=box();right.set_hexpand(True);root.append(right)
 +        bar=box(False,12,css='topbar')
-+        welcome=label('设备个性化','topbar-label');welcome.set_hexpand(True);bar.append(welcome)
++        bar.set_valign(Gtk.Align.CENTER)
++        self.topbar_title=label('硬件控制控制台','topbar-label')
++        self.topbar_title.set_hexpand(True)
++        bar.append(self.topbar_title)
 +        off=Gtk.Button(label='关闭全部灯光');off.set_tooltip_text('关闭键盘、机身灯带与后盖 Logo，保留配色设置')
 +        off.add_css_class('all-off');off.connect('clicked',self.all_off);bar.append(off);right.append(bar)
 +        right.append(self.stack)
 +        window.connect('close-request',self.window_closed,tuple(self.panels),self.logo,self.profiles_panel)
 +        self.navigate('keyboard');window.present()
 +
++    def _empty_device_page(self, title_text, heading, detail, icon):
++        outer=box(spacing=18,css='device-page')
++        outer.append(label(title_text,'page-title'))
++        card=box(spacing=10,css='empty-card')
++        card.set_halign(Gtk.Align.FILL)
++        badge=Gtk.Image.new_from_icon_name(icon)
++        badge.set_pixel_size(36)
++        badge.set_halign(Gtk.Align.START)
++        card.append(badge)
++        head=label(heading,'section-title')
++        body=label(detail,'subtitle',wrap=True)
++        card.append(head);card.append(body)
++        outer.append(card)
++        return outer
++
 +    def navigate(self,name):
 +        self.stack.set_visible_child_name(name)
++        meta=getattr(self,'_page_meta',{}).get(name)
++        if meta and hasattr(self,'topbar_title'):
++            self.topbar_title.set_text(f'控制中心  /  {meta[0]}')
 +        for key,button in self.nav.items():
 +            if key==name:button.add_css_class('selected')
 +            else:button.remove_css_class('selected')
@@ -1489,6 +2252,10 @@
 +        if profiles_panel is not None:
 +            profiles_panel.close()
 +            if getattr(self,'profiles_panel',None) is profiles_panel:self.profiles_panel=None
++        wc_panel=getattr(self,'watercooling_panel',None)
++        if wc_panel is not None:
++            wc_panel.close()
++            self.watercooling_panel=None
 +        # An old Logo helper retains its own application hold and transaction
 +        # until the async callback saves its actual value, independently of UI.
 +        return False
@@ -1512,6 +2279,7 @@
 +        self.panels=[]
 +        if self.logo:self.logo.close();self.logo=None
 +        if getattr(self,'profiles_panel',None):self.profiles_panel.close();self.profiles_panel=None
++        if getattr(self,'watercooling_panel',None):self.watercooling_panel.close();self.watercooling_panel=None
 +        Gtk.Application.do_shutdown(self)
  
  
@@ -1525,6 +2293,9 @@
 -if __name__ == "__main__":
 -    raise SystemExit(main())
 +if __name__=='__main__':raise SystemExit(main())
+diff --git a/b/src/iteglow/keymap.py b/src/iteglow/keymap.py
+new file mode 100644
+index 0000000..a400b38
 --- /dev/null
 +++ b/src/iteglow/keymap.py
 @@ -0,0 +1,202 @@
@@ -1730,6 +2501,9 @@
 +            if 0 <= idx < KBD_MATRIX_CELLS:
 +                cells[idx] = col
 +    return cells
+diff --git a/b/src/iteglow/lighting_policy.py b/src/iteglow/lighting_policy.py
+new file mode 100644
+index 0000000..c57850a
 --- /dev/null
 +++ b/src/iteglow/lighting_policy.py
 @@ -0,0 +1,241 @@
@@ -1974,9 +2748,12 @@
 +            owned[owned.index(old)] = replace(old, active_json=active_json, idle=idle)
 +    return PolicyPlan(tuple(actions), PolicyMemory(tuple(owned)), tuple(errors),
 +                      "enabled" if config["enabled"] else "disabled")
+diff --git a/b/src/iteglow/lighting_policy_gui.py b/src/iteglow/lighting_policy_gui.py
+new file mode 100644
+index 0000000..aa1f4ef
 --- /dev/null
 +++ b/src/iteglow/lighting_policy_gui.py
-@@ -0,0 +1,149 @@
+@@ -0,0 +1,151 @@
 +"""Small policy settings card. Saves preferences; never applies device writes."""
 +import json
 +import os
@@ -2035,6 +2812,7 @@
 +        self.path = Path(path) if path is not None else CONFIG_PATH
 +        self.on_saved = on_saved
 +        row = Gtk.Box(spacing=12)
++        row.add_css_class("well")
 +        title = Gtk.Label(label="自动灯光", xalign=0)
 +        title.add_css_class("section-title"); title.set_hexpand(True); row.append(title)
 +        self.enabled = Gtk.Switch(); self.enabled.set_valign(Gtk.Align.CENTER)
@@ -2045,6 +2823,7 @@
 +        self.power_enabled = Gtk.CheckButton(label="分别设置插电与电池亮度")
 +        self.append(self.power_enabled)
 +        self.grid = Gtk.Grid(column_spacing=18, row_spacing=10)
++        self.grid.add_css_class("well")
 +        for column, caption in enumerate(("灯区", "插电", "电池")):
 +            label = Gtk.Label(label=caption, xalign=0)
 +            label.add_css_class("small-note"); self.grid.attach(label, column, 0, 1, 1)
@@ -2126,6 +2905,9 @@
 +            try: self.on_saved(config)
 +            except Exception as error:
 +                self.message.set_text("配置已保存，但通知会话服务失败：" + str(error))
+diff --git a/b/src/iteglow/lighting_policy_session.py b/src/iteglow/lighting_policy_session.py
+new file mode 100644
+index 0000000..d9e205a
 --- /dev/null
 +++ b/src/iteglow/lighting_policy_session.py
 @@ -0,0 +1,208 @@
@@ -2337,6 +3119,9 @@
 +            result['status'] = 'error'
 +            result['errors'].append(str(error))
 +        return self._finish(result)
+diff --git a/b/src/iteglow/lighting_session.py b/src/iteglow/lighting_session.py
+new file mode 100644
+index 0000000..a79a3f4
 --- /dev/null
 +++ b/src/iteglow/lighting_session.py
 @@ -0,0 +1,630 @@
@@ -2970,16 +3755,20 @@
 +
 +if __name__ == "__main__":
 +    raise SystemExit(main())
+diff --git a/b/src/iteglow/logo.py b/src/iteglow/logo.py
+new file mode 100644
+index 0000000..2bfcfa4
 --- /dev/null
 +++ b/src/iteglow/logo.py
-@@ -0,0 +1,197 @@
+@@ -0,0 +1,262 @@
 +"""Asynchronous controls for the verified, independent EC logo light."""
 +import json
++import math
 +import time
 +from pathlib import Path
 +from gi.repository import Gio, GLib, Gtk
-+from .performance import HELPER
 +from . import state
++from .performance import HELPER
 +from .zone_lock import ZoneTransaction
 +
 +MODES = [('solid', '常亮'), ('breathing', '呼吸'), ('rainbow', '七彩渐变')]
@@ -2987,6 +3776,63 @@
 +          ('蓝色', [0,0,255]), ('黄色', [255,255,0]), ('紫色', [136,0,255]), ('青色', [0,255,255])]
 +APPLIED = Path.home()/'.local/state/iteglow/logo.json'
 +PREFS = Path.home()/'.local/state/iteglow/logo-prefs.json'
++
++
++class LogoEmblemPreview(Gtk.DrawingArea):
++    """Rear-lid backlit logo emblem preview; reads UI controls only."""
++    def __init__(self, panel):
++        super().__init__()
++        self._panel = panel
++        self.set_content_height(132)
++        self.set_hexpand(True)
++        self.set_draw_func(self._draw)
++
++    def _draw(self, _area, cr, width, height):
++        cr.set_source_rgb(0.055, 0.072, 0.105)
++        cr.rectangle(0, 0, width, height)
++        cr.fill()
++        cr.set_source_rgb(0.14, 0.18, 0.25)
++        cr.set_line_width(1.0)
++        cr.rectangle(0.5, 0.5, width - 1, height - 1)
++        cr.stroke()
++
++        cfg = self._panel.config()
++        br = cfg['brightness'] / 100.0
++        mode = cfg['mode']
++        r, g, b = [v / 255.0 for v in cfg['color']]
++        if mode == 'rainbow':
++            r, g, b = (0.28, 0.78, 0.98)
++
++        # Brushed A-cover metal bezel silhouette
++        lw, lh = min(width * 0.56, 360.0), height - 28.0
++        lx, ly = (width - lw) / 2.0, 14.0
++        cr.set_source_rgb(0.10, 0.13, 0.19)
++        cr.rectangle(lx, ly, lw, lh); cr.fill_preserve()
++        cr.set_source_rgb(0.20, 0.26, 0.36); cr.stroke()
++
++        cx, cy = width / 2.0, height / 2.0
++        if br > 0:
++            for rad, alpha in ((34, 0.12 * br), (22, 0.22 * br)):
++                cr.arc(cx, cy, rad, 0, 2 * math.pi)
++                cr.set_source_rgba(r, g, b, alpha)
++                cr.fill()
++        cr.set_line_width(3.4)
++        cr.set_line_cap(1)
++        if br > 0:
++            cr.set_source_rgba(r, g, b, 0.35 + 0.65 * br)
++        else:
++            cr.set_source_rgb(0.24, 0.29, 0.38)
++        cr.move_to(cx - 22, cy + 12)
++        cr.line_to(cx - 10, cy - 12)
++        cr.line_to(cx, cy + 4)
++        cr.line_to(cx + 10, cy - 12)
++        cr.line_to(cx + 22, cy + 12)
++        cr.stroke()
++
++        cr.select_font_face('sans-serif', 0, 0)
++        cr.set_font_size(10)
++        cr.set_source_rgb(0.54, 0.63, 0.76)
++        cr.move_to(16, 22); cr.show_text('REAR LID EMBLEM  /  ' + dict(MODES)[mode])
 +
 +
 +class LogoPanel(Gtk.Box):
@@ -3007,23 +3853,28 @@
 +        self.brightness = Gtk.DropDown.new_from_strings(['关闭', '25%', '50%', '75%', '100%'])
 +        self.brightness.set_selected(1)
 +        self.palette = Gtk.DropDown.new_from_strings([caption for caption,_ in COLORS]+['自选颜色'])
++        self.preview = LogoEmblemPreview(self)
++        card.append(self.preview)
 +        for caption, widget in [('灯光效果',self.mode), ('亮度',self.brightness), ('颜色',self.palette)]:
-+            row=Gtk.Box(spacing=12); label=Gtk.Label(label=caption,xalign=0);label.set_hexpand(True)
++            row=Gtk.Box(spacing=12); row.add_css_class('well'); label=Gtk.Label(label=caption,xalign=0);label.set_hexpand(True)
 +            row.append(label);row.append(widget);card.append(row)
 +        self.rgb_row=Gtk.Box(spacing=10); self.rgb=[]
 +        for name in ('红','绿','蓝'):
 +            self.rgb_row.append(Gtk.Label(label=name)); spin=Gtk.SpinButton.new_with_range(0,255,1)
-+            spin.set_value(255);spin.set_numeric(True);self.rgb.append(spin);self.rgb_row.append(spin)
++            spin.set_value(255);spin.set_numeric(True)
++            spin.connect('value-changed', lambda *_: self.preview.queue_draw())
++            self.rgb.append(spin);self.rgb_row.append(spin)
 +        card.append(self.rgb_row)
 +        self.palette.connect('notify::selected',self.selection_changed)
 +        self.mode.connect('notify::selected',self.selection_changed)
++        self.brightness.connect('notify::selected', lambda *_: self.preview.queue_draw())
 +        self.selection_changed()
 +        note=Gtk.Label(label='呼吸支持七种固定颜色；常亮可自选颜色。编辑后点击“应用灯光”。',xalign=0,wrap=True)
 +        note.add_css_class('small-note');card.append(note)
 +        row=Gtk.Box(spacing=12)
 +        self.apply_button=Gtk.Button(label='应用灯光');self.apply_button.add_css_class('suggested-action')
 +        self.apply_button.connect('clicked',self.apply); row.append(self.apply_button)
-+        self.off_button=Gtk.Button(label='关闭 Logo');self.off_button.connect('clicked',lambda *_:self.set_enabled(False));row.append(self.off_button)
++        self.off_button=Gtk.Button(label='关闭 Logo');self.off_button.add_css_class('destructive-action');self.off_button.connect('clicked',lambda *_:self.set_enabled(False));row.append(self.off_button)
 +        self.buttons=[self.apply_button,self.off_button]
 +        for button in self.buttons:button.set_sensitive(False)
 +        card.append(row)
@@ -3036,6 +3887,8 @@
 +        if mode=='breathing' and self.palette.get_selected()==7:self.palette.set_selected(0)
 +        self.palette.set_sensitive(mode!='rainbow')
 +        self.rgb_row.set_visible(mode=='solid' and self.palette.get_selected()==7)
++        if hasattr(self, 'preview'):
++            self.preview.queue_draw()
 +
 +    def load_values(self,config):
 +        try:
@@ -3170,6 +4023,9 @@
 +            self.release_zone();self.release_hold()
 +        # A helper already writing retains the zone and application hold until
 +        # its callback saves the readback, even if the window has been closed.
+diff --git a/b/src/iteglow/oem_scheduler.py b/src/iteglow/oem_scheduler.py
+new file mode 100644
+index 0000000..f2e573a
 --- /dev/null
 +++ b/src/iteglow/oem_scheduler.py
 @@ -0,0 +1,195 @@
@@ -3368,9 +4224,12 @@
 +        The registry check/write itself is deliberately outside this model.
 +        """
 +        self.state = SchedulerState(game_launch_condition=self.state.game_launch_condition)
+diff --git a/b/src/iteglow/performance.py b/src/iteglow/performance.py
+new file mode 100644
+index 0000000..07fa642
 --- /dev/null
 +++ b/src/iteglow/performance.py
-@@ -0,0 +1,350 @@
+@@ -0,0 +1,363 @@
 +"""Asynchronous UI for this machine's verified firmware mode helper."""
 +import json
 +from pathlib import Path
@@ -3514,21 +4373,27 @@
 +
 +    def draw_curve(self,area,cr,width,height,name):
 +        left,right,top,bottom=36,width-14,12,height-25
-+        cr.set_source_rgb(.96,.97,.99);cr.paint();cr.set_line_width(1);cr.set_font_size(11)
++        cr.set_source_rgb(.06,.08,.12);cr.paint();cr.set_line_width(1);cr.set_font_size(11)
 +        for value in (40,70,100):
 +            y=bottom-(value-30)/70*(bottom-top)
-+            cr.set_source_rgb(.86,.89,.94);cr.move_to(left,y);cr.line_to(right,y);cr.stroke()
-+            cr.set_source_rgb(.4,.46,.56);cr.move_to(3,y+4);cr.show_text(str(value)+'%')
++            cr.set_source_rgb(.13,.17,.24);cr.move_to(left,y);cr.line_to(right,y);cr.stroke()
++            cr.set_source_rgb(.52,.60,.72);cr.move_to(3,y+4);cr.show_text(str(value)+'%')
 +        points=[]
 +        for i,spin in enumerate(self.spins.get(name,[])):
 +            temp=TEMPS[name][i];x=left+(temp-40)/50*(right-left);y=bottom-(spin.get_value()-30)/70*(bottom-top);points.append((x,y))
-+        cr.set_source_rgb(*((.23,.45,.85) if name=='cpu_fan' else (.58,.34,.79)));cr.set_line_width(2.5)
++        col=(.22,.64,.96) if name=='cpu_fan' else (.68,.42,.98)
++        cr.set_source_rgba(col[0],col[1],col[2],0.22);cr.set_line_width(6.0)
 +        for i,(x,y) in enumerate(points):
 +            if i==0:cr.move_to(x,y)
 +            else:cr.line_to(x,y)
 +        cr.stroke()
-+        for x,y in points:cr.arc(x,y,3,0,6.284);cr.fill()
-+        cr.set_source_rgb(.4,.46,.56)
++        cr.set_source_rgb(*col);cr.set_line_width(2.4)
++        for i,(x,y) in enumerate(points):
++            if i==0:cr.move_to(x,y)
++            else:cr.line_to(x,y)
++        cr.stroke()
++        for x,y in points:cr.arc(x,y,3.2,0,6.284);cr.fill()
++        cr.set_source_rgb(.52,.60,.72)
 +        for temp in (40,60,80,90):cr.move_to(left+(temp-40)/50*(right-left)-9,height-6);cr.show_text(str(temp)+' C')
 +
 +
@@ -3620,16 +4485,19 @@
 +        self.append(row)
 +        self.message = Gtk.Label(xalign=0, wrap=True)
 +        self.message.add_css_class('status-text'); self.append(self.message)
-+        note = Gtk.Label(label='点击模式卡片立即切换。机身模式键在各档位（含狂暴子模式与自定义调校期间）均可响应，当前状态每 3 秒刷新。', xalign=0, wrap=True)
-+        note.add_css_class('subtitle'); self.append(note)
-+        note2 = Gtk.Label(label='启动、开机与唤醒时保持当前档位，不自动切换。', xalign=0, wrap=True)
-+        note2.add_css_class('subtitle'); self.append(note2)
-+        telemetry = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
++        note = Gtk.Label(label='点击卡片立即切换固件档位，与机身模式键同步（启动/唤醒保持当前状态，每 3 秒自动刷新）。', xalign=0, wrap=True)
++        note.add_css_class('small-note'); self.append(note)
++        telemetry = Gtk.Grid(column_spacing=12, row_spacing=10, column_homogeneous=True)
 +        telemetry.add_css_class('control-card')
++        tile1 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3); tile1.add_css_class('metric-tile')
++        tile1.append(Gtk.Label(label='温控保护', xalign=0))
 +        self.safety_label = Gtk.Label(label='EC 高温风扇安全保护：正在读取…', xalign=0, wrap=True)
-+        self.safety_label.add_css_class('small-note'); telemetry.append(self.safety_label)
++        self.safety_label.add_css_class('small-note'); tile1.append(self.safety_label)
++        tile2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3); tile2.add_css_class('metric-tile')
++        tile2.append(Gtk.Label(label='功耗特性', xalign=0))
 +        self.smart_balance_label = Gtk.Label(label='SmartBalance：正在读取…', xalign=0, wrap=True)
-+        self.smart_balance_label.add_css_class('small-note'); telemetry.append(self.smart_balance_label)
++        self.smart_balance_label.add_css_class('small-note'); tile2.append(self.smart_balance_label)
++        telemetry.attach(tile1, 0, 0, 1, 1); telemetry.attach(tile2, 1, 0, 1, 1)
 +        self.append(telemetry)
 +        self.tuning = TuningEditor(self.request)
 +        self.turbo = TurboEditor(self.request)
@@ -3706,6 +4574,10 @@
 +            else:
 +                self.smart_balance_label.set_text('SmartBalance：未知')
 +            self.current.set_text('当前：' + LABELS.get(mode, '未知档位') + (' · 已应用调校' if data.get('tuning_active') else ''))
++            for cls in ('perf-office', 'perf-balanced', 'perf-turbo', 'perf-custom'):
++                self.current.remove_css_class(cls)
++            if mode in ('office', 'balanced', 'turbo', 'custom'):
++                self.current.add_css_class(f'perf-{mode}')
 +            self.tuning.update_status(data)
 +            self.turbo.update_status(data)
 +            self.message.set_text(data['reason'] or ('设置已生效，硬件回读一致' if operation != 'status' else '已连接固件档位控制'))
@@ -3721,6 +4593,9 @@
 +            self.turbo.disable()
 +            self.current.set_text('当前：无法读取')
 +            self.message.set_text(str(exc))
+diff --git a/b/src/iteglow/profiles.py b/src/iteglow/profiles.py
+new file mode 100644
+index 0000000..2a8e9b7
 --- /dev/null
 +++ b/src/iteglow/profiles.py
 @@ -0,0 +1,859 @@
@@ -4583,9 +5458,12 @@
 +            if self.emit:
 +                self.emit({"event": "profile_rule", **result})
 +        return result
+diff --git a/b/src/iteglow/profiles_gui.py b/src/iteglow/profiles_gui.py
+new file mode 100644
+index 0000000..3e2679a
 --- /dev/null
 +++ b/src/iteglow/profiles_gui.py
-@@ -0,0 +1,468 @@
+@@ -0,0 +1,471 @@
 +"""GTK4 control panel for performance+lighting profile bundles and app rules.
 +
 +Constructing or editing this panel never alters hardware or writes files;
@@ -4711,6 +5589,7 @@
 +        self.template_button.connect("clicked", self.import_templates)
 +        btn_row.append(self.template_button)
 +        self.delete_button = Gtk.Button(label="删除预设")
++        self.delete_button.add_css_class("destructive-action")
 +        self.delete_button.connect("clicked", self.delete_selected)
 +        btn_row.append(self.delete_button)
 +        card.append(btn_row)
@@ -4838,6 +5717,7 @@
 +            return
 +        for idx, rule in enumerate(self._rules):
 +            row = Gtk.Box(spacing=8)
++            row.add_css_class("well")
 +            chk = Gtk.CheckButton(label=rule["name"])
 +            chk.set_active(bool(rule["enabled"]))
 +            chk.connect("toggled", lambda btn, i=idx: self._toggle_rule(i, btn.get_active()))
@@ -4851,6 +5731,7 @@
 +            desc.add_css_class("small-note")
 +            row.append(desc)
 +            del_btn = Gtk.Button(label="移除")
++            del_btn.add_css_class("destructive-action")
 +            del_btn.connect("clicked", lambda _b, i=idx: self._remove_rule(i))
 +            row.append(del_btn)
 +            self.rules_box.append(row)
@@ -5054,9 +5935,11 @@
 +
 +    def close(self) -> None:
 +        self._closed = True
+diff --git a/src/iteglow/protocol.py b/src/iteglow/protocol.py
+index deed54b..11ab028 100644
 --- a/src/iteglow/protocol.py
 +++ b/src/iteglow/protocol.py
-@@ -19,9 +19,22 @@
+@@ -19,9 +19,22 @@ Report = Tuple[str, bytes]
  RGB = Tuple[int, int, int]
  
  KBD_BRIGHTNESS_MAX = 0x32          # keyboard (ITE 8291) max brightness
@@ -5079,7 +5962,7 @@
  LB_SELECTOR = 0x22                 # product selector byte for the 0x7001 lightbar
  KBD_POWER_ON = 0x02                # power state: 0x01 off, 0x02 on
  
-@@ -146,29 +159,62 @@
+@@ -146,29 +159,62 @@ def keyboard_effect(mode: int, colors: Sequence[RGB], brightness: int,
      return reps
  
  
@@ -5157,6 +6040,8 @@
 +
  def keyboard_off() -> List[Report]:
      return keyboard_brightness(0)
+diff --git a/src/iteglow/state.py b/src/iteglow/state.py
+index 83e0ac0..fa81ced 100644
 --- a/src/iteglow/state.py
 +++ b/src/iteglow/state.py
 @@ -1,11 +1,12 @@
@@ -5177,7 +6062,7 @@
  """
  from __future__ import annotations
  
-@@ -13,6 +14,7 @@
+@@ -13,6 +14,7 @@ import json
  import os
  import pwd
  from typing import Optional
@@ -5185,7 +6070,7 @@
  
  SYSTEM_STATE_PATH = "/var/lib/iteglow/state.json"
  
-@@ -42,17 +44,26 @@
+@@ -42,17 +44,26 @@ def write(path: str, data: dict) -> None:
      os.replace(tmp, path)
  
  
@@ -5220,6 +6105,2318 @@
 +        except (OSError, ValueError, TypeError, RuntimeError):
 +            saved = False
 +    return saved
+diff --git a/b/src/iteglow/watercooling.py b/src/iteglow/watercooling.py
+new file mode 100644
+index 0000000..844a068
+--- /dev/null
++++ b/src/iteglow/watercooling.py
+@@ -0,0 +1,539 @@
++"""Pure protocol, validation, thermal-curve, and flow-safety engine for MECHREVO BLE water coolers.
++
++Verified against CoolingSystem LCT22002 (MCU F/W 2.0.0.4) live hardware and OEM GCUService.
++Importing this module performs no D-Bus, BLE, sysfs, or filesystem writes.
++"""
++from __future__ import annotations
++
++from dataclasses import dataclass
++import json
++import os
++from pathlib import Path
++import re
++import time
++from typing import Dict, List, Optional, Tuple
++
++from . import state as state_io
++
++NUS_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
++NUS_TX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
++NUS_RX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
++DEVICE_NAME_PREFIXES = ("CoolingSystem LCT22002", "CoolingSystem LCT21001")
++
++PUMP_VOLT_TO_CODE: Dict[int, int] = {11: 0, 12: 1, 7: 2, 8: 3}
++VALID_PUMP_VOLTS = (0, 7, 8, 11, 12)
++LED_MODES: Dict[str, int] = {
++    "off": 0,
++    "static": 0,
++    "breathing": 1,
++    "colorful": 2,
++    "breathing_colorful": 3,
++    "mode4": 4,
++}
++FAN_LED_POLICIES = ("sync", "body_only", "freeze", "split")
++STRATEGIES = ("manual", "preset", "smart_curve", "ec_follow")
++
++PRESETS: Dict[str, Dict[str, int]] = {
++    "stop": {"pump_volt": 0, "pump_duty": 0, "fan_duty": 0},
++    "silent": {"pump_volt": 7, "pump_duty": 60, "fan_duty": 40},
++    "balanced": {"pump_volt": 8, "pump_duty": 60, "fan_duty": 50},
++    "performance": {"pump_volt": 11, "pump_duty": 60, "fan_duty": 60},
++    "turbo": {"pump_volt": 11, "pump_duty": 90, "fan_duty": 90},
++    "max": {"pump_volt": 12, "pump_duty": 100, "fan_duty": 100},
++}
++
++MAC_RE = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")
++DEFAULT_WMI_STATE_PATH = Path("/run/mechrevo-wmi-state.json")
++DEFAULT_LC_EC_STATE_PATH = Path("/run/mechrevo-watercooler-ec.json")
++
++
++def config_path() -> Path:
++    base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
++    return Path(base) / "iteglow" / "watercooling.json"
++
++
++def _int(value: object, low: int, high: int, field: str) -> int:
++    if type(value) is not int or not low <= value <= high:
++        raise ValueError(f"{field}: 需要 {low}–{high} 的整数")
++    return value
++
++
++def _rgb(value: object, field: str) -> List[int]:
++    if not isinstance(value, (list, tuple)) or len(value) != 3:
++        raise ValueError(f"{field}: 需要 3 个 RGB 通道")
++    return [_int(c, 0, 255, field) for c in value]
++
++
++def default_config() -> dict:
++    return {
++        "version": 1,
++        "auto_connect": False,
++        "mac": "",
++        "strategy": "preset",
++        "preset": "silent",
++        "manual": {"pump_volt": 7, "pump_duty": 60, "fan_duty": 40},
++        "curve": {
++            "hysteresis_c": 3,
++            "points": [
++                {"temp_c": 45, "pump_volt": 7, "pump_duty": 60, "fan_duty": 40},
++                {"temp_c": 65, "pump_volt": 8, "pump_duty": 70, "fan_duty": 55},
++                {"temp_c": 80, "pump_volt": 11, "pump_duty": 90, "fan_duty": 85},
++            ],
++        },
++        "led": {
++            "mode": "off",
++            "color": [0, 128, 255],
++            "fan_policy": "sync",
++            "fan_color": [0, 128, 255],
++        },
++        "flow_protection": True,
++        "sleep_on_disconnect": True,
++    }
++
++
++def _validate_stage(stage: object, label: str) -> dict:
++    if not isinstance(stage, dict):
++        raise ValueError(f"{label}: 配置必须是对象")
++    req = {"pump_volt", "pump_duty", "fan_duty"}
++    if not req.issubset(stage):
++        raise ValueError(f"{label}: 缺少 pump_volt / pump_duty / fan_duty")
++    pv = stage["pump_volt"]
++    if type(pv) is not int or pv not in VALID_PUMP_VOLTS:
++        raise ValueError(f"{label}.pump_volt: 仅支持 0, 7, 8, 11, 12")
++    pd = _int(stage["pump_duty"], 0, 100, f"{label}.pump_duty")
++    fd = _int(stage["fan_duty"], 0, 100, f"{label}.fan_duty")
++    if pv == 0:
++        pd = 0
++    elif pd == 0:
++        raise ValueError(f"{label}: 水泵非 0V 时 pump_duty 必须为 1–100")
++    return {"pump_volt": pv, "pump_duty": pd, "fan_duty": fd}
++
++
++def validate_config(raw: object) -> dict:
++    """Validate and return a detached canonical watercooling configuration."""
++    if not isinstance(raw, dict):
++        raise ValueError("水冷配置必须是 JSON 对象")
++    allowed = set(default_config())
++    unknown = set(raw) - allowed
++    if unknown:
++        raise ValueError(f"水冷配置包含未知字段: {sorted(unknown)}")
++    cfg = default_config()
++    if raw.get("version", 1) != 1 or type(raw.get("version", 1)) is not int:
++        raise ValueError("不支持的水冷配置版本")
++    for key in ("auto_connect", "flow_protection", "sleep_on_disconnect"):
++        if key in raw:
++            if type(raw[key]) is not bool:
++                raise ValueError(f"{key}: 需要布尔值")
++            cfg[key] = raw[key]
++    if "mac" in raw:
++        mac = raw["mac"]
++        if not isinstance(mac, str) or (mac != "" and not MAC_RE.match(mac)):
++            raise ValueError("mac: 需要空字符串或 XX:XX:XX:XX:XX:XX")
++        cfg["mac"] = mac.upper()
++    if "strategy" in raw:
++        if raw["strategy"] not in STRATEGIES:
++            raise ValueError(f"strategy: 仅支持 {STRATEGIES}")
++        cfg["strategy"] = raw["strategy"]
++    if "preset" in raw:
++        if raw["preset"] not in PRESETS:
++            raise ValueError(f"preset: 仅支持 {tuple(PRESETS)}")
++        cfg["preset"] = raw["preset"]
++    if "manual" in raw:
++        m = raw["manual"]
++        if not isinstance(m, dict) or set(m) != {"pump_volt", "pump_duty", "fan_duty"}:
++            raise ValueError("manual: 字段必须为 pump_volt, pump_duty, fan_duty")
++        cfg["manual"] = _validate_stage(m, "manual")
++    if "curve" in raw:
++        c = raw["curve"]
++        if not isinstance(c, dict) or set(c) != {"hysteresis_c", "points"}:
++            raise ValueError("curve: 字段必须为 hysteresis_c, points")
++        hyst = _int(c["hysteresis_c"], 1, 15, "curve.hysteresis_c")
++        pts = c["points"]
++        if not isinstance(pts, list) or not 2 <= len(pts) <= 6:
++            raise ValueError("curve.points: 需要 2–6 个温控节点")
++        parsed_pts = []
++        prev_t = -1
++        for idx, pt in enumerate(pts):
++            if not isinstance(pt, dict) or set(pt) != {"temp_c", "pump_volt", "pump_duty", "fan_duty"}:
++                raise ValueError(f"curve.points[{idx}]: 字段不完整或有多余字段")
++            t = _int(pt["temp_c"], 25, 100, f"curve.points[{idx}].temp_c")
++            if t <= prev_t:
++                raise ValueError("curve.points: temp_c 必须严格递增")
++            prev_t = t
++            st = _validate_stage(pt, f"curve.points[{idx}]")
++            parsed_pts.append({"temp_c": t, **st})
++        cfg["curve"] = {"hysteresis_c": hyst, "points": parsed_pts}
++    if "led" in raw:
++        led = raw["led"]
++        if not isinstance(led, dict) or not {"mode", "color", "fan_policy", "fan_color"}.issuperset(led):
++            raise ValueError("led: 包含未知字段")
++        merged_led = dict(cfg["led"], **led)
++        if merged_led["mode"] not in LED_MODES:
++            raise ValueError(f"led.mode: 仅支持 {tuple(LED_MODES)}")
++        if merged_led["fan_policy"] not in FAN_LED_POLICIES:
++            raise ValueError(f"led.fan_policy: 仅支持 {FAN_LED_POLICIES}")
++        merged_led["color"] = _rgb(merged_led["color"], "led.color")
++        merged_led["fan_color"] = _rgb(merged_led["fan_color"], "led.fan_color")
++        cfg["led"] = merged_led
++    return cfg
++
++
++def load_config(path: Optional[Path] = None) -> dict:
++    p = Path(path) if path is not None else config_path()
++    if not p.exists():
++        return default_config()
++    raw = json.loads(p.read_text(encoding="utf-8"))
++    return validate_config(raw)
++
++
++def save_config(cfg: dict, path: Optional[Path] = None) -> dict:
++    canonical = validate_config(cfg)
++    p = Path(path) if path is not None else config_path()
++    state_io.write(str(p), canonical)
++    return canonical
++
++
++# ---------------------------------------------------------------- BLE framing
++
++def encode_handshake() -> bytes:
++    return b"sw"
++
++
++def encode_meter_query() -> bytes:
++    return bytes((0xFE, 0x32, 0x00, 0x00, 0x00, 0x00, 0x00, 0xEF))
++
++
++def encode_sleep() -> bytes:
++    return bytes((0xFE, 0x19, 0x00, 0x01, 0x00, 0x00, 0x00, 0xEF))
++
++
++def encode_priming(enable: bool) -> bytes:
++    if enable:
++        return bytes((0xFE, 0x19, 0x01, 0x04, 0x50, 0x00, 0x00, 0xEF))
++    return bytes((0xFE, 0x19, 0x00, 0x04, 0x00, 0x00, 0x00, 0xEF))
++
++
++def encode_fan(duty: int) -> bytes:
++    d = _int(duty, 0, 100, "fan_duty")
++    if d == 0:
++        return bytes((0xFE, 0x1B, 0x00, 0x00, 0x00, 0x00, 0x00, 0xEF))
++    return bytes((0xFE, 0x1B, 0x01, d, 0x00, 0x00, 0x00, 0xEF))
++
++
++def encode_pump(volt: int, duty: int = 60) -> bytes:
++    if type(volt) is not int or volt not in VALID_PUMP_VOLTS:
++        raise ValueError("pump_volt: 仅支持 0, 7, 8, 11, 12")
++    d = _int(duty, 0, 100, "pump_duty")
++    if volt == 0 or d == 0:
++        return bytes((0xFE, 0x1C, 0x00, 0x00, 0x00, 0x00, 0x00, 0xEF))
++    return bytes((0xFE, 0x1C, 0x01, d, PUMP_VOLT_TO_CODE[volt], 0x00, 0x00, 0xEF))
++
++
++def encode_main_led(on: bool, color: List[int], mode: str) -> bytes:
++    if not on or mode == "off":
++        return bytes((0xFE, 0x1E, 0x00, 0x00, 0x00, 0x00, 0x00, 0xEF))
++    if mode not in LED_MODES:
++        raise ValueError(f"led.mode: 未知模式 {mode!r}")
++    r, g, b = _rgb(color, "led.color")
++    return bytes((0xFE, 0x1E, 0x01, r, g, b, LED_MODES[mode], 0xEF))
++
++
++def encode_fan_led_ctrl(freeze: bool, color: Tuple[int, int, int] = (0, 0, 0), mode_code: int = 0) -> bytes:
++    """Build 0x33 frame.
++
++    Verified on LCT22002 (2.0.0.4):
++      - byte[2] == 0x00: fan LED syncs with / follows 0x1E main LED
++      - byte[2] == 0x01: fan LED freezes at its current latched color/off state
++    """
++    if not freeze:
++        return bytes((0xFE, 0x33, 0x00, 0x00, 0x00, 0x00, 0x00, 0xEF))
++    r, g, b = (_int(c, 0, 255, "fan_color") for c in color)
++    m = _int(mode_code, 0, 255, "fan_mode")
++    return bytes((0xFE, 0x33, 0x01, r, g, b, m, 0xEF))
++
++
++def encode_led_plan(led_cfg: dict) -> List[Tuple[bytes, str]]:
++    """Build an ordered list of (frame, label) commands for LCT22002 dual-zone LEDs."""
++    mode = led_cfg["mode"]
++    color = led_cfg["color"]
++    policy = led_cfg["fan_policy"]
++    fan_color = led_cfg["fan_color"]
++
++    if mode == "off":
++        return [
++            (encode_fan_led_ctrl(False), "led_sync_reset"),
++            (encode_main_led(False, color, "off"), "led_all_off"),
++        ]
++    if policy == "sync":
++        return [
++            (encode_fan_led_ctrl(False), "led_sync_enable"),
++            (encode_main_led(True, color, mode), "led_main"),
++        ]
++    if policy == "body_only":
++        return [
++            (encode_main_led(False, color, "off"), "led_clear_for_body_only"),
++            (encode_fan_led_ctrl(True), "led_fan_freeze_off"),
++            (encode_main_led(True, color, mode), "led_body_main"),
++        ]
++    if policy == "freeze":
++        return [
++            (encode_fan_led_ctrl(True), "led_fan_freeze"),
++            (encode_main_led(True, color, mode), "led_body_main"),
++        ]
++    if policy == "split":
++        return [
++            (encode_fan_led_ctrl(False), "led_split_sync_fan"),
++            (encode_main_led(True, fan_color, "static"), "led_split_latch_fan"),
++            (encode_fan_led_ctrl(True), "led_split_freeze_fan"),
++            (encode_main_led(True, color, mode), "led_split_body"),
++        ]
++    raise ValueError(f"Unknown fan_policy: {policy!r}")
++
++
++def parse_rx_packet(data: bytes) -> dict:
++    raw = bytes(data)
++    if len(raw) >= 4 and raw[0] == 0xFE and raw[1] in (0x31, 0x32):
++        return {
++            "kind": "meter",
++            "opcode": raw[1],
++            "byte2": raw[2],
++            "meter_state": raw[3],
++            "hex": raw.hex(" "),
++        }
++    try:
++        text = raw.decode("utf-8").strip("\x00\r\n ")
++        fw_ver = text[17:].strip() if text.startswith("MCU F/W Version:") and len(text) > 17 else None
++        return {"kind": "firmware", "text": text, "fw_version": fw_ver, "hex": raw.hex(" ")}
++    except UnicodeDecodeError:
++        return {"kind": "unknown", "hex": raw.hex(" ")}
++
++
++# ----------------------------------------------------------- Telemetry readers
++
++def read_host_temp_c(hwmon_root: Path = Path("/sys/class/hwmon")) -> Optional[float]:
++    """Read highest safe host thermal sensor in Celsius (preferring CPU package)."""
++    if not hwmon_root.exists():
++        return None
++    package_temps: List[float] = []
++    fallback_temps: List[float] = []
++    for dev in sorted(hwmon_root.iterdir()):
++        try:
++            name = (dev / "name").read_text(encoding="utf-8").strip()
++        except OSError:
++            continue
++        if name not in ("coretemp", "k10temp", "zenpower", "acpitz", "nouveau", "amdgpu"):
++            continue
++        for inp in sorted(dev.glob("temp*_input")):
++            try:
++                milli = int(inp.read_text(encoding="utf-8").strip())
++            except (OSError, ValueError):
++                continue
++            celsius = milli / 1000.0
++            if not -20.0 <= celsius <= 140.0:
++                continue
++            label_path = inp.with_name(inp.name.replace("_input", "_label"))
++            label = ""
++            if label_path.exists():
++                try:
++                    label = label_path.read_text(encoding="utf-8").strip().lower()
++                except OSError:
++                    pass
++            if name in ("coretemp", "k10temp", "zenpower") and ("package" in label or "tctl" in label or "tdie" in label):
++                package_temps.append(celsius)
++            else:
++                fallback_temps.append(celsius)
++    if package_temps:
++        return round(max(package_temps), 1)
++    if fallback_temps:
++        return round(max(fallback_temps), 1)
++    return None
++
++
++def read_ec_watercooler_state(
++    wmi_path: Path = DEFAULT_WMI_STATE_PATH,
++    ec_path: Path = DEFAULT_LC_EC_STATE_PATH,
++    *,
++    max_age_ms: int = 15000,
++) -> dict:
++    """Safely read root-published read-only EC/WMI cooler telemetry."""
++    result = {
++        "wmi_available": False,
++        "wmi_seq": None,
++        "wmi_c1_seq": None,
++        "ec_available": False,
++        "ec_stale": True,
++        "lc_supported": None,
++        "lc_fan_table_supported": None,
++        "lc_hwoc_supported": None,
++        "lc_ec_enabled": None,
++        "ec_fan_enabled": False,
++        "ec_fan_duty": 0,
++        "ec_pump_enabled": False,
++        "ec_pump_volt": 0,
++    }
++    try:
++        wmi = json.loads(wmi_path.read_text(encoding="utf-8"))
++        if isinstance(wmi, dict):
++            result["wmi_available"] = True
++            if isinstance(wmi.get("wmi_seq"), int):
++                result["wmi_seq"] = wmi["wmi_seq"]
++            c1_seqs = [
++                e["seq"]
++                for e in wmi.get("wmi_events", [])
++                if isinstance(e, dict) and e.get("code") == 193 and isinstance(e.get("seq"), int)
++            ]
++            if c1_seqs:
++                result["wmi_c1_seq"] = max(c1_seqs)
++    except (OSError, ValueError, TypeError):
++        pass
++
++    try:
++        ec = json.loads(ec_path.read_text(encoding="utf-8"))
++        if isinstance(ec, dict) and ec.get("abi") == 1:
++            result["ec_available"] = True
++            now_ms = int(time.monotonic() * 1000)
++            updated = ec.get("updated_monotonic_ms")
++            if isinstance(updated, int) and 0 <= now_ms - updated <= max_age_ms:
++                result["ec_stale"] = False
++            for k in (
++                "lc_supported",
++                "lc_fan_table_supported",
++                "lc_hwoc_supported",
++                "lc_ec_enabled",
++                "ec_fan_enabled",
++                "ec_fan_duty",
++                "ec_pump_enabled",
++                "ec_pump_volt",
++            ):
++                if k in ec:
++                    result[k] = ec[k]
++    except (OSError, ValueError, TypeError):
++        pass
++    return result
++
++
++# --------------------------------------------------- Target & safety evaluators
++
++@dataclass
++class FlowSafetyMonitor:
++    """Monitors BLE meter_state while pump is active and latches dry/stall faults."""
++
++    grace_s: float = 5.0
++    fault_hold_s: float = 3.0
++    tripped: bool = False
++    trip_reason: str = ""
++    _pump_on_since: Optional[float] = None
++    _flow_confirmed: bool = False
++    _bad_since: Optional[float] = None
++
++    def reset(self) -> None:
++        self.tripped = False
++        self.trip_reason = ""
++        self._pump_on_since = None
++        self._flow_confirmed = False
++        self._bad_since = None
++
++    def on_disconnect(self) -> None:
++        self._pump_on_since = None
++        self._flow_confirmed = False
++        self._bad_since = None
++
++    def update(
++        self,
++        *,
++        now: float,
++        pump_volt: int,
++        meter_state: Optional[int],
++        flow_protection: bool,
++    ) -> bool:
++        """Update safety state and return True if flow fault just tripped or is active."""
++        if self.tripped:
++            return True
++        if not flow_protection or pump_volt <= 0:
++            self._pump_on_since = None
++            self._flow_confirmed = False
++            self._bad_since = None
++            return False
++
++        if self._pump_on_since is None:
++            self._pump_on_since = now
++            self._flow_confirmed = meter_state == 2
++            self._bad_since = None
++            return False
++
++        if meter_state == 2:
++            self._flow_confirmed = True
++            self._bad_since = None
++            return False
++
++        if not self._flow_confirmed:
++            if now - self._pump_on_since >= self.grace_s:
++                self.tripped = True
++                self.trip_reason = f"水泵开启超过 {self.grace_s:.0f}s 未检测到水流 (meter_state={meter_state})"
++                return True
++            return False
++
++        if self._bad_since is None:
++            self._bad_since = now
++            return False
++        if now - self._bad_since >= self.fault_hold_s:
++            self.tripped = True
++            self.trip_reason = f"水泵运行中水流信号丢失超过 {self.fault_hold_s:.0f}s (meter_state={meter_state})"
++            return True
++        return False
++
++
++def evaluate_cooling_target(
++    cfg: dict,
++    *,
++    temp_c: Optional[float],
++    ec_state: Optional[dict],
++    current_tier: int = 0,
++    flow_tripped: bool = False,
++    sleeping: bool = False,
++) -> Tuple[int, int, int, int, str]:
++    """Compute (pump_volt, pump_duty, fan_duty, new_tier_idx, reason)."""
++    if sleeping:
++        return 0, 0, 0, current_tier, "sleeping"
++    if flow_tripped:
++        return 0, 0, 0, current_tier, "flow_fault_locked"
++
++    strategy = cfg["strategy"]
++    if strategy == "manual":
++        m = cfg["manual"]
++        return m["pump_volt"], m["pump_duty"], m["fan_duty"], current_tier, "manual"
++
++    if strategy == "preset":
++        p = PRESETS[cfg["preset"]]
++        return p["pump_volt"], p["pump_duty"], p["fan_duty"], current_tier, f"preset:{cfg['preset']}"
++
++    if strategy == "ec_follow":
++        if ec_state and ec_state.get("ec_available") and not ec_state.get("ec_stale"):
++            pv = ec_state.get("ec_pump_volt", 0) if ec_state.get("ec_pump_enabled") else 0
++            fd = ec_state.get("ec_fan_duty", 0) if ec_state.get("ec_fan_enabled") else 0
++            if pv in VALID_PUMP_VOLTS and 0 <= fd <= 100:
++                pd = 60 if pv > 0 else 0
++                return pv, pd, fd, current_tier, "ec_follow"
++        p = PRESETS["silent"]
++        return p["pump_volt"], p["pump_duty"], p["fan_duty"], current_tier, "ec_fallback_silent"
++
++    # smart_curve with hysteresis
++    points = cfg["curve"]["points"]
++    hyst = cfg["curve"]["hysteresis_c"]
++    idx = min(max(current_tier, 0), len(points) - 1)
++    if temp_c is None:
++        pt = points[0]
++        return pt["pump_volt"], pt["pump_duty"], pt["fan_duty"], 0, "curve_no_sensor_safe_floor"
++
++    # Step up immediately whenever temperature reaches a higher point threshold
++    for i in range(len(points) - 1, -1, -1):
++        if temp_c >= points[i]["temp_c"]:
++            if i >= idx:
++                idx = i
++            break
++    # Step down only when temp drops below the current active point threshold by hysteresis
++    while idx > 0 and temp_c <= points[idx]["temp_c"] - hyst:
++        idx -= 1
++
++    pt = points[idx]
++    return pt["pump_volt"], pt["pump_duty"], pt["fan_duty"], idx, f"smart_curve:{temp_c:.1f}C->tier{idx}"
+diff --git a/b/src/iteglow/watercooling_ble.py b/src/iteglow/watercooling_ble.py
+new file mode 100644
+index 0000000..3fb7ca0
+--- /dev/null
++++ b/src/iteglow/watercooling_ble.py
+@@ -0,0 +1,416 @@
++"""Unpaired BlueZ BLE GATT transport and paced session controller for MECHREVO water coolers.
++
++Verified live rules:
++  - Never calls BlueZ Device1.Pair() (LCT22002 rejects SMP with 0x05).
++  - Retries Device1.Connect() up to 3 attempts on transient HCI 0x3e / le-connection-abort-by-local.
++  - Uses ATT Write Request ('request') with >=100ms TX pacing to avoid MCU UART collision drops.
++  - Sends 'sw' handshake + baseline 0xFE 0x32 meter poll on connect.
++  - Safely shuts down actuators and sends GoToSleepLC (0xFE 0x19 00 01) on disconnect.
++"""
++from __future__ import annotations
++
++import time
++from typing import Callable, Dict, List, Optional, Protocol, Tuple
++
++from . import watercooling as wc
++
++BLUEZ_SERVICE = "org.bluez"
++ADAPTER_PATH = "/org/bluez/hci0"
++
++
++class BleTransport(Protocol):
++    def scan(self, timeout_s: float = 5.0, target_mac: str = "") -> List[dict]: ...
++    def connect(
++        self,
++        *,
++        target_mac: str = "",
++        scan_timeout_s: float = 6.0,
++        on_notify: Optional[Callable[[bytes], None]] = None,
++        on_disconnect: Optional[Callable[[str], None]] = None,
++    ) -> dict: ...
++    def write_frame(self, data: bytes, write_type: str = "request") -> None: ...
++    def disconnect(self) -> None: ...
++    def pump(self, seconds: float) -> None: ...
++
++
++class BluezBleTransport:
++    """Real BlueZ D-Bus GATT client backed by system Gio/GLib."""
++
++    def __init__(self, adapter_path: str = ADAPTER_PATH):
++        self._Gio = None
++        self._GLib = None
++        self._bus = None
++        self._ctx = None
++        self._adapter_path = adapter_path
++        self._dev_path: Optional[str] = None
++        self._tx_path: Optional[str] = None
++        self._rx_path: Optional[str] = None
++        self._sub_id: Optional[int] = None
++        self._notifying = False
++        self._connected = False
++        self._on_notify: Optional[Callable[[bytes], None]] = None
++        self._on_disconnect: Optional[Callable[[str], None]] = None
++
++    def _ensure_bus(self) -> None:
++        if self._bus is not None:
++            return
++        import gi
++        gi.require_version("Gio", "2.0")
++        gi.require_version("GLib", "2.0")
++        from gi.repository import Gio, GLib
++
++        self._Gio = Gio
++        self._GLib = GLib
++        self._bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
++        self._ctx = GLib.MainContext.default()
++
++    def pump(self, seconds: float) -> None:
++        self._ensure_bus()
++        end = time.monotonic() + max(0.0, seconds)
++        while time.monotonic() < end:
++            while self._ctx.pending():
++                self._ctx.iteration(False)
++            time.sleep(min(0.02, max(0.001, end - time.monotonic())))
++        while self._ctx.pending():
++            self._ctx.iteration(False)
++
++    def _managed_objects(self) -> dict:
++        self._ensure_bus()
++        res = self._bus.call_sync(
++            BLUEZ_SERVICE,
++            "/",
++            "org.freedesktop.DBus.ObjectManager",
++            "GetManagedObjects",
++            None,
++            self._GLib.VariantType("(a{oa{sa{sv}}})"),
++            self._Gio.DBusCallFlags.NONE,
++            5000,
++            None,
++        )
++        return res.unpack()[0]
++
++    def _call(self, path: str, iface: str, method: str, params=None, timeout_ms: int = 12000):
++        self._ensure_bus()
++        return self._bus.call_sync(
++            BLUEZ_SERVICE,
++            path,
++            iface,
++            method,
++            params,
++            None,
++            self._Gio.DBusCallFlags.NONE,
++            timeout_ms,
++            None,
++        )
++
++    @staticmethod
++    def _matches(dev_props: dict, target_mac: str) -> bool:
++        addr = str(dev_props.get("Address", "")).upper()
++        name = str(dev_props.get("Name", ""))
++        if target_mac:
++            return addr == target_mac.upper()
++        return any(name.startswith(prefix) or prefix.upper() in name.upper() for prefix in wc.DEVICE_NAME_PREFIXES)
++
++    def _find_matching_devices(self, objs: dict, target_mac: str = "") -> List[dict]:
++        found = []
++        for path, ifaces in sorted(objs.items()):
++            dev = ifaces.get("org.bluez.Device1")
++            if not dev or not self._matches(dev, target_mac):
++                continue
++            found.append({
++                "path": path,
++                "name": str(dev.get("Name", "")),
++                "address": str(dev.get("Address", "")).upper(),
++                "rssi": dev.get("RSSI"),
++                "connected": bool(dev.get("Connected", False)),
++                "paired": bool(dev.get("Paired", False)),
++            })
++        return found
++
++    def _find_nus_chars(self, objs: dict, dev_path: str) -> Tuple[Optional[str], Optional[str]]:
++        tx_path = rx_path = None
++        prefix = dev_path + "/"
++        for path, ifaces in objs.items():
++            if not path.startswith(prefix):
++                continue
++            ch = ifaces.get("org.bluez.GattCharacteristic1")
++            if not ch:
++                continue
++            uuid = str(ch.get("UUID", "")).lower()
++            if uuid == wc.NUS_TX_UUID:
++                tx_path = path
++            elif uuid == wc.NUS_RX_UUID:
++                rx_path = path
++        return tx_path, rx_path
++
++    def scan(self, timeout_s: float = 5.0, target_mac: str = "") -> List[dict]:
++        self._ensure_bus()
++        filt = self._GLib.Variant("(a{sv})", ({"Transport": self._GLib.Variant("s", "le")},))
++        started = False
++        try:
++            self._call(self._adapter_path, "org.bluez.Adapter1", "SetDiscoveryFilter", filt)
++            self._call(self._adapter_path, "org.bluez.Adapter1", "StartDiscovery")
++            started = True
++            deadline = time.monotonic() + timeout_s
++            while time.monotonic() < deadline:
++                self.pump(0.25)
++                matches = self._find_matching_devices(self._managed_objects(), target_mac)
++                if matches and any(m.get("rssi") is not None for m in matches):
++                    break
++            return self._find_matching_devices(self._managed_objects(), target_mac)
++        finally:
++            if started:
++                try:
++                    self._call(self._adapter_path, "org.bluez.Adapter1", "StopDiscovery")
++                except Exception:
++                    pass
++            self.pump(0.15)
++
++    def _unhook_signals(self) -> None:
++        if self._sub_id is not None:
++            try:
++                self._bus.signal_unsubscribe(self._sub_id)
++            except Exception:
++                pass
++            self._sub_id = None
++
++    def _hook_signals(self) -> None:
++        self._ensure_bus()
++        self._unhook_signals()
++
++        def on_signal(_conn, _sender, path, iface, signal, params, *_user_data):
++            if iface != "org.freedesktop.DBus.Properties" or signal != "PropertiesChanged":
++                return
++            changed_iface, changed, _inv = params.unpack()
++            if path == self._rx_path and "Value" in changed and self._on_notify is not None:
++                self._on_notify(bytes(changed["Value"]))
++                return
++            if path == self._dev_path and changed_iface == "org.bluez.Device1":
++                if "Connected" in changed and changed["Connected"] is False and self._connected:
++                    self._connected = False
++                    self._notifying = False
++                    if self._on_disconnect is not None:
++                        self._on_disconnect("peer_or_link_disconnected")
++
++        self._sub_id = self._bus.signal_subscribe(
++            BLUEZ_SERVICE,
++            None,
++            None,
++            None,
++            None,
++            self._Gio.DBusSignalFlags.NONE,
++            on_signal,
++        )
++
++    def connect(
++        self,
++        *,
++        target_mac: str = "",
++        scan_timeout_s: float = 6.0,
++        on_notify: Optional[Callable[[bytes], None]] = None,
++        on_disconnect: Optional[Callable[[str], None]] = None,
++    ) -> dict:
++        self._on_notify = on_notify
++        self._on_disconnect = on_disconnect
++
++        objs = self._managed_objects()
++        matches = self._find_matching_devices(objs, target_mac)
++        if not matches or all(m.get("rssi") is None and not m.get("connected") for m in matches):
++            scanned = self.scan(timeout_s=scan_timeout_s, target_mac=target_mac)
++            if scanned:
++                matches = scanned
++        if not matches:
++            raise RuntimeError("未扫描到机械革命蓝牙水冷设备（请确认水冷开机且未处于离线模式）")
++
++        target = matches[0]
++        self._dev_path = target["path"]
++        self._tx_path = None
++        self._rx_path = None
++        self._hook_signals()
++
++        try:
++            self._call(self._dev_path, "org.bluez.Device1", "Connect", timeout_ms=12000)
++            self._connected = True
++        except Exception as exc:
++            self._unhook_signals()
++            raise RuntimeError(f"BLE 连接水冷失败：{exc}") from exc
++
++        deadline = time.monotonic() + 6.0
++        resolved = False
++        while time.monotonic() < deadline:
++            self.pump(0.15)
++            objs = self._managed_objects()
++            dev_ifaces = objs.get(self._dev_path, {}).get("org.bluez.Device1", {})
++            if dev_ifaces.get("ServicesResolved"):
++                resolved = True
++                target["name"] = str(dev_ifaces.get("Name", target["name"]))
++                target["address"] = str(dev_ifaces.get("Address", target["address"])).upper()
++                break
++        if not resolved:
++            self.disconnect()
++            raise RuntimeError("BLE GATT 服务发现超时")
++
++        tx_path, rx_path = self._find_nus_chars(objs, self._dev_path)
++        if not tx_path or not rx_path:
++            self.disconnect()
++            raise RuntimeError("未找到 Nordic UART TX/RX 特征值")
++        self._tx_path = tx_path
++        self._rx_path = rx_path
++
++        self._call(self._rx_path, "org.bluez.GattCharacteristic1", "StartNotify", timeout_ms=5000)
++        self._notifying = True
++        self.pump(0.25)
++        return {"name": target["name"], "address": target["address"], "path": self._dev_path}
++
++    def write_frame(self, data: bytes, write_type: str = "request") -> None:
++        if not self._tx_path or not self._connected:
++            raise RuntimeError("水冷蓝牙未连接")
++        val_var = self._GLib.Variant("(aya{sv})", (list(data), {"type": self._GLib.Variant("s", write_type)}))
++        self._call(self._tx_path, "org.bluez.GattCharacteristic1", "WriteValue", val_var, timeout_ms=5000)
++
++    def disconnect(self) -> None:
++        was_connected = self._connected
++        self._connected = False
++        if self._notifying and self._rx_path and was_connected:
++            try:
++                self._call(self._rx_path, "org.bluez.GattCharacteristic1", "StopNotify", timeout_ms=3000)
++            except Exception:
++                pass
++            self._notifying = False
++            self.pump(0.15)
++        if self._dev_path:
++            try:
++                self._call(self._dev_path, "org.bluez.Device1", "Disconnect", timeout_ms=5000)
++            except Exception:
++                pass
++            self.pump(0.3)
++        self._unhook_signals()
++        self._tx_path = None
++        self._rx_path = None
++
++
++class CoolerBleClient:
++    """High-level paced water cooler session managing handshake, writes, and teardown."""
++
++    def __init__(
++        self,
++        transport: Optional[BleTransport] = None,
++        *,
++        min_gap_s: float = 0.1,
++        clock: Callable[[], float] = time.monotonic,
++    ):
++        self.transport = transport or BluezBleTransport()
++        self.min_gap_s = float(min_gap_s)
++        self._clock = clock
++        self._last_tx_at: float = 0.0
++        self.connected = False
++        self.device_name = ""
++        self.device_mac = ""
++        self.fw_version: Optional[str] = None
++        self.meter_state: Optional[int] = None
++        self.last_rx_at: Optional[float] = None
++        self.preferred_write_type = "request"
++        self.on_disconnect_event: Optional[Callable[[str], None]] = None
++
++    def _on_notify(self, raw: bytes) -> None:
++        pkt = wc.parse_rx_packet(raw)
++        self.last_rx_at = self._clock()
++        if pkt["kind"] == "meter":
++            self.meter_state = pkt["meter_state"]
++        elif pkt["kind"] == "firmware" and pkt.get("fw_version"):
++            self.fw_version = pkt["fw_version"]
++
++    def _on_disconnect(self, reason: str) -> None:
++        self.connected = False
++        if self.on_disconnect_event is not None:
++            self.on_disconnect_event(reason)
++
++    def scan(self, timeout_s: float = 5.0, target_mac: str = "") -> List[dict]:
++        return self.transport.scan(timeout_s=timeout_s, target_mac=target_mac)
++
++    def send_paced(self, data: bytes, *, force_type: Optional[str] = None) -> None:
++        if not self.connected:
++            raise RuntimeError("水冷蓝牙未连接")
++        elapsed = self._clock() - self._last_tx_at
++        if self._last_tx_at > 0 and elapsed < self.min_gap_s:
++            self.transport.pump(self.min_gap_s - elapsed)
++        wtype = force_type or self.preferred_write_type
++        try:
++            self.transport.write_frame(data, write_type=wtype)
++        except Exception:
++            if force_type is None and wtype == "request":
++                self.preferred_write_type = "command"
++                self.transport.write_frame(data, write_type="command")
++            else:
++                raise
++        self._last_tx_at = self._clock()
++
++    def connect(self, target_mac: str = "", scan_timeout_s: float = 6.0) -> dict:
++        if self.connected:
++            return {"name": self.device_name, "address": self.device_mac, "fw_version": self.fw_version}
++        self.fw_version = None
++        self.meter_state = None
++        last_err: Optional[Exception] = None
++        info: Optional[dict] = None
++        for attempt in range(1, 4):
++            try:
++                info = self.transport.connect(
++                    target_mac=target_mac,
++                    scan_timeout_s=scan_timeout_s,
++                    on_notify=self._on_notify,
++                    on_disconnect=self._on_disconnect,
++                )
++                last_err = None
++                break
++            except Exception as exc:
++                last_err = exc
++                msg = str(exc).lower()
++                if attempt < 3 and ("le-connection-abort-by-local" in msg or "inprogress" in msg or "timeout" in msg):
++                    self.transport.pump(0.9)
++                    continue
++                raise
++        if last_err is not None or info is None:
++            raise RuntimeError(str(last_err))
++        self.connected = True
++        self.device_name = info.get("name", "")
++        self.device_mac = info.get("address", "")
++        self.preferred_write_type = "request"
++        self.send_paced(wc.encode_handshake())
++        self.transport.pump(0.35)
++        self.send_paced(wc.encode_meter_query())
++        self.transport.pump(0.25)
++        return {
++            "name": self.device_name,
++            "address": self.device_mac,
++            "fw_version": self.fw_version,
++            "meter_state": self.meter_state,
++        }
++
++    def query_meter(self) -> Optional[int]:
++        self.send_paced(wc.encode_meter_query())
++        self.transport.pump(0.18)
++        return self.meter_state
++
++    def apply_actuators(self, pump_volt: int, pump_duty: int, fan_duty: int) -> None:
++        self.send_paced(wc.encode_pump(pump_volt, pump_duty))
++        self.send_paced(wc.encode_fan(fan_duty))
++
++    def apply_led(self, led_cfg: dict) -> None:
++        for frame, _label in wc.encode_led_plan(led_cfg):
++            self.send_paced(frame)
++
++    def disconnect(self, *, send_sleep: bool = True, stop_actuators: bool = True) -> None:
++        if self.connected:
++            try:
++                if stop_actuators:
++                    self.send_paced(wc.encode_pump(0, 0))
++                    self.send_paced(wc.encode_fan(0))
++                    self.send_paced(wc.encode_fan_led_ctrl(False))
++                    self.send_paced(wc.encode_main_led(False, [0, 0, 0], "off"))
++                if send_sleep:
++                    self.send_paced(wc.encode_sleep(), force_type="command")
++                    self.transport.pump(0.25)
++            except Exception:
++                pass
++        self.connected = False
++        self.transport.disconnect()
+diff --git a/b/src/iteglow/watercooling_gui.py b/src/iteglow/watercooling_gui.py
+new file mode 100644
+index 0000000..da16453
+--- /dev/null
++++ b/src/iteglow/watercooling_gui.py
+@@ -0,0 +1,853 @@
++"""GTK4 water-cooling control tab integrated into iteglow main window."""
++from __future__ import annotations
++
++import math
++from pathlib import Path
++import threading
++from typing import Callable, List, Optional
++
++import gi
++
++gi.require_version("Gdk", "4.0")
++gi.require_version("GLib", "2.0")
++gi.require_version("Gtk", "4.0")
++from gi.repository import Gdk, GLib, Gtk
++
++from . import watercooling as wc
++from .watercooling_service import service_request
++
++
++STRATEGY_ITEMS = (
++    ("preset", "预设模式"),
++    ("manual", "手动固定"),
++    ("smart_curve", "智能温控曲线"),
++    ("ec_follow", "跟随主机 EC"),
++)
++
++PRESET_ITEMS = (
++    ("stop", "停机 (0V / 0%)"),
++    ("silent", "静音 (7V · 泵60% · 扇40%)"),
++    ("balanced", "均衡 (8V · 泵60% · 扇50%)"),
++    ("performance", "性能 (11V · 泵60% · 扇60%)"),
++    ("turbo", "狂暴 (11V · 泵90% · 扇90%)"),
++    ("max", "全速 (12V · 泵100% · 扇100%)"),
++)
++
++VOLT_ITEMS = (
++    (0, "0V (停泵)"),
++    (7, "7V"),
++    (8, "8V"),
++    (11, "11V"),
++    (12, "12V"),
++)
++
++LED_MODE_ITEMS = (
++    ("off", "关闭灯光"),
++    ("static", "静态单色"),
++    ("breathing", "机身呼吸"),
++    ("colorful", "机身幻彩"),
++    ("breathing_colorful", "机身呼吸幻彩"),
++    ("mode4", "全区静态"),
++)
++
++FAN_POLICY_ITEMS = (
++    ("sync", "双区同步 (风扇=机身)"),
++    ("body_only", "仅机身灯亮 (风扇关)"),
++    ("freeze", "锁定风扇当前灯态"),
++    ("split", "双区独立双色"),
++)
++
++
++def _label(text: str = "", css: Optional[str] = None, wrap: bool = False) -> Gtk.Label:
++    lbl = Gtk.Label(label=text)
++    lbl.set_xalign(0)
++    lbl.set_wrap(wrap)
++    if css:
++        for cls in css.split():
++            lbl.add_css_class(cls)
++    return lbl
++
++
++def _box(vertical: bool = True, spacing: int = 8, css: Optional[str] = None) -> Gtk.Box:
++    orient = Gtk.Orientation.VERTICAL if vertical else Gtk.Orientation.HORIZONTAL
++    box = Gtk.Box(orientation=orient, spacing=spacing)
++    if css:
++        for cls in css.split():
++            box.add_css_class(cls)
++    return box
++
++
++def _card(title: str, subtitle: Optional[str] = None) -> Gtk.Box:
++    card = _box(vertical=True, spacing=12, css="control-card")
++    head = _box(vertical=True, spacing=3)
++    head.append(_label(title, "section-title"))
++    if subtitle:
++        head.append(_label(subtitle, "small-note", wrap=True))
++    card.append(head)
++    return card
++
++
++def _dropdown(items) -> Gtk.DropDown:
++    labels = [lbl for _, lbl in items]
++    dd = Gtk.DropDown.new_from_strings(labels)
++    dd.set_hexpand(False)
++    return dd
++
++
++def _selected_key(dd: Gtk.DropDown, items):
++    idx = dd.get_selected()
++    if 0 <= idx < len(items):
++        return items[idx][0]
++    return items[0][0]
++
++
++def _select_key(dd: Gtk.DropDown, items, key) -> None:
++    for idx, (k, _) in enumerate(items):
++        if k == key:
++            dd.set_selected(idx)
++            return
++
++
++def _spin(low: int, high: int, value: int, step: int = 1) -> Gtk.SpinButton:
++    sb = Gtk.SpinButton.new_with_range(low, high, step)
++    sb.set_digits(0)
++    sb.set_value(value)
++    return sb
++
++
++def _rgba(rgb: List[int]) -> Gdk.RGBA:
++    c = Gdk.RGBA()
++    r, g, b = rgb
++    c.red, c.green, c.blue, c.alpha = r / 255.0, g / 255.0, b / 255.0, 1.0
++    return c
++
++
++def _rgb_from_btn(btn: Gtk.ColorDialogButton) -> List[int]:
++    c = btn.get_rgba()
++    return [
++        max(0, min(255, int(round(c.red * 255)))),
++        max(0, min(255, int(round(c.green * 255)))),
++        max(0, min(255, int(round(c.blue * 255)))),
++    ]
++
++
++def _color_btn(rgb: List[int]) -> Gtk.ColorDialogButton:
++    dlg = Gtk.ColorDialog(with_alpha=False)
++    btn = Gtk.ColorDialogButton(dialog=dlg)
++    btn.add_css_class("color-swatch")
++    btn.set_rgba(_rgba(rgb))
++    return btn
++
++
++def _row(title: str, widget: Gtk.Widget, note: Optional[str] = None, well: bool = False) -> Gtk.Box:
++    outer = _box(vertical=False, spacing=12, css="well" if well else None)
++    outer.set_valign(Gtk.Align.CENTER)
++    left = _box(vertical=True, spacing=2)
++    left.set_hexpand(True)
++    left.append(_label(title))
++    if note:
++        left.append(_label(note, "small-note", wrap=True))
++    outer.append(left)
++    widget.set_valign(Gtk.Align.CENTER)
++    outer.append(widget)
++    return outer
++
++
++def _rounded(cr, x: float, y: float, w: float, h: float, radius: float) -> None:
++    cr.new_sub_path()
++    for cx, cy, start in (
++        (x + w - radius, y + radius, -math.pi / 2),
++        (x + w - radius, y + h - radius, 0),
++        (x + radius, y + h - radius, math.pi / 2),
++        (x + radius, y + radius, math.pi),
++    ):
++        cr.arc(cx, cy, radius, start, start + math.pi / 2)
++    cr.close_path()
++
++
++class CoolerHardwarePreview(Gtk.DrawingArea):
++    """Live dual-zone silhouette preview for LCT22002 fan ring, chassis lightbar, and flow loop."""
++
++    def __init__(self, panel: "WaterCoolingPanel"):
++        super().__init__()
++        self._panel = panel
++        self.set_content_width(248)
++        self.set_content_height(196)
++        self.set_hexpand(False)
++        self.set_draw_func(self._draw)
++
++    def _draw(self, _area, cr, width: int, height: int) -> None:
++        _rounded(cr, 0, 0, width, height, 12)
++        cr.set_source_rgb(0.06, 0.08, 0.12)
++        cr.fill_preserve()
++        cr.set_source_rgb(0.16, 0.21, 0.30)
++        cr.set_line_width(1.0)
++        cr.stroke()
++
++        mode = _selected_key(self._panel.led_mode_dd, LED_MODE_ITEMS)
++        policy = _selected_key(self._panel.fan_policy_dd, FAN_POLICY_ITEMS)
++        body_rgb = [c / 255.0 for c in _rgb_from_btn(self._panel.body_color_btn)]
++        fan_rgb = [c / 255.0 for c in _rgb_from_btn(self._panel.fan_color_btn)]
++
++        if mode in ("colorful", "breathing_colorful"):
++            body_eff = (0.32, 0.78, 0.96)
++        elif mode == "off":
++            body_eff = None
++        else:
++            body_eff = tuple(body_rgb)
++
++        if mode == "off" or policy == "body_only":
++            fan_eff = None
++        elif policy == "sync":
++            fan_eff = body_eff
++        elif policy == "split":
++            fan_eff = tuple(fan_rgb)
++        else:
++            fan_eff = (0.45, 0.56, 0.72)  # latched unknown prior hue
++
++        # Chassis body outline
++        bx, by, bw, bh = 18.0, 24.0, width - 36.0, height - 52.0
++        _rounded(cr, bx, by, bw, bh, 12)
++        cr.set_source_rgb(0.10, 0.13, 0.19)
++        cr.fill_preserve()
++        cr.set_source_rgb(0.22, 0.28, 0.38)
++        cr.set_line_width(1.2)
++        cr.stroke()
++
++        # Side radiator louvers
++        cr.set_source_rgb(0.15, 0.20, 0.28)
++        for i in range(6):
++            ly = by + 22 + i * 16
++            _rounded(cr, bx + 12, ly, 24, 6, 3)
++            cr.fill()
++
++        # Fan hub + illuminated ring (center-right)
++        cx = bx + bw * 0.61
++        cy = by + bh * 0.50
++        radius = min(bw, bh) * 0.34
++        if fan_eff is not None:
++            cr.arc(cx, cy, radius + 4.0, 0, 2 * math.pi)
++            cr.set_source_rgba(fan_eff[0], fan_eff[1], fan_eff[2], 0.20)
++            cr.set_line_width(8.0)
++            cr.stroke()
++        cr.arc(cx, cy, radius, 0, 2 * math.pi)
++        cr.set_source_rgb(0.07, 0.09, 0.14)
++        cr.fill_preserve()
++        if fan_eff is not None:
++            cr.set_source_rgb(*fan_eff)
++            cr.set_line_width(3.4)
++        else:
++            cr.set_source_rgb(0.20, 0.25, 0.34)
++            cr.set_line_width(2.0)
++        cr.stroke()
++
++        # Fan blades + center cap
++        cr.set_source_rgb(0.18, 0.23, 0.32)
++        cr.set_line_width(1.6)
++        for k in range(7):
++            ang = k * (2 * math.pi / 7)
++            cr.move_to(cx + math.cos(ang) * 7, cy + math.sin(ang) * 7)
++            cr.line_to(cx + math.cos(ang + 0.35) * (radius - 4), cy + math.sin(ang + 0.35) * (radius - 4))
++        cr.stroke()
++        cr.arc(cx, cy, 7.5, 0, 2 * math.pi)
++        cr.set_source_rgb(0.23, 0.30, 0.42)
++        cr.fill()
++
++        # Chassis edge lightbar strip (adjacent to fan)
++        bar_x, bar_y, bar_w, bar_h = bx + bw - 20, by + 16, 7.0, bh - 32
++        if body_eff is not None:
++            _rounded(cr, bar_x - 3, bar_y - 2, bar_w + 6, bar_h + 4, 6)
++            cr.set_source_rgba(body_eff[0], body_eff[1], body_eff[2], 0.24)
++            cr.fill()
++            _rounded(cr, bar_x, bar_y, bar_w, bar_h, 3.5)
++            cr.set_source_rgb(*body_eff)
++            cr.fill()
++        else:
++            _rounded(cr, bar_x, bar_y, bar_w, bar_h, 3.5)
++            cr.set_source_rgb(0.20, 0.25, 0.34)
++            cr.fill()
++
++        # Firmware BLE status indicator dot
++        dot_x, dot_y = bx + 16, by + 12
++        cr.arc(dot_x, dot_y, 3.2, 0, 2 * math.pi)
++        if self._panel._last_snapshot.get("flow_tripped"):
++            cr.set_source_rgb(0.96, 0.26, 0.36)
++        elif self._panel._last_snapshot.get("connected"):
++            cr.set_source_rgb(0.22, 0.82, 0.56)
++        else:
++            cr.set_source_rgb(0.26, 0.56, 0.96)
++        cr.fill()
++
++        # Footer caption
++        cr.select_font_face("sans-serif", 0, 0)
++        cr.set_font_size(10)
++        cr.set_source_rgb(0.54, 0.63, 0.76)
++        cr.move_to(18, height - 11)
++        cr.show_text("LCT22002 双区灯光与状态指示预览")
++
++
++class CoolerCurveChart(Gtk.DrawingArea):
++    """Dark precision chart plotting smart-curve thermal tiers."""
++
++    def __init__(self, panel: "WaterCoolingPanel"):
++        super().__init__()
++        self._panel = panel
++        self.set_content_height(136)
++        self.set_hexpand(True)
++        self.set_draw_func(self._draw)
++
++    def _draw(self, _area, cr, width: int, height: int) -> None:
++        left, right, top, bottom = 36, width - 16, 14, height - 24
++        _rounded(cr, 0, 0, width, height, 10)
++        cr.set_source_rgb(0.06, 0.08, 0.12)
++        cr.fill_preserve()
++        cr.set_source_rgb(0.15, 0.20, 0.28)
++        cr.set_line_width(1.0)
++        cr.stroke()
++
++        cr.set_font_size(10)
++        for pct in (0, 50, 100):
++            y = bottom - (pct / 100.0) * (bottom - top)
++            cr.set_source_rgb(0.13, 0.17, 0.24)
++            cr.move_to(left, y)
++            cr.line_to(right, y)
++            cr.stroke()
++            cr.set_source_rgb(0.50, 0.58, 0.70)
++            cr.move_to(6, y + 3)
++            cr.show_text(f"{pct}%")
++
++        rows = self._panel._curve_rows
++        if not rows:
++            return
++        pts = sorted(
++            (
++                r["temp"].get_value_as_int(),
++                r["pump_duty"].get_value_as_int(),
++                r["fan_duty"].get_value_as_int(),
++            )
++            for r in rows
++        )
++        t_min, t_max = 25.0, 100.0
++
++        for idx, color in ((2, (0.22, 0.74, 0.97)), (1, (0.39, 0.40, 0.95))):
++            coords = [
++                (
++                    left + (t - t_min) / (t_max - t_min) * (right - left),
++                    bottom - (val / 100.0) * (bottom - top),
++                )
++                for t, *vals in [(p[0], p[1], p[2]) for p in pts]
++                for val in [vals[idx - 1]]
++            ]
++            cr.set_source_rgb(*color)
++            cr.set_line_width(2.2)
++            for i, (x, y) in enumerate(coords):
++                if i == 0:
++                    cr.move_to(x, y)
++                else:
++                    cr.line_to(x, y)
++            cr.stroke()
++            for x, y in coords:
++                cr.arc(x, y, 3.2, 0, 2 * math.pi)
++                cr.fill()
++
++        cr.set_source_rgb(0.50, 0.58, 0.70)
++        for temp in (30, 50, 70, 90):
++            tx = left + (temp - t_min) / (t_max - t_min) * (right - left) - 10
++            cr.move_to(tx, height - 7)
++            cr.show_text(f"{temp}°C")
++
++
++class WaterCoolingPanel(Gtk.Box):
++    """UI panel for BLE water-cooler telemetry, pump/fan strategies, and dual-zone LEDs.
++
++    Construction performs no D-Bus, BLE, socket, or disk write I/O.
++    """
++
++    def __init__(
++        self,
++        *,
++        config_path: Optional[Path] = None,
++        request_fn: Optional[Callable[[dict], dict]] = None,
++        poll_interval_ms: int = 3000,
++    ):
++        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
++        self._config_path = config_path
++        self._request_fn: Callable[[dict], dict] = request_fn or service_request
++        self._poll_interval_ms = int(poll_interval_ms)
++        self._poll_id: Optional[int] = None
++        self._closed = False
++        self._syncing_ui = False
++        self._op_lock = threading.Lock()
++        self._busy = False
++        self._curve_rows: List[dict] = []
++        self._last_snapshot: dict = {}
++
++        try:
++            self._config = wc.load_config(self._config_path)
++            init_err = ""
++        except Exception as exc:
++            self._config = wc.default_config()
++            init_err = f"配置加载失败，已使用默认安全配置: {exc}"
++
++        root = _box(vertical=True, spacing=16, css="device-page")
++
++        # --- Page Title Row ---
++        title_row = _box(vertical=False, spacing=12)
++        title_col = _box(vertical=True, spacing=3)
++        title_col.set_hexpand(True)
++        title_col.append(_label("水冷控制", "page-title"))
++        title_col.append(_label("MECHREVO 外置蓝牙水冷 (LCT22002 / LCT21001) · 非配对直连 · 默认不主动改写硬件", "subtitle", wrap=True))
++        title_row.append(title_col)
++        self.status_pill = _label("未连接", "connection-pill pill-muted")
++        self.status_pill.set_valign(Gtk.Align.CENTER)
++        title_row.append(self.status_pill)
++        root.append(title_row)
++
++        # --- Hero Telemetry Deck (Metrics Left + Dual-Zone Visual Preview Right) ---
++        hero = _box(vertical=False, spacing=18, css="hero-deck")
++        hero_left = _box(vertical=True, spacing=12)
++        hero_left.set_hexpand(True)
++
++        self.device_label = _label("等待连接水冷设备", "section-title", wrap=True)
++        hero_left.append(self.device_label)
++
++        kpi_grid = Gtk.Grid(column_spacing=10, row_spacing=10, column_homogeneous=True)
++        self._flow_kpi, flow_tile = self._make_kpi("水流回路", "待机")
++        self._pump_kpi, pump_tile = self._make_kpi("水泵输出", "0V · 0%")
++        self._fan_kpi, fan_tile = self._make_kpi("冷排风扇", "0%")
++        self._temp_kpi, temp_tile = self._make_kpi("CPU 封装", "--°C")
++        kpi_grid.attach(flow_tile, 0, 0, 1, 1)
++        kpi_grid.attach(pump_tile, 1, 0, 1, 1)
++        kpi_grid.attach(fan_tile, 2, 0, 1, 1)
++        kpi_grid.attach(temp_tile, 3, 0, 1, 1)
++        hero_left.append(kpi_grid)
++
++        telemetry_well = _box(vertical=True, spacing=4, css="well")
++        self.flow_label = _label("水流: 未知 · 输出: 泵 0V/0% · 风扇 0% · 主机温度: --°C", "small-note", wrap=True)
++        self.ec_label = _label("EC 遥测: 等待守护数据", "small-note", wrap=True)
++        telemetry_well.append(self.flow_label)
++        telemetry_well.append(self.ec_label)
++        hero_left.append(telemetry_well)
++
++        self.fault_label = _label("", "small-note", wrap=True)
++        self.fault_label.set_visible(False)
++        hero_left.append(self.fault_label)
++
++        btn_row = _box(vertical=False, spacing=8)
++        self.connect_btn = Gtk.Button(label="连接水冷")
++        self.connect_btn.add_css_class("suggested-action")
++        self.scan_btn = Gtk.Button(label="扫描设备")
++        self.disconnect_btn = Gtk.Button(label="安全断开")
++        self.refresh_btn = Gtk.Button(label="刷新")
++        self.reset_fault_btn = Gtk.Button(label="重置故障")
++        self.estop_btn = Gtk.Button(label="紧急停泵")
++        self.estop_btn.add_css_class("destructive-action")
++        for b in (self.connect_btn, self.scan_btn, self.disconnect_btn, self.refresh_btn, self.reset_fault_btn, self.estop_btn):
++            btn_row.append(b)
++        hero_left.append(btn_row)
++
++        self.scan_btn.connect("clicked", lambda *_: self._dispatch({"op": "scan", "timeout_s": 4.0}, self._on_scan_done))
++        self.connect_btn.connect("clicked", lambda *_: self._dispatch({"op": "connect", "mac": self.mac_entry.get_text().strip()}, self._on_status_done))
++        self.disconnect_btn.connect("clicked", lambda *_: self._dispatch({"op": "disconnect"}, self._on_status_done))
++        self.reset_fault_btn.connect("clicked", lambda *_: self._dispatch({"op": "reset_fault"}, self._on_status_done))
++        self.estop_btn.connect("clicked", lambda *_: self._dispatch({"op": "emergency_stop"}, self._on_status_done))
++        self.refresh_btn.connect("clicked", lambda *_: self._dispatch({"op": "status"}, self._on_status_done))
++
++        hero.append(hero_left)
++        self.led_preview = CoolerHardwarePreview(self)
++        hero.append(self.led_preview)
++        root.append(hero)
++
++        # --- Lower Asymmetric 2-Column Workspace ---
++        columns = _box(vertical=False, spacing=16)
++
++        # Left Column: Thermal Strategy & Curve
++        cool_card = _card("水泵与风扇散热策略", "按预设档位、固定电压、温控曲线或 EC 遥测协同运行")
++        cool_card.set_hexpand(True)
++        self.strategy_dd = _dropdown(STRATEGY_ITEMS)
++        self.strategy_dd.connect("notify::selected", lambda *_: self._update_strategy_visibility())
++        cool_card.append(_row("控制策略", self.strategy_dd))
++
++        self.preset_dd = _dropdown(PRESET_ITEMS)
++        self.preset_row = _row("固定预设档位", self.preset_dd, well=True)
++        cool_card.append(self.preset_row)
++
++        self.manual_box = _box(vertical=True, spacing=8, css="well")
++        self.manual_volt_dd = _dropdown(VOLT_ITEMS)
++        self.manual_pump_duty = _spin(0, 100, 60)
++        self.manual_fan_duty = _spin(0, 100, 40)
++        self.manual_box.append(_row("水泵供电电压", self.manual_volt_dd))
++        self.manual_box.append(_row("水泵占空比 (%)", self.manual_pump_duty))
++        self.manual_box.append(_row("冷排风扇占空比 (%)", self.manual_fan_duty))
++        cool_card.append(self.manual_box)
++
++        self.curve_box = _box(vertical=True, spacing=8, css="well")
++        self.curve_chart = CoolerCurveChart(self)
++        self.curve_box.append(self.curve_chart)
++        self.hyst_spin = _spin(1, 15, 3)
++        self.curve_box.append(_row("降档滞回温度 (°C)", self.hyst_spin, "升温立即升档，降温需低于当前档位温度至少此滞回值才降档"))
++        self.curve_points_box = _box(vertical=True, spacing=6)
++        self.curve_box.append(self.curve_points_box)
++        cool_card.append(self.curve_box)
++
++        self.ec_note = _label(
++            "跟随主机 EC 只读遥测 (0x7E6/0x7E7 & WMI 0xC1)；若遥测过期或不可用，自动回退至静音档 (7V/60%/40%)。",
++            "small-note",
++            wrap=True,
++        )
++        cool_card.append(self.ec_note)
++        columns.append(cool_card)
++
++        # Right Column: Dual-Zone LED + Safety & Connection Settings
++        right_col = _box(vertical=True, spacing=16)
++        right_col.set_hexpand(True)
++
++        led_card = _card("双区灯光 (风扇 + 机身)", "蓝牙指示灯由固件独占；风扇区通过锁存与同步实现分控")
++        self.led_mode_dd = _dropdown(LED_MODE_ITEMS)
++        self.fan_policy_dd = _dropdown(FAN_POLICY_ITEMS)
++        self.body_color_btn = _color_btn([0, 128, 255])
++        self.fan_color_btn = _color_btn([0, 128, 255])
++        self.led_mode_dd.connect("notify::selected", lambda *_: self._on_led_ui_changed())
++        self.fan_policy_dd.connect("notify::selected", lambda *_: self._on_led_ui_changed())
++        self.body_color_btn.connect("notify::rgba", lambda *_: self._on_led_ui_changed())
++        self.fan_color_btn.connect("notify::rgba", lambda *_: self._on_led_ui_changed())
++        self.fan_color_row = _row("风扇灯独立颜色 (split 模式)", self.fan_color_btn)
++
++        led_card.append(_row("灯光效果模式", self.led_mode_dd))
++        led_card.append(_row("风扇区联动策略", self.fan_policy_dd))
++        led_card.append(_row("机身 / 主灯颜色", self.body_color_btn))
++        led_card.append(self.fan_color_row)
++        right_col.append(led_card)
++
++        guard_card = _card("保护机制与设备绑定", "安全参数立即随配置校验保存，断开或休眠自动停泵待机")
++        mac_row = _box(vertical=False, spacing=8)
++        mac_row.set_valign(Gtk.Align.CENTER)
++        mac_row.append(_label("目标 MAC:"))
++        self.mac_entry = Gtk.Entry()
++        self.mac_entry.set_placeholder_text("留空自动匹配 CoolingSystem LCT22002/LCT21001")
++        self.mac_entry.set_hexpand(True)
++        mac_row.append(self.mac_entry)
++        guard_card.append(mac_row)
++
++        self.auto_connect_switch = Gtk.Switch()
++        self.flow_protect_switch = Gtk.Switch()
++        self.sleep_disconnect_switch = Gtk.Switch()
++        guard_card.append(_row("后台自动连接", self.auto_connect_switch, "默认关闭；启用后后台服务在非睡眠状态自动重连", well=True))
++        guard_card.append(_row("断流 / 干转保护", self.flow_protect_switch, "水泵运行中未见水流循环超过阈值将自动停泵锁定", well=True))
++        guard_card.append(_row("断开/睡眠发送待机包", self.sleep_disconnect_switch, "退出连接或休眠前停泵并发送 GoToSleepLC (0x19 00 01)", well=True))
++
++        action_row = _box(vertical=False, spacing=10)
++        action_row.set_valign(Gtk.Align.CENTER)
++        self.apply_btn = Gtk.Button(label="保存并应用配置")
++        self.apply_btn.add_css_class("suggested-action")
++        self.apply_btn.connect("clicked", lambda *_: self._on_apply_clicked())
++        self.msg_label = _label(init_err or "就绪（仅读取本地配置，未主动操作水冷硬件）", "status-text", wrap=True)
++        self.msg_label.set_hexpand(True)
++        action_row.append(self.apply_btn)
++        action_row.append(self.msg_label)
++        guard_card.append(action_row)
++        right_col.append(guard_card)
++
++        columns.append(right_col)
++        root.append(columns)
++        self.append(root)
++
++        self._load_config_into_widgets(self._config)
++        self.connect("map", self._on_map)
++        self.connect("unmap", self._on_unmap)
++
++    @staticmethod
++    def _make_kpi(title: str, initial: str):
++        tile = _box(vertical=True, spacing=3, css="metric-tile")
++        tile.append(_label(title, "kpi-label"))
++        val = _label(initial, "kpi-value")
++        tile.append(val)
++        return val, tile
++
++    def _on_led_ui_changed(self) -> None:
++        self._update_strategy_visibility()
++        self.led_preview.queue_draw()
++
++    def _rebuild_curve_rows(self, points: List[dict]) -> None:
++        while child := self.curve_points_box.get_first_child():
++            self.curve_points_box.remove(child)
++        self._curve_rows = []
++        for idx, pt in enumerate(points):
++            row = _box(vertical=False, spacing=6)
++            row.append(_label(f"T{idx + 1} ≥"))
++            t_spin = _spin(25, 100, pt["temp_c"])
++            t_spin.connect("value-changed", lambda *_: self.curve_chart.queue_draw())
++            row.append(t_spin)
++            row.append(_label("°C · 泵"))
++            v_dd = _dropdown(VOLT_ITEMS)
++            _select_key(v_dd, VOLT_ITEMS, pt["pump_volt"])
++            row.append(v_dd)
++            pd_spin = _spin(0, 100, pt["pump_duty"])
++            pd_spin.connect("value-changed", lambda *_: self.curve_chart.queue_draw())
++            row.append(pd_spin)
++            row.append(_label("% · 扇"))
++            fd_spin = _spin(0, 100, pt["fan_duty"])
++            fd_spin.connect("value-changed", lambda *_: self.curve_chart.queue_draw())
++            row.append(fd_spin)
++            row.append(_label("%"))
++            self.curve_points_box.append(row)
++            self._curve_rows.append({
++                "temp": t_spin,
++                "volt": v_dd,
++                "pump_duty": pd_spin,
++                "fan_duty": fd_spin,
++            })
++        self.curve_chart.queue_draw()
++
++    def _load_config_into_widgets(self, cfg: dict) -> None:
++        self._syncing_ui = True
++        try:
++            self._config = wc.validate_config(cfg)
++            self.mac_entry.set_text(self._config["mac"])
++            self.auto_connect_switch.set_active(self._config["auto_connect"])
++            self.flow_protect_switch.set_active(self._config["flow_protection"])
++            self.sleep_disconnect_switch.set_active(self._config["sleep_on_disconnect"])
++            _select_key(self.strategy_dd, STRATEGY_ITEMS, self._config["strategy"])
++            _select_key(self.preset_dd, PRESET_ITEMS, self._config["preset"])
++
++            man = self._config["manual"]
++            _select_key(self.manual_volt_dd, VOLT_ITEMS, man["pump_volt"])
++            self.manual_pump_duty.set_value(man["pump_duty"])
++            self.manual_fan_duty.set_value(man["fan_duty"])
++
++            curve = self._config["curve"]
++            self.hyst_spin.set_value(curve["hysteresis_c"])
++            self._rebuild_curve_rows(curve["points"])
++
++            led = self._config["led"]
++            _select_key(self.led_mode_dd, LED_MODE_ITEMS, led["mode"])
++            _select_key(self.fan_policy_dd, FAN_POLICY_ITEMS, led["fan_policy"])
++            self.body_color_btn.set_rgba(_rgba(led["color"]))
++            self.fan_color_btn.set_rgba(_rgba(led["fan_color"]))
++        finally:
++            self._syncing_ui = False
++        self._update_strategy_visibility()
++        self.led_preview.queue_draw()
++
++    def _update_strategy_visibility(self) -> None:
++        strategy = _selected_key(self.strategy_dd, STRATEGY_ITEMS)
++        self.preset_row.set_visible(strategy == "preset")
++        self.manual_box.set_visible(strategy == "manual")
++        self.curve_box.set_visible(strategy == "smart_curve")
++        self.ec_note.set_visible(strategy == "ec_follow")
++        fan_policy = _selected_key(self.fan_policy_dd, FAN_POLICY_ITEMS)
++        self.fan_color_row.set_visible(fan_policy == "split")
++
++    def build_config_from_ui(self) -> dict:
++        """Read current UI widgets and validate into a canonical config dict."""
++        pts = [
++            {
++                "temp_c": r["temp"].get_value_as_int(),
++                "pump_volt": _selected_key(r["volt"], VOLT_ITEMS),
++                "pump_duty": r["pump_duty"].get_value_as_int(),
++                "fan_duty": r["fan_duty"].get_value_as_int(),
++            }
++            for r in self._curve_rows
++        ]
++        raw = {
++            "version": 1,
++            "auto_connect": bool(self.auto_connect_switch.get_active()),
++            "mac": self.mac_entry.get_text().strip(),
++            "strategy": _selected_key(self.strategy_dd, STRATEGY_ITEMS),
++            "preset": _selected_key(self.preset_dd, PRESET_ITEMS),
++            "manual": {
++                "pump_volt": _selected_key(self.manual_volt_dd, VOLT_ITEMS),
++                "pump_duty": self.manual_pump_duty.get_value_as_int(),
++                "fan_duty": self.manual_fan_duty.get_value_as_int(),
++            },
++            "curve": {
++                "hysteresis_c": self.hyst_spin.get_value_as_int(),
++                "points": pts,
++            },
++            "led": {
++                "mode": _selected_key(self.led_mode_dd, LED_MODE_ITEMS),
++                "color": _rgb_from_btn(self.body_color_btn),
++                "fan_policy": _selected_key(self.fan_policy_dd, FAN_POLICY_ITEMS),
++                "fan_color": _rgb_from_btn(self.fan_color_btn),
++            },
++            "flow_protection": bool(self.flow_protect_switch.get_active()),
++            "sleep_on_disconnect": bool(self.sleep_disconnect_switch.get_active()),
++        }
++        return wc.validate_config(raw)
++
++    def _set_pill_style(self, text: str, variant: str) -> None:
++        self.status_pill.set_text(text)
++        for cls in ("pill-warn", "pill-danger", "pill-muted"):
++            self.status_pill.remove_css_class(cls)
++        if variant:
++            self.status_pill.add_css_class(variant)
++
++    def apply_snapshot(self, payload: dict, *, sync_config: bool = True) -> None:
++        """Update status, flow, EC/WMI telemetry and optionally config widgets from service state."""
++        if not isinstance(payload, dict):
++            return
++        self._last_snapshot = dict(payload)
++        connected = bool(payload.get("connected", False))
++        sleeping = bool(payload.get("sleeping", False))
++        tripped = bool(payload.get("flow_tripped", False))
++        if sleeping:
++            self._set_pill_style("系统睡眠暂停", "pill-warn")
++        elif tripped:
++            self._set_pill_style("断流锁定", "pill-danger")
++        elif connected:
++            self._set_pill_style("已连接", "")
++        else:
++            self._set_pill_style("未连接", "pill-muted")
++
++        dev_name = payload.get("device_name") or "待连接外置水冷"
++        dev_mac = payload.get("device_mac") or "--"
++        fw = payload.get("fw_version") or "--"
++        reason = payload.get("reason") or "idle"
++        self.device_label.set_text(f"{dev_name} ({dev_mac}) · 固件 {fw} · {reason}")
++
++        meter = payload.get("meter_state")
++        meter_short = "正常循环" if meter == 2 else (f"无水流 ({meter})" if meter is not None else "未知")
++        meter_text = "正常循环(2)" if meter == 2 else (f"无水流({meter})" if meter is not None else "未知")
++        app = payload.get("applied") or {}
++        pv, pd, fd = app.get("pump_volt", 0), app.get("pump_duty", 0), app.get("fan_duty", 0)
++        temp_c = payload.get("temp_c")
++        temp_text = f"{temp_c:.1f}°C" if isinstance(temp_c, (int, float)) else "--°C"
++
++        self._flow_kpi.set_text(meter_short)
++        self._pump_kpi.set_text(f"{pv}V · {pd}%")
++        self._fan_kpi.set_text(f"{fd}%")
++        self._temp_kpi.set_text(temp_text)
++
++        self.flow_label.set_text(
++            f"水流: {meter_text} · 输出: 泵 {pv}V/{pd}% · 风扇 {fd}% · 主机温度: {temp_text}"
++        )
++
++        ec = payload.get("ec") or {}
++        if ec.get("ec_available"):
++            stale = "过期" if ec.get("ec_stale") else "实时"
++            sup_txt = "已支持" if ec.get("lc_supported") else "未确认"
++            pump_txt = f"{ec.get('ec_pump_volt')}V" if ec.get("ec_pump_enabled") else "关闭"
++            fan_txt = f"{ec.get('ec_fan_duty')}%" if ec.get("ec_fan_enabled") else "关闭"
++            self.ec_label.set_text(
++                f"EC 遥测({stale}): {sup_txt} · 泵 {pump_txt} · 扇 {fan_txt} · WMI C1 seq={ec.get('wmi_c1_seq')}"
++            )
++        else:
++            wmi_txt = "就绪" if ec.get("wmi_available") else "无信号"
++            self.ec_label.set_text(f"EC 遥测: 等待守护数据 · WMI {wmi_txt} (C1 seq={ec.get('wmi_c1_seq')})")
++
++        err = payload.get("flow_trip_reason") or payload.get("last_error") or ""
++        if tripped or err:
++            self.fault_label.set_text(f"安全告警: {err}")
++            self.fault_label.set_visible(True)
++        else:
++            self.fault_label.set_text("")
++            self.fault_label.set_visible(False)
++
++        if sync_config and "config" in payload and not self._busy:
++            self._load_config_into_widgets(payload["config"])
++        self.led_preview.queue_draw()
++
++    def _on_apply_clicked(self) -> None:
++        try:
++            cfg = self.build_config_from_ui()
++        except Exception as exc:
++            self.msg_label.set_text(f"参数无效: {exc}")
++            return
++        self._config = cfg
++        self._dispatch(
++            {"op": "set_config", "config": cfg, "apply_now": True},
++            self._on_apply_done,
++            fallback_cfg=cfg,
++        )
++
++    def _on_apply_done(self, ok: bool, res, cfg: Optional[dict] = None) -> None:
++        if ok:
++            self.apply_snapshot(res)
++            self.msg_label.set_text("配置已保存并提交至水冷后台服务")
++            return
++        msg = str(res)
++        if cfg is not None and ("No such file" in msg or "Connection refused" in msg or "Socket" in msg or isinstance(res, FileNotFoundError)):
++            try:
++                saved = wc.save_config(cfg, self._config_path)
++                self._config = saved
++                self.msg_label.set_text("后台服务未运行，已保存到本地配置文件")
++                return
++            except Exception as save_exc:
++                msg = str(save_exc)
++        self.msg_label.set_text(f"保存失败: {msg}")
++
++    def _on_status_done(self, ok: bool, res) -> None:
++        if ok:
++            self.apply_snapshot(res)
++            self.msg_label.set_text("状态已同步")
++        else:
++            self._set_pill_style("服务未启动", "pill-muted")
++            self.msg_label.set_text(f"读取后台服务失败: {res}")
++
++    def _on_scan_done(self, ok: bool, res) -> None:
++        if not ok:
++            self.msg_label.set_text(f"扫描失败: {res}")
++            return
++        devs = res.get("devices", []) if isinstance(res, dict) else []
++        if not devs:
++            self.msg_label.set_text("未发现周边 MECHREVO 蓝牙水冷设备")
++            return
++        first = devs[0]
++        if not self.mac_entry.get_text().strip() and first.get("address"):
++            self.mac_entry.set_text(first["address"])
++        summary = ", ".join(f"{d.get('name')} ({d.get('address')}, RSSI={d.get('rssi')})" for d in devs)
++        self.msg_label.set_text(f"发现 {len(devs)} 台水冷: {summary}")
++
++    def _dispatch(self, req: dict, done_cb, *, fallback_cfg: Optional[dict] = None) -> None:
++        if not self._op_lock.acquire(blocking=False):
++            return
++        self._busy = True
++        self.msg_label.set_text(f"正在执行 {req.get('op')}...")
++
++        def worker():
++            try:
++                out = self._request_fn(req)
++                ok = True
++            except Exception as exc:
++                out = exc
++                ok = False
++
++            def finish():
++                self._busy = False
++                self._op_lock.release()
++                if self._closed:
++                    return False
++                if fallback_cfg is not None:
++                    done_cb(ok, out, fallback_cfg)
++                else:
++                    done_cb(ok, out)
++                return False
++
++            GLib.idle_add(finish)
++
++        threading.Thread(target=worker, daemon=True).start()
++
++    def _on_poll_tick(self) -> bool:
++        if self._closed:
++            self._poll_id = None
++            return False
++        if not self._busy:
++            self._dispatch({"op": "status"}, lambda ok, res: self.apply_snapshot(res, sync_config=False) if ok else None)
++        return True
++
++    def _on_map(self, *_args) -> None:
++        if self._closed:
++            return
++        if self._poll_id is None and self._poll_interval_ms > 0:
++            self._poll_id = GLib.timeout_add(self._poll_interval_ms, self._on_poll_tick)
++        self._dispatch({"op": "status"}, self._on_status_done)
++
++    def _on_unmap(self, *_args) -> None:
++        if self._poll_id is not None:
++            GLib.source_remove(self._poll_id)
++            self._poll_id = None
++
++    def close(self) -> None:
++        """Stop polling timers and ignore any late worker callbacks."""
++        self._closed = True
++        self._on_unmap()
+diff --git a/b/src/iteglow/watercooling_service.py b/src/iteglow/watercooling_service.py
+new file mode 100644
+index 0000000..9883800
+--- /dev/null
++++ b/src/iteglow/watercooling_service.py
+@@ -0,0 +1,477 @@
++"""Desktop user-session daemon, coordinator state machine, and UNIX IPC for water coolers.
++
++Runs unprivileged in the active desktop user session (no sudo / no arbitrary EC writes).
++Listens to logind PrepareForSleep / PrepareForShutdown to safely sleep and disconnect BLE.
++"""
++from __future__ import annotations
++
++import errno
++import fcntl
++import json
++import os
++from pathlib import Path
++import queue
++import signal
++import socket
++import stat
++import struct
++import threading
++import time
++from typing import Callable, Optional
++
++from . import watercooling as wc
++from .watercooling_ble import CoolerBleClient
++
++
++def runtime_dir() -> Path:
++    return Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
++
++
++def socket_path(base: Optional[Path] = None) -> Path:
++    return (base or runtime_dir()) / "iteglow-watercooling.sock"
++
++
++def lock_path(base: Optional[Path] = None) -> Path:
++    return (base or runtime_dir()) / "iteglow-watercooling.lock"
++
++
++class CoolerCoordinator:
++    """Testable coordinator bridging CoolerBleClient, thermal curves, EC telemetry, and flow safety."""
++
++    def __init__(
++        self,
++        *,
++        client: Optional[CoolerBleClient] = None,
++        config: Optional[dict] = None,
++        config_saver: Optional[Callable[[dict], dict]] = None,
++        temp_reader: Callable[[], Optional[float]] = wc.read_host_temp_c,
++        ec_reader: Callable[[], dict] = wc.read_ec_watercooler_state,
++        clock: Callable[[], float] = time.monotonic,
++        flow_monitor: Optional[wc.FlowSafetyMonitor] = None,
++    ):
++        self.client = client or CoolerBleClient(clock=clock)
++        self.config = wc.validate_config(config) if config is not None else wc.load_config()
++        self._config_saver = config_saver or wc.save_config
++        self._temp_reader = temp_reader
++        self._ec_reader = ec_reader
++        self._clock = clock
++        self.flow_monitor = flow_monitor or wc.FlowSafetyMonitor()
++        self.client.on_disconnect_event = self._on_ble_disconnected
++
++        self.sleeping = False
++        self.current_tier = 0
++        self.applied_pump_volt = 0
++        self.applied_pump_duty = 0
++        self.applied_fan_duty = 0
++        self.applied_led: Optional[str] = None
++        self.actuators_dirty = False
++        self.led_dirty = False
++        self.last_reason = "idle"
++        self.last_error = ""
++        self.last_temp_c: Optional[float] = None
++        self.last_ec_state: dict = {}
++        self._last_meter_poll = 0.0
++        self._last_c1_seq: Optional[int] = None
++        self._last_connect_attempt = 0.0
++
++    def _on_ble_disconnected(self, reason: str) -> None:
++        self.flow_monitor.on_disconnect()
++        self.applied_pump_volt = 0
++        self.applied_pump_duty = 0
++        self.applied_fan_duty = 0
++        self.applied_led = None
++        self.last_reason = f"disconnected:{reason}"
++
++    def _safe_sample_inputs(self) -> None:
++        try:
++            self.last_temp_c = self._temp_reader()
++        except Exception:
++            self.last_temp_c = None
++        try:
++            ec = self._ec_reader()
++            if isinstance(ec, dict):
++                c1 = ec.get("wmi_c1_seq")
++                if c1 is not None and c1 != self._last_c1_seq:
++                    self._last_c1_seq = c1
++                    if self.config["strategy"] == "ec_follow" and self.client.connected:
++                        self.actuators_dirty = True
++                self.last_ec_state = ec
++        except Exception:
++            pass
++
++    def status(self) -> dict:
++        self._safe_sample_inputs()
++        return {
++            "service_running": True,
++            "connected": self.client.connected,
++            "sleeping": self.sleeping,
++            "device_name": self.client.device_name,
++            "device_mac": self.client.device_mac,
++            "fw_version": self.client.fw_version,
++            "meter_state": self.client.meter_state,
++            "flow_tripped": self.flow_monitor.tripped,
++            "flow_trip_reason": self.flow_monitor.trip_reason,
++            "applied": {
++                "pump_volt": self.applied_pump_volt,
++                "pump_duty": self.applied_pump_duty,
++                "fan_duty": self.applied_fan_duty,
++            },
++            "current_tier": self.current_tier,
++            "reason": self.last_reason,
++            "last_error": self.last_error,
++            "temp_c": self.last_temp_c,
++            "ec": self.last_ec_state,
++            "config": self.config,
++        }
++
++    def scan(self, timeout_s: float = 5.0) -> list:
++        return self.client.scan(timeout_s=timeout_s, target_mac=self.config.get("mac", ""))
++
++    def connect(self, mac: str = "") -> dict:
++        if self.sleeping:
++            raise RuntimeError("系统正在进入睡眠/休眠，禁止连接水冷")
++        target = mac.upper() if mac else self.config.get("mac", "")
++        self.last_error = ""
++        info = self.client.connect(target_mac=target)
++        self.flow_monitor.on_disconnect()
++        self.actuators_dirty = True
++        self.led_dirty = True
++        self._last_meter_poll = self._clock()
++        self.apply_targets(force=True)
++        return {**self.status(), "connect_info": info}
++
++    def disconnect(self, *, send_sleep: Optional[bool] = None) -> dict:
++        use_sleep = self.config["sleep_on_disconnect"] if send_sleep is None else bool(send_sleep)
++        self.client.disconnect(send_sleep=use_sleep, stop_actuators=True)
++        self._on_ble_disconnected("manual_disconnect")
++        self.last_reason = "disconnected"
++        return self.status()
++
++    def emergency_stop(self) -> dict:
++        self.config["strategy"] = "preset"
++        self.config["preset"] = "stop"
++        self.config["led"]["mode"] = "off"
++        self._config_saver(self.config)
++        self.disconnect(send_sleep=True)
++        self.last_reason = "emergency_stop"
++        return self.status()
++
++    def reset_fault(self) -> dict:
++        self.flow_monitor.reset()
++        self.actuators_dirty = True
++        self.last_error = ""
++        self.last_reason = "fault_reset"
++        if self.client.connected and not self.sleeping:
++            self.apply_targets(force=True)
++        return self.status()
++
++    def set_config(self, patch: dict, *, apply_now: bool = True) -> dict:
++        if not isinstance(patch, dict):
++            raise ValueError("配置更新必须是 JSON 对象")
++        merged = dict(self.config)
++        for k, v in patch.items():
++            if k in ("manual", "curve", "led") and isinstance(v, dict) and isinstance(merged.get(k), dict):
++                sub = dict(merged[k])
++                sub.update(v)
++                merged[k] = sub
++            else:
++                merged[k] = v
++        canonical = wc.validate_config(merged)
++        saved = self._config_saver(canonical)
++        self.config = saved
++        self.actuators_dirty = True
++        self.led_dirty = True
++        if apply_now and self.client.connected and not self.sleeping:
++            self.apply_targets(force=True)
++        return self.status()
++
++    def prepare_for_sleep(self, entering: bool) -> dict:
++        if entering:
++            self.sleeping = True
++            if self.client.connected:
++                self.client.disconnect(send_sleep=True, stop_actuators=True)
++                self._on_ble_disconnected("prepare_for_sleep")
++            self.last_reason = "sleeping"
++        else:
++            self.sleeping = False
++            self.last_reason = "resumed"
++        return self.status()
++
++    def apply_targets(self, *, force: bool = False) -> None:
++        if not self.client.connected:
++            return
++        now = self._clock()
++        self._safe_sample_inputs()
++
++        if self.flow_monitor.update(
++            now=now,
++            pump_volt=self.applied_pump_volt,
++            meter_state=self.client.meter_state,
++            flow_protection=self.config["flow_protection"],
++        ):
++            self.last_error = self.flow_monitor.trip_reason
++            if (self.applied_pump_volt, self.applied_pump_duty, self.applied_fan_duty) != (0, 0, 0):
++                try:
++                    self.client.apply_actuators(0, 0, 0)
++                except Exception as exc:
++                    self.last_error = f"{self.flow_monitor.trip_reason}; 紧急停泵失败: {exc}"
++                self.applied_pump_volt = 0
++                self.applied_pump_duty = 0
++                self.applied_fan_duty = 0
++            self.last_reason = "flow_fault_locked"
++            self.actuators_dirty = False
++            return
++
++        pv, pd, fd, new_tier, reason = wc.evaluate_cooling_target(
++            self.config,
++            temp_c=self.last_temp_c,
++            ec_state=self.last_ec_state,
++            current_tier=self.current_tier,
++            flow_tripped=self.flow_monitor.tripped,
++            sleeping=self.sleeping,
++        )
++        self.current_tier = new_tier
++        self.last_reason = reason
++
++        if force or self.actuators_dirty or (pv, pd, fd) != (self.applied_pump_volt, self.applied_pump_duty, self.applied_fan_duty):
++            self.client.apply_actuators(pv, pd, fd)
++            self.applied_pump_volt = pv
++            self.applied_pump_duty = pd
++            self.applied_fan_duty = fd
++            self.actuators_dirty = False
++            self.flow_monitor.update(
++                now=now,
++                pump_volt=pv,
++                meter_state=self.client.meter_state,
++                flow_protection=self.config["flow_protection"],
++            )
++
++        led_sig = json.dumps(self.config["led"], sort_keys=True)
++        if force or self.led_dirty or led_sig != self.applied_led:
++            self.client.apply_led(self.config["led"])
++            self.applied_led = led_sig
++            self.led_dirty = False
++
++    def tick(self) -> None:
++        now = self._clock()
++        if self.sleeping:
++            return
++        if not self.client.connected:
++            if self.config["auto_connect"] and not self.flow_monitor.tripped and now - self._last_connect_attempt >= 15.0:
++                self._last_connect_attempt = now
++                try:
++                    self.connect()
++                except Exception as exc:
++                    self.last_error = str(exc)
++            return
++
++        poll_interval = 2.0 if self.applied_pump_volt > 0 else 6.0
++        if now - self._last_meter_poll >= poll_interval:
++            self._last_meter_poll = now
++            try:
++                self.client.query_meter()
++            except Exception as exc:
++                self.last_error = f"流量轮询异常: {exc}"
++        try:
++            self.apply_targets(force=False)
++        except Exception as exc:
++            self.last_error = str(exc)
++
++
++def dispatch_command(coordinator: CoolerCoordinator, req: dict) -> dict:
++    if not isinstance(req, dict) or "op" not in req:
++        raise ValueError("请求缺少 op 字段")
++    op = req["op"]
++    if op == "ping":
++        return {"pong": True, "connected": coordinator.client.connected}
++    if op == "status":
++        return coordinator.status()
++    if op == "scan":
++        return {"devices": coordinator.scan(float(req.get("timeout_s", 5.0)))}
++    if op == "connect":
++        return coordinator.connect(str(req.get("mac", "")))
++    if op == "disconnect":
++        return coordinator.disconnect(send_sleep=req.get("send_sleep"))
++    if op == "emergency_stop":
++        return coordinator.emergency_stop()
++    if op == "reset_fault":
++        return coordinator.reset_fault()
++    if op == "set_config":
++        return coordinator.set_config(req.get("config", {}), apply_now=bool(req.get("apply_now", True)))
++    if op == "prepare_sleep":
++        return coordinator.prepare_for_sleep(bool(req.get("entering", True)))
++    raise ValueError(f"不支持的水冷命令: {op}")
++
++
++def _verify_runtime_dir(path: Path) -> None:
++    if not path.exists():
++        path.mkdir(parents=True, mode=0o700, exist_ok=True)
++    info = path.lstat()
++    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o022:
++        raise RuntimeError(f"不安全的运行时目录: {path}")
++
++
++def service_request(req: dict, *, sock_path: Optional[Path] = None, timeout_s: float = 16.0) -> dict:
++    target = sock_path or socket_path()
++    info = target.lstat()
++    if not stat.S_ISSOCK(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
++        raise RuntimeError(f"水冷服务 socket 权限异常: {target}")
++    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as cli:
++        cli.settimeout(timeout_s)
++        cli.connect(str(target))
++        cli.sendall((json.dumps(req, ensure_ascii=False) + "\n").encode("utf-8"))
++        buf = bytearray()
++        while b"\n" not in buf:
++            chunk = cli.recv(8192)
++            if not chunk or len(buf) + len(chunk) > 131072:
++                raise RuntimeError("水冷服务响应不完整或过长")
++            buf.extend(chunk)
++    resp = json.loads(buf.decode("utf-8"))
++    if not isinstance(resp, dict) or resp.get("ok") is not True:
++        raise RuntimeError(resp.get("error", "水冷服务执行失败") if isinstance(resp, dict) else "水冷服务响应无效")
++    return resp["result"]
++
++
++def is_service_running(sock_path: Optional[Path] = None) -> bool:
++    try:
++        res = service_request({"op": "ping"}, sock_path=sock_path, timeout_s=1.0)
++        return res.get("pong") is True
++    except Exception:
++        return False
++
++
++def run_daemon() -> int:
++    if os.geteuid() == 0:
++        raise RuntimeError("水冷用户服务必须以当前桌面用户运行，请勿使用 root/sudo")
++    import gi
++    gi.require_version("Gio", "2.0")
++    gi.require_version("GLib", "2.0")
++    from gi.repository import Gio, GLib
++
++    rdir = runtime_dir()
++    _verify_runtime_dir(rdir)
++    lpath = lock_path(rdir)
++    spath = socket_path(rdir)
++
++    lock_fd = os.open(lpath, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
++    try:
++        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
++    except BlockingIOError as exc:
++        os.close(lock_fd)
++        raise RuntimeError("水冷守护进程已在运行") from exc
++
++    try:
++        if spath.exists():
++            try:
++                is_alive = is_service_running(spath)
++            except Exception:
++                is_alive = False
++            if is_alive:
++                raise RuntimeError("水冷控制 socket 仍被占用")
++            spath.unlink()
++
++        srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
++        srv.bind(str(spath))
++        os.chmod(spath, 0o600)
++        srv.listen(8)
++        srv.settimeout(0.5)
++
++        coordinator = CoolerCoordinator()
++        loop = GLib.MainLoop()
++        system_bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
++        stop_flag = [False]
++
++        def on_manager_signal(_conn, _sender, _path, _iface, member, params, *_user_data):
++            values = params.unpack()
++            if member == "PrepareForSleep":
++                coordinator.prepare_for_sleep(bool(values[0]))
++                print(json.dumps({"event": "prepare_for_sleep", "entering": bool(values[0])}, ensure_ascii=False), flush=True)
++            elif member == "PrepareForShutdown" and values[0]:
++                coordinator.prepare_for_sleep(True)
++                stop_daemon()
++
++        def on_tick():
++            coordinator.tick()
++            return True
++
++        def stop_daemon(*_):
++            stop_flag[0] = True
++            try:
++                coordinator.prepare_for_sleep(True)
++            except Exception:
++                pass
++            loop.quit()
++            return False
++
++        sub_id = system_bus.signal_subscribe(
++            "org.freedesktop.login1",
++            "org.freedesktop.login1.Manager",
++            None,
++            "/org/freedesktop/login1",
++            None,
++            Gio.DBusSignalFlags.NONE,
++            on_manager_signal,
++            None,
++        )
++        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, stop_daemon)
++        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, stop_daemon)
++        tick_id = GLib.timeout_add_seconds(1, on_tick)
++
++        def sock_worker():
++            while not stop_flag[0]:
++                try:
++                    conn, _ = srv.accept()
++                except socket.timeout:
++                    continue
++                except OSError:
++                    break
++                with conn:
++                    conn.settimeout(2.0)
++                    try:
++                        _, uid, _ = struct.unpack("3i", conn.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
++                        if uid != os.getuid():
++                            raise PermissionError("仅允许同用户进程访问水冷服务")
++                        raw = conn.recv(16384)
++                        if not raw or b"\n" not in raw:
++                            raise ValueError("水冷服务请求格式无效")
++                        req = json.loads(raw.decode("utf-8"))
++                        res_q: queue.Queue = queue.Queue(1)
++
++                        def run_main():
++                            try:
++                                res_q.put({"ok": True, "result": dispatch_command(coordinator, req)})
++                            except Exception as exc:
++                                res_q.put({"ok": False, "error": str(exc)})
++                            return False
++
++                        GLib.idle_add(run_main)
++                        resp = res_q.get(timeout=20.0)
++                    except Exception as exc:
++                        resp = {"ok": False, "error": str(exc)}
++                    try:
++                        conn.sendall((json.dumps(resp, ensure_ascii=False) + "\n").encode("utf-8"))
++                    except OSError:
++                        pass
++
++        worker = threading.Thread(target=sock_worker, daemon=True)
++        worker.start()
++        print(json.dumps({"event": "watercooling_daemon_started", "socket": str(spath)}, ensure_ascii=False), flush=True)
++        try:
++            loop.run()
++        finally:
++            stop_flag[0] = True
++            GLib.source_remove(tick_id)
++            system_bus.signal_unsubscribe(sub_id)
++            srv.close()
++            if spath.exists():
++                try:
++                    spath.unlink()
++                except OSError:
++                    pass
++    finally:
++        try:
++            fcntl.flock(lock_fd, fcntl.LOCK_UN)
++        except OSError:
++            pass
++        os.close(lock_fd)
++    return 0
+diff --git a/b/src/iteglow/zone_lock.py b/src/iteglow/zone_lock.py
+new file mode 100644
+index 0000000..612b2e6
 --- /dev/null
 +++ b/src/iteglow/zone_lock.py
 @@ -0,0 +1,116 @@

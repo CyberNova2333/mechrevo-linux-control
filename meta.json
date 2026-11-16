@@ -1,0 +1,56 @@
+{
+  "$schema": "https://raw.githubusercontent.com/CyberNova2333/cybernova-homepage/main/public/schemas/repo-meta.v1.json",
+  "schemaVersion": 1,
+  "slug": "mechrevo-linux-control",
+  "name": "MECHREVO Linux Control",
+  "title": {
+    "zh": "MECHREVO Linux Control · 机械革命本机硬件控制台与蓝牙水冷套件",
+    "en": "MECHREVO Linux Control · Desktop Control Center, BLE Liquid Cooler & EC/Power Suite"
+  },
+  "visibility": "public",
+  "status": "active",
+  "category": "system-infra",
+  "featured": false,
+  "order": 15,
+  "repository": "https://github.com/CyberNova2333/mechrevo-linux-control",
+  "license": "AGPL-3.0-only",
+  "primaryLanguage": "Python",
+  "techStack": [
+    "Python 3",
+    "GTK4 / PyGObject",
+    "BlueZ GATT / D-Bus",
+    "Linux Kernel Module (C)",
+    "systemd / Polkit"
+  ],
+  "tags": [
+    "mechrevo",
+    "linux",
+    "gtk4",
+    "bluetooth-le",
+    "watercooling",
+    "ec-tuning",
+    "nvidia"
+  ],
+  "summary": {
+    "zh": "面向机械革命耀世系列的 Linux 硬件控制中心与系统调校套件：提供暗色 GTK4 控制面板、101 键单键 RGB 与自动灯光联动、外置 LCT22002/LCT21001 蓝牙水冷驱动与防干转保护、EC 功耗/风扇调校及 NVIDIA 休眠挂起修复。",
+    "en": "Unified Linux control suite for Mechrevo YAOSHI laptops featuring a dark anodized GTK4 desktop center, per-key RGB & profile automation, unpaired BLE LCT22002/LCT21001 external water-cooler control with flow protection, bounded EC/GPU power tuning, and NVIDIA hibernate fixes."
+  },
+  "highlights": {
+    "zh": [
+      "重构暗色 GTK4 控制台：支持 101 键单键矩阵编辑、三区灯光联动、性能模式实时监控与 LCT22002 双区灯光/曲线可视化",
+      "逆向并落地非配对 BlueZ GATT 蓝牙水冷控制栈，提供多档泵压调速、温度滞回曲线、断流急停保护及休眠自动待机",
+      "通过固定 root 助手与受 SHA-256 门禁保护的内核租约模块实现安全性能调校、只读 EC 水冷遥测与 NVIDIA DKMS 休眠修复"
+    ],
+    "en": [
+      "Dark anodized GTK4 studio UI covering per-key 101-key RGB matrices, lid logo glow preview, profile rules, performance tuning, and LCT22002 visualizer",
+      "Unpaired BlueZ GATT stack for external LCT22002/LCT21001 coolers with flow-stall pump shutoff, thermal hysteresis curves, and logind sleep teardown",
+      "Privilege-separated root EC helper, SHA-gated turbo kernel lease module, read-only EC/WMI telemetry bridge, and DKMS NVIDIA hibernate fix"
+    ]
+  },
+  "quickStart": [
+    "xvfb-run -a /usr/bin/python3 -m unittest discover -s tests -v",
+    "PYTHONPATH=iteglow/src /usr/bin/python3 -m iteglow.cli gui",
+    "PYTHONPATH=iteglow/src /usr/bin/python3 -m iteglow.cli cooler status"
+  ],
+  "updatedAt": "2026-11-17"
+}
