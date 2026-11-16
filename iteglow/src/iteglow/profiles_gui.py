@@ -123,6 +123,7 @@ class ProfilesPanel(Gtk.Box):
         self.template_button.connect("clicked", self.import_templates)
         btn_row.append(self.template_button)
         self.delete_button = Gtk.Button(label="删除预设")
+        self.delete_button.add_css_class("destructive-action")
         self.delete_button.connect("clicked", self.delete_selected)
         btn_row.append(self.delete_button)
         card.append(btn_row)
@@ -250,6 +251,7 @@ class ProfilesPanel(Gtk.Box):
             return
         for idx, rule in enumerate(self._rules):
             row = Gtk.Box(spacing=8)
+            row.add_css_class("well")
             chk = Gtk.CheckButton(label=rule["name"])
             chk.set_active(bool(rule["enabled"]))
             chk.connect("toggled", lambda btn, i=idx: self._toggle_rule(i, btn.get_active()))
@@ -263,6 +265,7 @@ class ProfilesPanel(Gtk.Box):
             desc.add_css_class("small-note")
             row.append(desc)
             del_btn = Gtk.Button(label="移除")
+            del_btn.add_css_class("destructive-action")
             del_btn.connect("clicked", lambda _b, i=idx: self._remove_rule(i))
             row.append(del_btn)
             self.rules_box.append(row)

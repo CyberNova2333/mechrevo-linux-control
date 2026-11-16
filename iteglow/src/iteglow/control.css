@@ -1,51 +1,569 @@
-.mechrevo-shell { background: #f4f6fa; color: #1d2940; font-size: 13px; }
-.mechrevo-shell .sidebar { background: #eaf0f7; padding: 28px 16px 20px; border-right: 1px solid #dfe6f0; }
-.mechrevo-shell .brand-mark { font-size: 28px; font-weight: 900; letter-spacing: 3px; color: #2f63db; margin-bottom: 6px; }
-.mechrevo-shell .brand-title { font-size: 20px; font-weight: 700; letter-spacing: 2px; }
-.mechrevo-shell .subtitle { color: #66758a; font-size: 12px; }
-.mechrevo-shell .small-note { color: #718096; font-size: 11px; }
-.mechrevo-shell .nav-section { color: #7b879b; font-size: 11px; margin: 32px 10px 8px; }
-.mechrevo-shell button { background: #fff; background-image: none; color: #34435a; border: 1px solid #dbe3ee; border-radius: 9px; box-shadow: none; text-shadow: none; padding: 8px 12px; min-height: 20px; font-weight: 500; }
-.mechrevo-shell button:hover { background: #f0f5ff; border-color: #afc6ef; }
-.mechrevo-shell button:focus-visible { outline: 2px solid #719cf0; outline-offset: 2px; }
-.mechrevo-shell button.selected { background: #eaf2ff; color: #2459c4; border-color: #81a8f2; }
-.mechrevo-shell button:disabled { opacity: .55; }
-.mechrevo-shell .nav-button { background: transparent; border: 1px solid transparent; padding: 13px 12px; font-weight: 600; }
-.mechrevo-shell .nav-button.selected { background: #fff; border-color: #d9e5fa; color: #275dc6; box-shadow: 0 3px 8px alpha(#315b9c,.06); }
-.mechrevo-shell .device-name { font-size: 12px; font-weight: 600; color: #4c5e77; }
-.mechrevo-shell .topbar { background: #fff; padding: 14px 24px; border-bottom: 1px solid #e4eaf2; }
-.mechrevo-shell .topbar-label { color: #8290a5; font-size: 12px; }
-.mechrevo-shell .all-off { font-size: 12px; }
-.mechrevo-shell .device-page, .mechrevo-shell .performance-page { padding: 22px 24px; }
-.mechrevo-shell .page-title { font-size: 24px; font-weight: 750; color: #1d2c44; }
-.mechrevo-shell .connection-pill { color: #20815d; background: #e8f5ef; border-radius: 20px; padding: 7px 12px; font-size: 11px; }
-.mechrevo-shell .control-card { background: #fff; border: 1px solid #e1e7f0; border-radius: 14px; padding: 16px; }
-.mechrevo-shell .section-title { font-size: 14px; font-weight: 700; color: #24344e; }
-.mechrevo-shell .effect-tile { min-height: 35px; padding: 7px 8px; font-size: 12px; font-weight: 600; }
-.mechrevo-shell .value-label { font-size: 11px; color: #5874a1; }
-.mechrevo-shell .status-text { font-size: 11px; color: #526f93; min-height: 16px; }
-.mechrevo-shell .small-button { padding: 2px 8px; font-size: 10px; min-height: 16px; }
-.mechrevo-shell .color-swatch { padding: 3px; min-width: 24px; min-height: 23px; border-radius: 7px; }
-.mechrevo-shell colorswatch { border-radius: 5px; }
-.mechrevo-shell scale { padding: 10px 0; }
-.mechrevo-shell scale trough { background: #e7edf6; min-height: 5px; border: none; border-radius: 8px; }
-.mechrevo-shell scale highlight { background: #477ce5; border: none; border-radius: 8px; }
-.mechrevo-shell scale slider { background: #fff; border: 2px solid #477ce5; box-shadow: 0 1px 3px alpha(#1b3f80,.15); min-width: 12px; min-height: 12px; margin: -6px 0; }
-.mechrevo-shell dropdown button { padding: 5px 8px; font-size: 11px; }
-.mechrevo-shell .mode-card { min-height: 90px; padding: 18px 12px; }
-.mechrevo-shell .mode-name { font-size: 17px; font-weight: 700; }
-.mechrevo-shell .mode-led { font-size: 12px; }
-.mechrevo-shell .green-led { color: #20966c; }
-.mechrevo-shell .blue-led { color: #4074df; }
-.mechrevo-shell .purple-led { color: #9660db; }
-.mechrevo-shell .performance-current { background: #142238; color: #edf4ff; border-radius: 15px; padding: 26px; font-size: 21px; font-weight: 700; }
+.mechrevo-shell {
+  background: #0d1118;
+  color: #e8eef7;
+  font-size: 13px;
+}
 
-.mechrevo-shell .page-scroll > viewport { background: #f4f6fa; }
-.mechrevo-shell scale highlight { min-width: 1px; min-height: 5px; padding: 0; margin: 0; }
-.mechrevo-shell scale trough { padding: 0; margin: 0; }
-.mechrevo-shell .mode-card.selected:disabled { opacity: 1; color: #2459c4; background: #eaf2ff; border-color: #81a8f2; }
+.mechrevo-shell .sidebar {
+  background: #090c12;
+  padding: 22px 14px 18px;
+  border-right: 1px solid #1d2534;
+}
 
-.mechrevo-shell scale:disabled { opacity: .4; }
+.mechrevo-shell .brand-row {
+  padding: 2px 6px 4px;
+}
 
-.mechrevo-shell .white-led { color: #64748b; }
-.mechrevo-shell .keycap-btn { padding: 3px 4px; min-height: 28px; min-width: 24px; font-size: 10px; border-radius: 6px; }
+.mechrevo-shell .brand-mark {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 2.5px;
+  color: #f8fafc;
+}
+
+.mechrevo-shell .brand-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: #e2e8f0;
+}
+
+.mechrevo-shell .subtitle {
+  color: #8b9bb4;
+  font-size: 12px;
+}
+
+.mechrevo-shell .small-note {
+  color: #7c8ca4;
+  font-size: 11px;
+}
+
+.mechrevo-shell .nav-section {
+  color: #607089;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  margin: 18px 10px 6px;
+}
+
+.mechrevo-shell .device-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.mechrevo-shell .sidebar-footer {
+  background: #111620;
+  border: 1px solid #1e2736;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.mechrevo-shell .topbar {
+  background: #0f141d;
+  padding: 12px 24px;
+  border-bottom: 1px solid #1d2534;
+}
+
+.mechrevo-shell .topbar-label {
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.mechrevo-shell .topbar-sub {
+  color: #7c8ca4;
+  font-size: 11px;
+}
+
+.mechrevo-shell button,
+.mechrevo-shell button label {
+  color: inherit;
+}
+
+.mechrevo-shell button {
+  background: #1a212e;
+  background-image: none;
+  color: #e6edf7;
+  border: 1px solid #2b374b;
+  border-radius: 9px;
+  box-shadow: none;
+  text-shadow: none;
+  padding: 7px 14px;
+  min-height: 22px;
+  font-weight: 600;
+  transition: all 140ms ease;
+}
+
+.mechrevo-shell button:hover {
+  background: #222b3b;
+  border-color: #465a7a;
+  color: #ffffff;
+}
+
+.mechrevo-shell button:active {
+  background: #171e2b;
+}
+
+.mechrevo-shell button:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.mechrevo-shell button.selected {
+  background: #172b4d;
+  color: #93c5fd;
+  border-color: #3b82f6;
+}
+
+.mechrevo-shell button.suggested-action {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #3b82f6;
+}
+
+.mechrevo-shell button.suggested-action:hover {
+  background: #1d4ed8;
+  border-color: #60a5fa;
+}
+
+.mechrevo-shell button.destructive-action,
+.mechrevo-shell button.all-off {
+  background: #2a151b;
+  color: #fda4af;
+  border-color: #692330;
+  font-size: 12px;
+}
+
+.mechrevo-shell button.destructive-action:hover,
+.mechrevo-shell button.all-off:hover {
+  background: #3d1b24;
+  border-color: #be123c;
+  color: #ffe4e6;
+}
+
+.mechrevo-shell button:disabled {
+  opacity: 0.42;
+}
+
+.mechrevo-shell .nav-button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-left: 3px solid transparent;
+  border-radius: 9px;
+  padding: 10px 12px;
+  font-weight: 600;
+  color: #9aaac2;
+}
+
+.mechrevo-shell .nav-button:hover {
+  background: #141a24;
+  border-color: transparent;
+  border-left-color: #2f4364;
+  color: #e2e8f0;
+}
+
+.mechrevo-shell .nav-button.selected {
+  background: linear-gradient(90deg, alpha(#3b82f6, 0.16), alpha(#3b82f6, 0.04));
+  border-color: alpha(#3b82f6, 0.22);
+  border-left: 3px solid #3b82f6;
+  color: #f8fafc;
+}
+
+.mechrevo-shell .page-scroll > viewport {
+  background: #0d1118;
+}
+
+.mechrevo-shell .device-page,
+.mechrevo-shell .performance-page {
+  padding: 22px 26px 28px;
+}
+
+.mechrevo-shell .page-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  color: #f1f5f9;
+}
+
+.mechrevo-shell .control-card {
+  background: #141a24;
+  border: 1px solid #222c3c;
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+
+.mechrevo-shell .hero-deck {
+  background: linear-gradient(135deg, #18202e, #121822);
+  border: 1px solid #2a374c;
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+
+.mechrevo-shell .well {
+  background: #1a2230;
+  border: 1px solid #253042;
+  border-radius: 10px;
+  padding: 11px 14px;
+}
+
+.mechrevo-shell .metric-tile {
+  background: #10151e;
+  border: 1px solid #212b3b;
+  border-radius: 10px;
+  padding: 11px 14px;
+}
+
+.mechrevo-shell .kpi-label {
+  color: #7c8ca4;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.mechrevo-shell .kpi-value {
+  color: #f1f5f9;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.mechrevo-shell .section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #edf2fa;
+}
+
+.mechrevo-shell .connection-pill {
+  color: #34d399;
+  background: #0c2b21;
+  border: 1px solid #165942;
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.mechrevo-shell .connection-pill.pill-warn {
+  color: #fbbf24;
+  background: #2c200b;
+  border-color: #634612;
+}
+
+.mechrevo-shell .connection-pill.pill-danger {
+  color: #fb7185;
+  background: #31121a;
+  border-color: #6d1f32;
+}
+
+.mechrevo-shell .connection-pill.pill-muted {
+  color: #94a3b8;
+  background: #19212e;
+  border-color: #293549;
+}
+
+.mechrevo-shell .empty-card {
+  background: #141a24;
+  border: 1px solid #222c3c;
+  border-radius: 16px;
+  padding: 36px 32px;
+}
+
+.mechrevo-shell .effect-tile {
+  min-height: 36px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mechrevo-shell .value-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #60a5fa;
+}
+
+.mechrevo-shell .status-text {
+  font-size: 12px;
+  color: #8ea5c4;
+  min-height: 18px;
+}
+
+.mechrevo-shell .small-button {
+  padding: 3px 10px;
+  font-size: 11px;
+  min-height: 18px;
+}
+
+.mechrevo-shell .color-swatch {
+  padding: 3px;
+  min-width: 26px;
+  min-height: 24px;
+  border-radius: 7px;
+}
+
+.mechrevo-shell colorswatch {
+  border-radius: 5px;
+}
+
+.mechrevo-shell entry {
+  background: #0f141d;
+  color: #edf2fa;
+  border: 1px solid #283447;
+  border-radius: 8px;
+  padding: 6px 10px;
+  min-height: 22px;
+  caret-color: #60a5fa;
+}
+
+.mechrevo-shell entry:focus-within {
+  border-color: #3b82f6;
+}
+
+.mechrevo-shell spinbutton {
+  background: #0f141d;
+  color: #edf2fa;
+  border: 1px solid #283447;
+  border-radius: 8px;
+  min-height: 26px;
+}
+
+.mechrevo-shell spinbutton text {
+  color: #edf2fa;
+  background: transparent;
+  padding: 2px 6px;
+}
+
+.mechrevo-shell spinbutton button {
+  background: #192130;
+  color: #cbd5e1;
+  border: none;
+  border-left: 1px solid #253042;
+  border-radius: 0;
+  padding: 2px 8px;
+  min-height: 18px;
+}
+
+.mechrevo-shell spinbutton button:hover {
+  background: #232e42;
+  color: #ffffff;
+}
+
+.mechrevo-shell dropdown button,
+.mechrevo-shell dropdown button label,
+.mechrevo-shell dropdown label,
+.mechrevo-shell dropdown image {
+  background: #101621;
+  color: #eef4fc;
+}
+
+.mechrevo-shell dropdown button {
+  border: 1px solid #2c3a50;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+.mechrevo-shell dropdown button:disabled,
+.mechrevo-shell dropdown button:disabled label {
+  color: #7e8ea6;
+  opacity: 0.72;
+}
+
+.mechrevo-shell dropdown button:hover {
+  background: #161f2e;
+  border-color: #465d82;
+}
+
+.mechrevo-shell popover contents,
+.mechrevo-shell popover listview {
+  background: #141a24;
+  color: #eef4fc;
+  border: 1px solid #2a374c;
+  border-radius: 10px;
+}
+
+.mechrevo-shell popover label,
+.mechrevo-shell popover listview row,
+.mechrevo-shell popover listview row label {
+  color: #eef4fc;
+}
+
+.mechrevo-shell popover listview row:hover {
+  background: #1e2838;
+}
+
+.mechrevo-shell popover listview row:selected,
+.mechrevo-shell popover listview row:selected label {
+  background: #1b3259;
+  color: #93c5fd;
+}
+
+.mechrevo-shell checkbutton,
+.mechrevo-shell checkbutton label {
+  color: #e2e8f0;
+}
+
+.mechrevo-shell checkbutton:disabled,
+.mechrevo-shell checkbutton:disabled label {
+  color: #8292aa;
+  opacity: 0.75;
+}
+
+.mechrevo-shell switch {
+  background: #1f2837;
+  border: 1px solid #303d54;
+  border-radius: 16px;
+  min-width: 44px;
+  min-height: 24px;
+}
+
+.mechrevo-shell switch:checked {
+  background: #2563eb;
+  border-color: #3b82f6;
+}
+
+.mechrevo-shell switch slider {
+  background: #e2e8f0;
+  border-radius: 50%;
+  min-width: 18px;
+  min-height: 18px;
+  margin: 2px;
+}
+
+.mechrevo-shell checkbutton check {
+  background: #0f141d;
+  border: 1px solid #33425a;
+  border-radius: 5px;
+  min-width: 16px;
+  min-height: 16px;
+}
+
+.mechrevo-shell checkbutton:checked check {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.mechrevo-shell separator {
+  background: #222c3c;
+  min-height: 1px;
+  min-width: 1px;
+}
+
+.mechrevo-shell expander title {
+  color: #cbd5e1;
+  font-weight: 600;
+  padding: 4px 2px;
+}
+
+.mechrevo-shell scale {
+  padding: 10px 0;
+}
+
+.mechrevo-shell scale trough {
+  background: #202938;
+  min-height: 6px;
+  border: none;
+  border-radius: 8px;
+  padding: 0;
+  margin: 0;
+}
+
+.mechrevo-shell scale highlight {
+  background: linear-gradient(90deg, #2563eb, #38bdf8);
+  border: none;
+  border-radius: 8px;
+  min-width: 1px;
+  min-height: 6px;
+  padding: 0;
+  margin: 0;
+}
+
+.mechrevo-shell scale slider {
+  background: #f8fafc;
+  border: 2px solid #3b82f6;
+  box-shadow: 0 1px 4px alpha(#000000, 0.45);
+  min-width: 14px;
+  min-height: 14px;
+  margin: -6px 0;
+  border-radius: 50%;
+}
+
+.mechrevo-shell scale:disabled {
+  opacity: 0.35;
+}
+
+.mechrevo-shell .mode-card {
+  background: #18202d;
+  border: 1px solid #263245;
+  min-height: 86px;
+  padding: 16px 16px;
+  border-radius: 12px;
+}
+
+.mechrevo-shell .mode-card:hover {
+  background: #1e2838;
+  border-color: #3c4f6d;
+}
+
+.mechrevo-shell .mode-card.selected {
+  background: #172844;
+  border-color: #3b82f6;
+}
+
+.mechrevo-shell .mode-card.selected:disabled {
+  opacity: 1;
+  color: #f1f5f9;
+  background: #172844;
+  border-color: #3b82f6;
+}
+
+.mechrevo-shell .mode-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.mechrevo-shell .mode-led {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mechrevo-shell .green-led { color: #34d399; }
+.mechrevo-shell .blue-led { color: #38bdf8; }
+.mechrevo-shell .purple-led { color: #c084fc; }
+.mechrevo-shell .white-led { color: #cbd5e1; }
+
+.mechrevo-shell .performance-current {
+  background: linear-gradient(135deg, #162235, #111824);
+  color: #f1f5f9;
+  border: 1px solid #2a3a54;
+  border-radius: 14px;
+  padding: 20px 24px;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.mechrevo-shell .performance-current.perf-office {
+  border-left: 4px solid #34d399;
+}
+
+.mechrevo-shell .performance-current.perf-balanced {
+  border-left: 4px solid #38bdf8;
+}
+
+.mechrevo-shell .performance-current.perf-turbo {
+  border-left: 4px solid #a855f7;
+}
+
+.mechrevo-shell .performance-current.perf-custom {
+  border-left: 4px solid #e2e8f0;
+}
+
+.mechrevo-shell .keycap-btn {
+  padding: 3px 4px;
+  min-height: 28px;
+  min-width: 24px;
+  font-size: 10px;
+  border-radius: 6px;
+  background: #121822;
+  border-color: #242f42;
+}
