@@ -9,7 +9,10 @@ import sys
 from typing import List, Optional
 
 from . import __version__, devices, effects, keymap, protocol, state
+from . import watercooling as wc
 from .protocol import RGB
+from .watercooling_ble import CoolerBleClient
+from .watercooling_service import is_service_running, run_daemon, service_request
 from .zone_lock import ZoneTransaction
 
 
@@ -396,6 +399,139 @@ def cmd_profile(args) -> int:
     return 1
 
 
+def _save_local_wc_patch(patch: dict) -> dict:
+    cur = wc.load_config()
+    merged = dict(cur)
+    for k, v in patch.items():
+        if k in ("manual", "curve", "led") and isinstance(v, dict) and isinstance(merged.get(k), dict):
+            sub = dict(merged[k])
+            sub.update(v)
+            merged[k] = sub
+        else:
+            merged[k] = v
+    return wc.save_config(merged)
+
+
+def cmd_cooler(args) -> int:
+    action = args.cooler_action
+    try:
+        if action == "daemon":
+            return run_daemon()
+        if action == "ec-status":
+            print(json.dumps({
+                "temp_c": wc.read_host_temp_c(),
+                "ec": wc.read_ec_watercooler_state(),
+            }, ensure_ascii=False, indent=2))
+            return 0
+        if action == "status":
+            if is_service_running():
+                res = service_request({"op": "status"})
+            else:
+                res = {
+                    "service_running": False,
+                    "connected": False,
+                    "temp_c": wc.read_host_temp_c(),
+                    "ec": wc.read_ec_watercooler_state(),
+                    "config": wc.load_config(),
+                }
+            print(json.dumps(res, ensure_ascii=False, indent=2))
+            return 0
+
+        if not _user_lighting_only():
+            return 1
+
+        if action == "scan":
+            if is_service_running():
+                devs = service_request({"op": "scan", "timeout_s": args.timeout}).get("devices", [])
+            else:
+                devs = CoolerBleClient().scan(timeout_s=args.timeout, target_mac=args.mac or "")
+            print(json.dumps({"devices": devs}, ensure_ascii=False, indent=2))
+            return 0
+        if action == "connect":
+            if not is_service_running():
+                raise RuntimeError("水冷守护进程未运行，请先执行 `systemctl --user start iteglow-watercooling.service` 或 `iteglow cooler daemon`")
+            res = service_request({"op": "connect", "mac": args.mac or ""}, timeout_s=24.0)
+            print(json.dumps(res, ensure_ascii=False, indent=2))
+            return 0
+        if action == "disconnect":
+            if not is_service_running():
+                raise RuntimeError("水冷守护进程未运行")
+            res = service_request({"op": "disconnect", "send_sleep": not args.no_sleep})
+            print(json.dumps(res, ensure_ascii=False, indent=2))
+            return 0
+        if action == "sleep":
+            if is_service_running():
+                res = service_request({"op": "disconnect", "send_sleep": True})
+            else:
+                cli = CoolerBleClient()
+                cli.connect(target_mac=args.mac or wc.load_config().get("mac", ""))
+                cli.disconnect(send_sleep=True, stop_actuators=True)
+                res = {"connected": False, "sleep_sent": True}
+            print(json.dumps(res, ensure_ascii=False, indent=2))
+            return 0
+        if action == "reset-fault":
+            res = service_request({"op": "reset_fault"})
+            print(json.dumps(res, ensure_ascii=False, indent=2))
+            return 0
+        if action == "emergency-stop":
+            if is_service_running():
+                res = service_request({"op": "emergency_stop"})
+            else:
+                saved = _save_local_wc_patch({"strategy": "preset", "preset": "stop", "led": {"mode": "off"}})
+                res = {"service_running": False, "config": saved}
+            print(json.dumps(res, ensure_ascii=False, indent=2))
+            return 0
+        if action == "set":
+            patch = {}
+            if args.strategy is not None:
+                patch["strategy"] = args.strategy
+            if args.preset is not None:
+                patch["preset"] = args.preset
+            if args.mac is not None:
+                patch["mac"] = args.mac
+            if args.auto_connect is not None:
+                patch["auto_connect"] = args.auto_connect == "on"
+            if args.flow_protection is not None:
+                patch["flow_protection"] = args.flow_protection == "on"
+            if args.sleep_on_disconnect is not None:
+                patch["sleep_on_disconnect"] = args.sleep_on_disconnect == "on"
+            manual = {}
+            if args.pump_volt is not None:
+                manual["pump_volt"] = args.pump_volt
+            if args.pump_duty is not None:
+                manual["pump_duty"] = args.pump_duty
+            if args.fan_duty is not None:
+                manual["fan_duty"] = args.fan_duty
+            if manual:
+                base_manual = dict(wc.load_config()["manual"])
+                base_manual.update(manual)
+                patch["manual"] = base_manual
+            if is_service_running():
+                res = service_request({"op": "set_config", "config": patch, "apply_now": not args.no_apply})
+            else:
+                res = {"service_running": False, "config": _save_local_wc_patch(patch)}
+            print(json.dumps(res, ensure_ascii=False, indent=2))
+            return 0
+        if action == "led":
+            led_patch = {"mode": args.mode}
+            if args.color is not None:
+                led_patch["color"] = list(args.color)
+            if args.fan_policy is not None:
+                led_patch["fan_policy"] = args.fan_policy
+            if args.fan_color is not None:
+                led_patch["fan_color"] = list(args.fan_color)
+            if is_service_running():
+                res = service_request({"op": "set_config", "config": {"led": led_patch}, "apply_now": True})
+            else:
+                res = {"service_running": False, "config": _save_local_wc_patch({"led": led_patch})}
+            print(json.dumps(res, ensure_ascii=False, indent=2))
+            return 0
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    return 1
+
+
 # --------------------------------------------------------------------- parser
 
 def build_parser() -> argparse.ArgumentParser:
@@ -470,6 +606,40 @@ def build_parser() -> argparse.ArgumentParser:
     pau.add_argument("--restore", dest="restore", action="store_true", default=None)
     pau.add_argument("--no-restore", dest="restore", action="store_false")
     pr.set_defaults(func=cmd_profile)
+
+    wc_p = sub.add_parser("cooler", help="control external BLE water cooler (LCT22002 / LCT21001)")
+    wc_sub = wc_p.add_subparsers(dest="cooler_action", required=True)
+    wc_sub.add_parser("status", help="show cooler status, telemetry, and saved config")
+    wc_sub.add_parser("ec-status", help="show read-only host EC/WMI cooler telemetry")
+    wc_sc = wc_sub.add_parser("scan", help="scan nearby BLE water coolers")
+    wc_sc.add_argument("--timeout", type=float, default=5.0)
+    wc_sc.add_argument("--mac", default="")
+    wc_cn = wc_sub.add_parser("connect", help="connect to water cooler via user daemon")
+    wc_cn.add_argument("--mac", default="")
+    wc_dc = wc_sub.add_parser("disconnect", help="safely stop and disconnect cooler")
+    wc_dc.add_argument("--no-sleep", action="store_true")
+    wc_sl = wc_sub.add_parser("sleep", help="send GoToSleepLC (0x19 00 01) and disconnect")
+    wc_sl.add_argument("--mac", default="")
+    wc_sub.add_parser("reset-fault", help="reset latched flow-safety fault")
+    wc_sub.add_parser("emergency-stop", help="stop pump/fan/LEDs and put cooler to sleep")
+    wc_st = wc_sub.add_parser("set", help="update cooler strategy, preset, manual stage, or safety flags")
+    wc_st.add_argument("--strategy", choices=wc.STRATEGIES)
+    wc_st.add_argument("--preset", choices=tuple(wc.PRESETS))
+    wc_st.add_argument("--pump-volt", type=int, choices=wc.VALID_PUMP_VOLTS)
+    wc_st.add_argument("--pump-duty", type=int)
+    wc_st.add_argument("--fan-duty", type=int)
+    wc_st.add_argument("--mac", default=None)
+    wc_st.add_argument("--auto-connect", choices=("on", "off"))
+    wc_st.add_argument("--flow-protection", choices=("on", "off"))
+    wc_st.add_argument("--sleep-on-disconnect", choices=("on", "off"))
+    wc_st.add_argument("--no-apply", action="store_true")
+    wc_ld = wc_sub.add_parser("led", help="configure cooler dual-zone LED (0x1E + 0x33)")
+    wc_ld.add_argument("mode", choices=tuple(wc.LED_MODES))
+    wc_ld.add_argument("--color", type=_parse_color)
+    wc_ld.add_argument("--fan-policy", choices=wc.FAN_LED_POLICIES)
+    wc_ld.add_argument("--fan-color", type=_parse_color)
+    wc_sub.add_parser("daemon", help="run unprivileged desktop-user water-cooling BLE daemon")
+    wc_p.set_defaults(func=cmd_cooler)
 
     g = sub.add_parser("gui", help="launch the graphical control panel")
     g.set_defaults(func=lambda a: _launch_gui())
