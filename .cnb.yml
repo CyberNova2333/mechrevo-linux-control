@@ -1,0 +1,30 @@
+.check-code: &check-code
+  name: 语法与单元测试
+  script: |
+    set -eu
+    python3 -B -m compileall -q src tests
+    python3 -B -m unittest discover -s tests -v
+
+main:
+  push:
+    - name: 持续集成与构建检查
+      docker:
+        image: python:3.12-bookworm
+      lock:
+        key: checks_main
+        wait: true
+        cancel-in-wait: true
+      stages:
+        - *check-code
+
+$:
+  web_trigger_check:
+    - name: 手动构建检查（不发布）
+      docker:
+        image: python:3.12-bookworm
+      lock:
+        key: checks_manual
+        wait: true
+        cancel-in-wait: true
+      stages:
+        - *check-code
