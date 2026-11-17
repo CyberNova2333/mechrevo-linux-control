@@ -5,19 +5,19 @@
     DEBIAN_FRONTEND=noninteractive apt-get update
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3-gi gir1.2-gtk-4.0 python3-usb xvfb xauth
     /usr/bin/python3 -B -m compileall -q iteglow/src tests
-    id -u ubuntu >/dev/null 2>&1 || useradd -m -s /bin/sh ubuntu
+    id -u ci >/dev/null 2>&1 || useradd -m -s /bin/sh ci
     run_dir=$(mktemp -d /tmp/xdg-runtime.XXXXXX)
     home_dir=$(mktemp -d /tmp/ci-home.XXXXXX)
-    chown ubuntu:ubuntu "$run_dir" "$home_dir"
+    chown ci:ci "$run_dir" "$home_dir"
     chmod 700 "$run_dir" "$home_dir"
     trap 'rm -rf "$run_dir" "$home_dir"' EXIT
-    su -s /bin/sh ubuntu -c "env HOME='$home_dir' XDG_RUNTIME_DIR='$run_dir' PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -B -m unittest discover -s tests -v"
+    su -s /bin/sh ci -c "env HOME='$home_dir' XDG_RUNTIME_DIR='$run_dir' PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -B -m unittest discover -s tests -v"
 
 main:
   push:
     - name: 持续集成与构建检查
       docker:
-        image: ubuntu:24.04
+        image: debian:trixie
       lock:
         key: checks_main
         wait: true
@@ -29,7 +29,7 @@ $:
   web_trigger_check:
     - name: 手动构建检查（不发布）
       docker:
-        image: ubuntu:24.04
+        image: debian:trixie
       lock:
         key: checks_manual
         wait: true
