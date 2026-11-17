@@ -3,9 +3,9 @@
   script: |
     set -eu
     apt-get update
-    apt-get install -y --no-install-recommends python3-gi gir1.2-gtk-4.0 python3-usb
+    apt-get install -y --no-install-recommends python3-gi gir1.2-gtk-4.0 python3-usb xvfb xauth
     /usr/bin/python3 -B -m compileall -q iteglow/src tests
-    PYTHONPATH=iteglow/src /usr/bin/python3 -B -m unittest discover -s tests -v
+    PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -B -m unittest discover -s tests -v
 
 main:
   push:

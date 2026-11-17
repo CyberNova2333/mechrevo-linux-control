@@ -24,8 +24,8 @@ jobs:
       - name: 安装 GTK4 与 USB Python 运行时依赖
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends python3-gi gir1.2-gtk-4.0 python3-usb
+          sudo apt-get install -y --no-install-recommends python3-gi gir1.2-gtk-4.0 python3-usb xvfb xauth
       - name: 字节码语法检查
         run: /usr/bin/python3 -B -m compileall -q iteglow/src tests
       - name: 运行单元测试
-        run: PYTHONPATH=iteglow/src /usr/bin/python3 -B -m unittest discover -s tests -v
+        run: PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -B -m unittest discover -s tests -v
