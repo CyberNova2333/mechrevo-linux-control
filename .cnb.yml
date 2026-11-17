@@ -2,14 +2,16 @@
   name: 语法与单元测试
   script: |
     set -eu
-    python3 -B -m compileall -q src tests
-    python3 -B -m unittest discover -s tests -v
+    apt-get update
+    apt-get install -y --no-install-recommends python3-gi gir1.2-gtk-4.0 python3-usb
+    /usr/bin/python3 -B -m compileall -q iteglow/src tests
+    PYTHONPATH=iteglow/src /usr/bin/python3 -B -m unittest discover -s tests -v
 
 main:
   push:
     - name: 持续集成与构建检查
       docker:
-        image: python:3.12-bookworm
+        image: debian:bookworm
       lock:
         key: checks_main
         wait: true
@@ -21,7 +23,7 @@ $:
   web_trigger_check:
     - name: 手动构建检查（不发布）
       docker:
-        image: python:3.12-bookworm
+        image: debian:bookworm
       lock:
         key: checks_manual
         wait: true

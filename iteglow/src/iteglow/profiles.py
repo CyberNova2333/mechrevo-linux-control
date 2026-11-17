@@ -583,16 +583,17 @@ def capture_current_profile(
     *,
     directory: Optional[Path] = None,
     uid: Optional[int] = None,
-    helper_runner: Callable[[Sequence[str]], dict] = default_helper_runner,
+    helper_runner: Optional[Callable[[Sequence[str]], dict]] = None,
     include_lighting: bool = True,
     include_performance: bool = True,
 ) -> dict:
     """Snapshot current lighting state and firmware performance mode into a validated profile."""
+    runner = default_helper_runner if helper_runner is None else helper_runner
     profile: dict = {}
     if label:
         profile["label"] = _clean_text(label, 80, "label")
     if include_performance:
-        st = helper_runner(["status"])
+        st = runner(["status"])
         mode = st.get("mode")
         if mode in PERF_MODES:
             perf: dict = {"mode": mode}
@@ -665,7 +666,7 @@ def _apply_performance(
 def apply_profile(
     profile: dict,
     *,
-    helper_runner: Callable[[Sequence[str]], dict] = default_helper_runner,
+    helper_runner: Optional[Callable[[Sequence[str]], dict]] = None,
     hid_writer: Optional[Callable[[lighting_session.RestoreAction], object]] = None,
     transaction=ZoneTransaction,
     save_manual: bool = True,
@@ -673,6 +674,7 @@ def apply_profile(
     apply_performance: bool = True,
 ) -> dict:
     """Validate and apply a profile bundle's lighting and/or performance settings."""
+    runner = default_helper_runner if helper_runner is None else helper_runner
     clean = validate_profile(profile)
     applied: dict = {"lighting": [], "performance": None, "warnings": []}
     writer = hid_writer or lighting_session.apply_action
@@ -709,7 +711,7 @@ def apply_profile(
             applied["lighting"].append("logo")
 
     if apply_performance and clean.get("performance"):
-        warning = _apply_performance(clean["performance"], helper_runner=helper_runner, ignore_errors=False)
+        warning = _apply_performance(clean["performance"], helper_runner=runner, ignore_errors=False)
         if warning:
             applied["warnings"].append(warning)
         else:
