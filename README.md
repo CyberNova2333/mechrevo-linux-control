@@ -1,10 +1,20 @@
-# MECHREVO Linux Control (`mechrevo-linux-control`)
+<p align="center">
+  <img src="iteglow/data/mechrevo-control.svg" alt="MECHREVO Linux Control" width="84" height="84" />
+</p>
+
+<h1 align="center">MECHREVO Linux Control (<code>mechrevo-linux-control</code>)</h1>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0--only-blue.svg" alt="License: AGPL-3.0-only" /></a>
+  <a href="#快速测试与-cli-使用"><img src="https://img.shields.io/badge/Python-3.12-3776AB.svg" alt="Python 3.12" /></a>
+  <a href="#核心功能模块"><img src="https://img.shields.io/badge/UI-GTK4-4A86CF.svg" alt="GTK4" /></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/CyberNova2333/mechrevo-linux-control">项目主页</a> · <a href="#核心功能模块">核心功能模块</a> · <a href="#快速测试与-cli-使用">快速测试与 CLI</a> · <a href="#开源协议-license">开源协议</a>
+</p>
 
 面向机械革命 **YAOSHI Series (`XxAF55xx` / BIOS `N.1.33MRO91`)** 的完整 Linux 本地硬件控制中心、外置蓝牙水冷控制栈、EC/WMI 固件性能调校与 NVIDIA/ACPI 休眠修复套件。
-
-> 项目主页：<https://github.com/CyberNova2333/mechrevo-linux-control>
-
----
 
 ## 核心功能模块
 
