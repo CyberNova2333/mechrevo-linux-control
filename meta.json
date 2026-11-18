@@ -52,5 +52,8 @@
     "PYTHONPATH=iteglow/src /usr/bin/python3 -m iteglow.cli gui",
     "PYTHONPATH=iteglow/src /usr/bin/python3 -m iteglow.cli cooler status"
   ],
+  "additionalTermsConsent": {
+    "CyberNova": true
+  },
   "updatedAt": "2026-11-17"
 }
