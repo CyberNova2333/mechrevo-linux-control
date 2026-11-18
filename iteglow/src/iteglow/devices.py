@@ -1,4 +1,4 @@
-# Portions added/modified by CyberNova are part of MECHREVO Linux Control and licensed under AGPL-3.0-only with Additional Terms (see LICENSE and ADDITIONAL_TERMS.zh-CN.md; upstream notices preserved).
+# Portions added/modified by CyberNova are part of MECHREVO Linux Control and licensed under AGPL-3.0-only with Additional Terms (see LICENSE and LICENSE-ADDITIONAL_TERMS-zh-CN.md; upstream notices preserved).
 """Locate and talk to the ITE RGB hidraw devices.
 
 Devices are found via their kernel LED node (created by tuxedo-drivers), which
