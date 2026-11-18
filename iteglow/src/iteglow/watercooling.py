@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# This file is part of MECHREVO Linux Control and is licensed under GNU AGPLv3 with Additional Terms (see LICENSE and ADDITIONAL_TERMS.zh-CN.md; ref: ADDITIONAL_TERMS.en.md).
 """Pure protocol, validation, thermal-curve, and flow-safety engine for MECHREVO BLE water coolers.
 
 Verified against CoolingSystem LCT22002 (MCU F/W 2.0.0.4) live hardware and OEM GCUService.

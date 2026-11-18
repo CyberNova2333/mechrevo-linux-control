@@ -1,3 +1,4 @@
+# Portions added/modified by CyberNova are part of MECHREVO Linux Control and licensed under AGPL-3.0-only with Additional Terms (see LICENSE and ADDITIONAL_TERMS.zh-CN.md; upstream notices preserved).
 """Low-level command construction for ITE 8291/8233 RGB controllers.
 
 Every public function is pure: it returns a list of ``(kind, payload)`` reports

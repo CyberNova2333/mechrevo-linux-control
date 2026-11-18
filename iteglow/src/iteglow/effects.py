@@ -1,3 +1,4 @@
+# Portions added/modified by CyberNova are part of MECHREVO Linux Control and licensed under AGPL-3.0-only with Additional Terms (see LICENSE and ADDITIONAL_TERMS.zh-CN.md; upstream notices preserved).
 """Mode metadata + a single dispatch point shared by the CLI and GUI.
 
 Each mode maps to a spec dict with the effect ``code`` and which controls it
