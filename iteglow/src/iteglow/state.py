@@ -1,3 +1,4 @@
+# Portions added/modified by CyberNova are part of MECHREVO Linux Control and licensed under AGPL-3.0-only with Additional Terms (see LICENSE and ADDITIONAL_TERMS.zh-CN.md; upstream notices preserved).
 """Persist the last-applied LED state so it can be restored later.
 
 Every successful ``iteglow set`` / GUI apply records the parameters in the

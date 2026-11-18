@@ -1,3 +1,4 @@
+# Portions added/modified by CyberNova are part of MECHREVO Linux Control and licensed under AGPL-3.0-only with Additional Terms (see LICENSE and ADDITIONAL_TERMS.zh-CN.md; upstream notices preserved).
 """iteglow command-line interface -- pure stdlib, no third-party deps."""
 from __future__ import annotations
 

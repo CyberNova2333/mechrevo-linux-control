@@ -66,3 +66,5 @@ PYTHONPATH=iteglow/src /usr/bin/python3 -m iteglow.cli cooler scan
 - 兼容组件声明：
   - `iteglow/` 目录基于上游 **MIT License** 的 [iteglow](https://github.com/JeanElsner/iteglow)（保留 [iteglow/LICENSE](iteglow/LICENSE)）进行深度二次开发，并将补丁同步至 [system/iteglow-0.3.2-mechrevo.patch](system/iteglow-0.3.2-mechrevo.patch)。
   - `system/mechrevo-turbo-driver/mechrevo_turbo_lease.c` 为 Linux 内核模块源码，保持 `MODULE_LICENSE("GPL")`。
+
+- **附加条款与资产规则**：本项目依据 GNU AGPLv3 第 7 条适用 [`ADDITIONAL_TERMS.zh-CN.md`](ADDITIONAL_TERMS.zh-CN.md)（英文参考译文：[`ADDITIONAL_TERMS.en.md`](ADDITIONAL_TERMS.en.md)，以简体中文完整版正文为准），对来源陈述、修改标识、禁止冒充、扩展模块有条件附加许可及项目标识边界作出补充说明；独立美术、字体与图标许可清单见 [`ASSET_LICENSES.md`](ASSET_LICENSES.md)。第 9.5–9.6 款的附加许可豁免仅对已取得相应版权持有人有效授权的适用材料生效，未取得该等授权的第三方或上游材料仍受其原有有效许可约束。
