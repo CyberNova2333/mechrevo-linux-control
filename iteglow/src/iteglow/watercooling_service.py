@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# This file is part of MECHREVO Linux Control and is licensed under GNU AGPLv3 with Additional Terms (see LICENSE and ADDITIONAL_TERMS.zh-CN.md; ref: ADDITIONAL_TERMS.en.md).
+# This file is part of MECHREVO Linux Control and is licensed under GNU AGPLv3 with Additional Terms (see LICENSE and LICENSE-ADDITIONAL_TERMS-zh-CN.md; ref: LICENSE-ADDITIONAL_TERMS-en.md).
 """Desktop user-session daemon, coordinator state machine, and UNIX IPC for water coolers.
 
 Runs unprivileged in the active desktop user session (no sudo / no arbitrary EC writes).

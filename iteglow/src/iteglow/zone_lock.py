@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# This file is part of MECHREVO Linux Control and is licensed under GNU AGPLv3 with Additional Terms (see LICENSE and ADDITIONAL_TERMS.zh-CN.md; ref: ADDITIONAL_TERMS.en.md).
+# This file is part of MECHREVO Linux Control and is licensed under GNU AGPLv3 with Additional Terms (see LICENSE and LICENSE-ADDITIONAL_TERMS-zh-CN.md; ref: LICENSE-ADDITIONAL_TERMS-en.md).
 """Cooperating user clients serialize complete per-zone lighting transactions.
 
 Lock order is zone -> manual-state (or the Logo helper's profile lock). Nothing
