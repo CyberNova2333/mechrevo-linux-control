@@ -5,6 +5,17 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      compileall_only:
+        description: '仅执行 Python 字节码语法检查（跳过 apt 安装 GTK4 与 xvfb 单测）'
+        required: false
+        type: boolean
+        default: false
+      test_pattern:
+        description: '可选：传给 unittest -k 的测试筛选关键字'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -20,12 +31,23 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: 检出仓库
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: 安装 GTK4 与 USB Python 运行时依赖
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.compileall_only) }}
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends python3-gi gir1.2-gtk-4.0 python3-usb xvfb xauth
       - name: 字节码语法检查
         run: /usr/bin/python3 -B -m compileall -q iteglow/src tests
       - name: 运行单元测试
-        run: PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -B -m unittest discover -s tests -v
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.compileall_only) }}
+        env:
+          TEST_PATTERN: ${{ github.event_name == 'workflow_dispatch' && inputs.test_pattern || '' }}
+        run: |
+          if [ -n "$TEST_PATTERN" ]; then
+            PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -B -m unittest discover -s tests -k "$TEST_PATTERN" -v
+          else
+            PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -B -m unittest discover -s tests -v
+          fi
