@@ -8,8 +8,8 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 CRATE_DIR="$REPO_DIR/watercooling-daemon"
 SESSION_CRATE_DIR="$REPO_DIR/session-daemon"
+CLI_CRATE_DIR="$REPO_DIR/iteglow-cli"
 UI_DIR="$REPO_DIR/ui-tauri"
-ITEGLOW_SRC="${ITEGLOW_SRC:-$REPO_DIR/iteglow/src/iteglow}"
 ICON_SVG="${ICON_SVG:-$REPO_DIR/iteglow/data/mechrevo-control.svg}"
 RUNTIME_BIN="${RUNTIME_BIN:-$SCRIPT_DIR/cache/runtime-x86_64}"
 
@@ -25,10 +25,6 @@ export CARGO_TARGET_DIR
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/iteglow-pkg.XXXXXX")"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-if [[ ! -d "$ITEGLOW_SRC" ]]; then
-  echo "error: ITEGLOW_SRC not found: $ITEGLOW_SRC" >&2
-  exit 1
-fi
 if [[ ! -f "$ICON_SVG" ]]; then
   echo "error: ICON_SVG not found: $ICON_SVG" >&2
   exit 1
@@ -37,11 +33,13 @@ fi
 echo "==> Building Rust release binaries ($PKG_NAME $VERSION)"
 (cd "$CRATE_DIR" && cargo build --release)
 (cd "$SESSION_CRATE_DIR" && cargo build --release)
+(cd "$CLI_CRATE_DIR" && cargo build --release)
 echo "==> Building Tauri 2 desktop GUI (mechrevo-control-gui)"
 (cd "$UI_DIR" && pnpm install --frozen-lockfile && pnpm build)
 (cd "$UI_DIR/src-tauri" && CARGO_TARGET_DIR="$UI_CARGO_TARGET_DIR" cargo build --release)
 BIN_PATH="$CARGO_TARGET_DIR/release/iteglow-watercoolingd"
 SESSION_BIN_PATH="$CARGO_TARGET_DIR/release/iteglow-sessiond"
+CLI_BIN_PATH="$CARGO_TARGET_DIR/release/iteglow"
 UI_BIN_PATH="$UI_CARGO_TARGET_DIR/release/mechrevo-control-gui"
 
 mkdir -p "$DIST_DIR"
@@ -52,7 +50,6 @@ populate_root() {
   mkdir -p \
     "$root/usr/bin" \
     "$root/usr/libexec" \
-    "$root/usr/lib/$PKG_NAME" \
     "$root/usr/lib/systemd/user" \
     "$root/usr/lib/udev/rules.d" \
     "$root/usr/share/applications" \
@@ -63,20 +60,8 @@ populate_root() {
   ln -sf ../libexec/iteglow-watercoolingd "$root/usr/bin/iteglow-watercoolingd"
   install -m 0755 "$SESSION_BIN_PATH" "$root/usr/libexec/iteglow-sessiond"
   ln -sf ../libexec/iteglow-sessiond "$root/usr/bin/iteglow-sessiond"
+  install -m 0755 "$CLI_BIN_PATH" "$root/usr/bin/iteglow"
   install -m 0755 "$UI_BIN_PATH" "$root/usr/bin/mechrevo-control-gui"
-
-  cp -r "$ITEGLOW_SRC" "$root/usr/lib/$PKG_NAME/iteglow"
-  find "$root/usr/lib/$PKG_NAME/iteglow" -type d -name '__pycache__' -exec rm -rf {} +
-  find "$root/usr/lib/$PKG_NAME/iteglow" -type f -name '*.pyc' -delete
-  find "$root/usr/lib/$PKG_NAME/iteglow" -type d -exec chmod 0755 {} +
-  find "$root/usr/lib/$PKG_NAME/iteglow" -type f -exec chmod 0644 {} +
-
-  cat > "$root/usr/bin/iteglow" <<EOF
-#!/usr/bin/env bash
-export PYTHONPATH="/usr/lib/$PKG_NAME\${PYTHONPATH:+:\$PYTHONPATH}"
-exec /usr/bin/python3 -m iteglow.cli "\$@"
-EOF
-  chmod 0755 "$root/usr/bin/iteglow"
 
   cat > "$root/usr/lib/systemd/user/iteglow-watercooling.service" <<'EOF'
 # User-session async Rust BLE water-cooling coordinator daemon (no sudo / no arbitrary EC writes).
@@ -172,10 +157,10 @@ Architecture: $ARCH_DEB
 Installed-Size: $INSTALLED_KB
 Maintainer: CyberNova <295488275+CyberNova2333@users.noreply.github.com>
 Homepage: https://github.com/CyberNova2333/mechrevo-linux-control
-Depends: libc6, python3 (>= 3.10), bluez
-Recommends: libwebkit2gtk-4.1-0 | libwebkit2gtk-4.0-37, libgtk-3-0t64 | libgtk-3-0, python3-gi, gir1.2-gtk-4.0
-Description: MECHREVO Linux Control Center (Tauri 2) and async Rust daemons
- Native Tauri 2 desktop control center (mechrevo-control-gui), CLI
+Depends: libc6, bluez
+Recommends: libwebkit2gtk-4.1-0 | libwebkit2gtk-4.0-37, libgtk-3-0t64 | libgtk-3-0
+Description: MECHREVO Linux Control Center (Zero-Python Rust + Tauri 2)
+ Native Tauri 2 desktop control center (mechrevo-control-gui), native Rust CLI
  (iteglow), and lightweight async Rust daemons (iteglow-watercoolingd,
  iteglow-sessiond) for MECHREVO / Tongfang laptops with ITE 8291/8233
  RGB and LCT22002/LCT21001 external Bluetooth liquid coolers.
@@ -214,11 +199,11 @@ Release:        1
 Summary:        MECHREVO Linux Control Center and async Rust BLE water-cooling daemon
 License:        AGPL-3.0-only
 URL:            https://github.com/CyberNova2333/mechrevo-linux-control
-Requires:       python3 >= 3.10, bluez
-Recommends:     webkit2gtk4.1, gtk3, python3-gobject, gtk4
+Requires:       bluez
+Recommends:     webkit2gtk4.1, gtk3
 
 %description
-Native Tauri 2 desktop control center (mechrevo-control-gui), CLI
+Native Tauri 2 desktop control center (mechrevo-control-gui), native Rust CLI
 (iteglow), and lightweight async Rust daemons (iteglow-watercoolingd,
 iteglow-sessiond) for MECHREVO / Tongfang laptops with ITE 8291/8233
 RGB and LCT22002/LCT21001 Bluetooth liquid coolers.
@@ -241,7 +226,6 @@ fi
 /usr/bin/iteglow-sessiond
 /usr/libexec/iteglow-watercoolingd
 /usr/libexec/iteglow-sessiond
-/usr/lib/$PKG_NAME
 /usr/lib/systemd/user/iteglow-watercooling.service
 /usr/lib/systemd/user/iteglow-session-restore.service
 /usr/lib/udev/rules.d/60-iteglow.rules
@@ -281,7 +265,6 @@ if [[ -x "$RUNTIME_BIN" ]] && command -v mksquashfs >/dev/null 2>&1; then
 #!/usr/bin/env bash
 set -euo pipefail
 HERE="\$(dirname "\$(readlink -f "\$0")")"
-export PYTHONPATH="\$HERE/usr/lib/$PKG_NAME\${PYTHONPATH:+:\$PYTHONPATH}"
 export XDG_DATA_DIRS="\$HERE/usr/share:\${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 
 case "\${1:-}" in
@@ -293,15 +276,11 @@ case "\${1:-}" in
     shift || true
     exec "\$HERE/usr/libexec/iteglow-sessiond" "\$@"
     ;;
-  gtk-gui|--gtk-gui)
-    shift || true
-    exec /usr/bin/python3 -m iteglow.cli gui "\$@"
-    ;;
   ""|gui)
     exec "\$HERE/usr/bin/mechrevo-control-gui"
     ;;
   *)
-    exec /usr/bin/python3 -m iteglow.cli "\$@"
+    exec "\$HERE/usr/bin/iteglow" "\$@"
     ;;
 esac
 EOF
