@@ -1,5 +1,5 @@
 [Unit]
-Description=Exact-model MECHREVO turbo workload lease supervisor
+Description=Exact-model MECHREVO turbo workload lease supervisor (Rust)
 After=local-fs.target mechrevo-acpi-baseline.service nvidia-powerd.service mechrevo-profile-guard.service
 StartLimitIntervalSec=60
 StartLimitBurst=3
@@ -8,11 +8,12 @@ StartLimitBurst=3
 Type=simple
 ExecCondition=/usr/bin/systemctl is-active --quiet nvidia-powerd.service
 ExecStartPre=/usr/local/libexec/mechrevo-turbo-lifecycle prepare
-ExecStart=/usr/local/libexec/mechrevo-turbo-daemon
+ExecStart=/usr/local/libexec/mechrevo-turbod
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=10
 TimeoutStartSec=20
+MemoryLow=8M
 UMask=0077
 NoNewPrivileges=yes
 ProtectSystem=strict

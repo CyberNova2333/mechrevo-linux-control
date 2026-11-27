@@ -1,14 +1,15 @@
 [Unit]
-Description=Recover managed MECHREVO tuning after mode-key changes or interrupted writes
+Description=Recover managed MECHREVO tuning after mode-key changes or interrupted writes (Rust)
 After=local-fs.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/libexec/mechrevo-profile-helper guard
+ExecStart=/usr/local/libexec/mechrevo-profile-guardd
 ExecStopPost=/usr/local/libexec/mechrevo-profile-helper reset
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=10
+MemoryLow=8M
 UMask=0077
 
 [Install]

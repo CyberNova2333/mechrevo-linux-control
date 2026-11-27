@@ -31,10 +31,10 @@
 - **多重安全保护**：`FlowSafetyMonitor` 持续监控 `meter_state` 流量信号，干转或断流超时即锁定停泵；用户级守护进程（[iteglow-watercooling.service](system/iteglow-watercooling.service)）默认关闭自动连接（`auto_connect: False`），监听 `logind` `PrepareForSleep` / `PrepareForShutdown` 在睡眠前自动停泵并发送待机指令。
 - **EC/WMI 只读协同 telemetry**：[mechrevo-profile-helper](system/mechrevo-profile-helper) 新增只读采集 `0x7A4 / 0x7C7 / 0x7C8 / 0x7E6 / 0x7E7 / 0xD48`，通过 `/run/mechrevo-watercooler-ec.json`（`0644`）发布给水冷服务（不修改 `EC 0x7C7` 或内核桥接模块）。
 
-### 3. 固件性能档位、功耗调校与狂暴调度 (`system/`)
+### 3. 固件性能档位、功耗调校与狂暴调度 (`system/` / `system-daemon/`)
 - **固定档位切换**：办公（绿）、均衡（蓝）、狂暴（紫）、自定义（白）模式切换，严格受限于主机 DMI/BIOS/状态校验与 `EC 0x7A5` 高温风扇安全保护。
 - **有界功耗与风扇曲线调校**：支持 CPU 功耗上限 `25–75 W`（PL1/PL2 同步）、受限验证范围内的 GPU 基础功耗（`65–115 W`）/ Dynamic Boost（`5–25 W`）及 11 段 CPU/GPU 独立风扇曲线；切换模式、按下机身模式键或睡眠前自动完整回退还原。
-- **受控狂暴子模式内核桥**：`system/mechrevo-turbo-driver/mechrevo_turbo_lease.c` 与 `mechrevo_turbo_backend.py` 协同官方 `nvidia-powerd` 触发静音狂暴 / 高能狂暴联合功率调度；以构建 SHA-256 白名单门禁绑定已验收内核版本（**6.8.0-149-generic / BIOS N.1.33MRO91**）。
+- **受控狂暴子模式内核桥与原生 Rust 系统守护 (`system-daemon/`)**：`system/mechrevo-turbo-driver/mechrevo_turbo_lease.c` 协同官方 `nvidia-powerd` 触发静音狂暴 / 高能狂暴联合功率调度，以构建 SHA-256 白名单门禁绑定已验收内核版本（**6.8.0-149-generic / BIOS N.1.33MRO91**）；常驻系统服务 [mechrevo-turbo.service](system/mechrevo-turbo.service) 与 [mechrevo-profile-guard.service](system/mechrevo-profile-guard.service) 已分别由零异步依赖的原生 Rust 二进制 `mechrevo-turbod`（[turbo.rs](system-daemon/src/turbo.rs)）和 `mechrevo-profile-guardd`（[ec_guard.rs](system-daemon/src/ec_guard.rs)）承载（单个常驻内存约 0.8–1.5 MB，与现有 `/run/mechrevo-turbo.sock`、`/run/mechrevo-profile.lock`、`/run/mechrevo-wmi-state.json` 及 `/run/mechrevo-watercooler-ec.json` 完全兼容）。
 
 ### 4. NVIDIA 休眠挂起修复与 ACPI 睡眠安全守卫 (`system/`)
 - `mechrevo-nvidia-hibernate-patch` + `nvidia-dkms-hibernate-shutdown.patch`：通过 DKMS 挂钩绕过休眠关机阶段 `nv_pci_remove_helper` 异常问题。
@@ -48,9 +48,10 @@
 # 运行全部离线单元测试与 GTK4 界面测试
 PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -m unittest discover -s tests -v
 
-# 运行 Rust 异步水冷 & 会话灯光守护进程单元测试与发布构建
+# 运行全部 Rust 守护进程单元测试与发布构建（水冷 / 灯光会话 / 系统狂暴与 EC 恢复）
 (cd watercooling-daemon && cargo test && cargo build --release)
 (cd session-daemon && cargo test && cargo build --release)
+(cd system-daemon && cargo test && cargo build --release)
 
 # 构建 .deb / .rpm / Type-2 .AppImage 发行包（产物输出至 dist/）
 FETCH_APPIMAGE_RUNTIME=1 ./packaging/build-packages.sh
