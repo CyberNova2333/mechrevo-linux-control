@@ -1,0 +1,25 @@
+[package]
+name = "iteglow-sessiond"
+version = "0.4.0"
+edition = "2021"
+description = "Unprivileged async Rust lighting restore, policy, hotkey-sync, and profile-rule session daemon for MECHREVO Linux Control"
+license = "AGPL-3.0-only"
+
+[[bin]]
+name = "iteglow-sessiond"
+path = "src/main.rs"
+
+[dependencies]
+futures-util = "0.3"
+libc = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.45", features = ["rt", "macros", "time", "sync", "signal", "process"] }
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

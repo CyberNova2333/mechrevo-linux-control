@@ -12,5 +12,6 @@ Module.symvers
 modules.order
 .tmp_versions/
 watercooling-daemon/target/
+session-daemon/target/
 dist/
 packaging/cache/
