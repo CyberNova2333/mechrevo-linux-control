@@ -32,10 +32,10 @@ const emit = defineEmits<{
 const message = useMessage();
 
 const MODE_CARDS = [
-  { id: "office", title: "办公模式", desc: "静音低耗", led: "绿色指示灯", color: "#22C55E", icon: Leaf },
-  { id: "balanced", title: "均衡模式", desc: "性能与温控均衡", led: "蓝色指示灯", color: "#00C8FF", icon: Gauge },
-  { id: "turbo", title: "狂暴模式", desc: "释放整机高功耗", led: "紫色指示灯", color: "#A855F7", icon: Flame },
-  { id: "custom", title: "自定义模式", desc: "功耗与风扇曲线", led: "白色指示灯", color: "#E2E8F0", icon: Sliders },
+  { id: "office", title: "办公模式", desc: "静音低耗", led: "绿色指示灯", color: "var(--led-office)", icon: Leaf },
+  { id: "balanced", title: "均衡模式", desc: "性能与温控均衡", led: "蓝色指示灯", color: "var(--led-balanced)", icon: Gauge },
+  { id: "turbo", title: "狂暴模式", desc: "释放整机高功耗", led: "紫色指示灯", color: "var(--led-turbo)", icon: Flame },
+  { id: "custom", title: "自定义模式", desc: "功耗与风扇曲线", led: "白色指示灯", color: "var(--led-custom)", icon: Sliders },
 ] as const;
 
 const perf = shallowRef<PerformanceStatus | null>(null);
@@ -217,7 +217,9 @@ const turboCaption = computed(() => {
 // Fan Curve SVG math
 const activeTemps = computed(() => (curveTab.value === "cpu" ? CPU_FAN_TEMPS : GPU_FAN_TEMPS));
 const activeFanVals = computed(() => (curveTab.value === "cpu" ? cpuFan.value : gpuFan.value));
-const activeStroke = computed(() => (curveTab.value === "cpu" ? "#00C8FF" : "#A855F7"));
+const activeStroke = computed(() =>
+  curveTab.value === "cpu" ? "var(--accent-cyan)" : "var(--accent-violet)"
+);
 
 const SVG_W = 680;
 const SVG_H = 178;
@@ -323,7 +325,7 @@ onUnmounted(() => {
           <div class="kpi-label">EC 高温风扇安全保护 (0x7A5)</div>
           <div
             style="margin-top: 5px; font-size: 13px; font-weight: 600"
-            :style="{ color: safety ? '#FB7185' : '#E2E8F0' }"
+            :style="{ color: safety ? '#E11D48' : 'var(--ink-primary)' }"
           >
             {{
               perf
@@ -336,7 +338,7 @@ onUnmounted(() => {
         </div>
         <div class="ccu-well">
           <div class="kpi-label">SmartBalance (0x7AC)</div>
-          <div style="margin-top: 5px; font-size: 13px; font-weight: 600; color: #e2e8f0">
+          <div style="margin-top: 5px; font-size: 13px; font-weight: 600; color: var(--ink-primary)">
             {{
               perf
                 ? perf.smart_balance_supported
@@ -504,10 +506,10 @@ onUnmounted(() => {
               :y1="mapY(pct)"
               :x2="PAD_R"
               :y2="mapY(pct)"
-              stroke="rgba(148,163,184,0.14)"
+              stroke="var(--chart-grid)"
               stroke-width="1"
             />
-            <text :x="6" :y="mapY(pct) + 4" fill="#64748b" font-size="10.5" class="mono">
+            <text :x="6" :y="mapY(pct) + 4" fill="var(--chart-axis)" font-size="10.5" class="mono">
               {{ pct }}%
             </text>
           </g>
@@ -516,17 +518,17 @@ onUnmounted(() => {
             :key="t"
             :x="mapX(t) - 12"
             :y="SVG_H - 7"
-            fill="#64748b"
+            fill="var(--chart-axis)"
             font-size="10.5"
             class="mono"
           >
             {{ t }}°C
           </text>
-          <polygon :points="floorArea" fill="rgba(100, 116, 139, 0.14)" />
+          <polygon :points="floorArea" fill="var(--chart-floor-fill)" />
           <polyline
             :points="floorPts"
             fill="none"
-            stroke="#475569"
+            stroke="var(--chart-floor-stroke)"
             stroke-width="1.2"
             stroke-dasharray="4 3"
           />
@@ -534,7 +536,7 @@ onUnmounted(() => {
             :points="curvePts"
             fill="none"
             :stroke="activeStroke"
-            stroke-opacity="0.24"
+            stroke-opacity="0.22"
             stroke-width="7"
           />
           <polyline
@@ -550,7 +552,7 @@ onUnmounted(() => {
             :cy="mapY(activeFanVals[i])"
             r="4"
             :fill="activeStroke"
-            stroke="#090C13"
+            stroke="var(--bg-chart)"
             stroke-width="1.5"
           />
         </svg>
@@ -623,16 +625,16 @@ onUnmounted(() => {
   min-width: 58px;
   text-align: right;
   font-weight: 700;
-  color: #00c8ff;
+  color: var(--accent-cyan);
   font-size: 13.5px;
 }
 
 .fan-svg {
   width: 100%;
   height: 178px;
-  background: #080b12;
+  background: var(--bg-chart);
   border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.14);
+  border: 1px solid var(--border-subtle);
 }
 
 .fan-node-grid {
@@ -648,8 +650,8 @@ onUnmounted(() => {
 }
 
 .fan-node-cell {
-  background: rgba(17, 22, 35, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: var(--bg-node-cell);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 6px 5px;
   display: flex;

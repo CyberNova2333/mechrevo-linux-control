@@ -3,17 +3,21 @@
 
 import type { GlobalThemeOverrides } from "naive-ui";
 
+const SHARED_FONTS = {
+  fontFamily:
+    '"Inter", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif',
+  fontFamilyMono:
+    '"JetBrains Mono", "Fira Code", "Noto Sans Mono", ui-monospace, monospace',
+  borderRadius: "8px",
+  borderRadiusSmall: "6px",
+};
+
 /**
- * Bespoke dark esports/WinUI Naive UI theme inspired by MECHREVO ControlCenterX.
- * Guarantees crisp high-contrast dark surfaces across all popovers, selects,
- * sliders, and color pickers on Linux WebKitGTK (zero native GTK select glitches).
+ * Dark esports/WinUI Naive UI theme inspired by MECHREVO ControlCenterX.
  */
-export const mechrevoThemeOverrides: GlobalThemeOverrides = {
+export const mechrevoDarkThemeOverrides: GlobalThemeOverrides = {
   common: {
-    fontFamily:
-      '"Inter", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif',
-    fontFamilyMono:
-      '"JetBrains Mono", "Fira Code", "Noto Sans Mono", ui-monospace, monospace',
+    ...SHARED_FONTS,
     primaryColor: "#00C8FF",
     primaryColorHover: "#38D9FF",
     primaryColorPressed: "#009FD1",
@@ -46,8 +50,6 @@ export const mechrevoThemeOverrides: GlobalThemeOverrides = {
     textColor2: "#C2CEE0",
     textColor3: "#7E8FA8",
     placeholderColor: "#63748E",
-    borderRadius: "8px",
-    borderRadiusSmall: "6px",
   },
   Layout: {
     color: "#090C13",
@@ -109,6 +111,13 @@ export const mechrevoThemeOverrides: GlobalThemeOverrides = {
       },
     },
   },
+  Dropdown: {
+    color: "#171F32",
+    optionTextColor: "#DCE4F2",
+    optionTextColorHover: "#F8FAFC",
+    optionColorHover: "rgba(0, 200, 255, 0.14)",
+    borderRadius: "10px",
+  },
   Tabs: {
     tabColorSegment: "#1A243B",
     colorSegment: "#0D121F",
@@ -162,5 +171,167 @@ export const mechrevoThemeOverrides: GlobalThemeOverrides = {
     borderWarning: "1px solid rgba(245, 158, 11, 0.35)",
     colorInfo: "rgba(0, 200, 255, 0.10)",
     borderInfo: "1px solid rgba(0, 200, 255, 0.30)",
+  },
+};
+
+/**
+ * Crisp daylight WinUI 3 / ControlCenterX Naive UI light theme.
+ */
+export const mechrevoLightThemeOverrides: GlobalThemeOverrides = {
+  common: {
+    ...SHARED_FONTS,
+    primaryColor: "#0284C7",
+    primaryColorHover: "#0EA5E9",
+    primaryColorPressed: "#0369A1",
+    primaryColorSuppl: "#0284C7",
+    infoColor: "#0284C7",
+    infoColorHover: "#0EA5E9",
+    infoColorPressed: "#0369A1",
+    successColor: "#16A34A",
+    successColorHover: "#22C55E",
+    successColorPressed: "#15803D",
+    warningColor: "#D97706",
+    warningColorHover: "#F59E0B",
+    warningColorPressed: "#B45309",
+    errorColor: "#E11D48",
+    errorColorHover: "#F43F5E",
+    errorColorPressed: "#BE123C",
+    bodyColor: "#EEF2F8",
+    cardColor: "#FFFFFF",
+    modalColor: "#FFFFFF",
+    popoverColor: "#FFFFFF",
+    tableColor: "#FFFFFF",
+    inputColor: "#FFFFFF",
+    inputColorDisabled: "#F1F5F9",
+    actionColor: "#F4F7FB",
+    hoverColor: "rgba(2, 132, 199, 0.08)",
+    borderColor: "rgba(15, 23, 42, 0.11)",
+    dividerColor: "rgba(15, 23, 42, 0.09)",
+    textColorBase: "#0F172A",
+    textColor1: "#0F172A",
+    textColor2: "#334155",
+    textColor3: "#64748B",
+    placeholderColor: "#94A3B8",
+  },
+  Layout: {
+    color: "#EEF2F8",
+    siderColor: "#F6F8FC",
+    headerColor: "#FFFFFF",
+    siderBorderColor: "rgba(15, 23, 42, 0.09)",
+    headerBorderColor: "rgba(15, 23, 42, 0.09)",
+  },
+  Card: {
+    color: "#FFFFFF",
+    colorEmbedded: "#F4F7FB",
+    borderColor: "rgba(15, 23, 42, 0.09)",
+    borderRadius: "12px",
+    paddingMedium: "18px 20px",
+    titleFontSizeMedium: "15px",
+    titleFontWeight: "650",
+    titleTextColor: "#0F172A",
+  },
+  Menu: {
+    itemColorActive: "rgba(2, 132, 199, 0.11)",
+    itemColorActiveHover: "rgba(2, 132, 199, 0.16)",
+    itemColorHover: "rgba(15, 23, 42, 0.05)",
+    itemTextColor: "#475569",
+    itemTextColorHover: "#0F172A",
+    itemTextColorActive: "#0284C7",
+    itemTextColorActiveHover: "#0369A1",
+    itemIconColor: "#64748B",
+    itemIconColorHover: "#0F172A",
+    itemIconColorActive: "#0284C7",
+    itemIconColorActiveHover: "#0369A1",
+    borderRadius: "9px",
+    itemHeight: "42px",
+  },
+  Select: {
+    peers: {
+      InternalSelection: {
+        color: "#FFFFFF",
+        colorActive: "#FFFFFF",
+        colorDisabled: "#F1F5F9",
+        textColor: "#0F172A",
+        placeholderColor: "#94A3B8",
+        border: "1px solid rgba(15, 23, 42, 0.16)",
+        borderHover: "1px solid rgba(2, 132, 199, 0.55)",
+        borderActive: "1px solid #0284C7",
+        borderFocus: "1px solid #0284C7",
+        boxShadowActive: "0 0 0 2px rgba(2, 132, 199, 0.16)",
+        boxShadowFocus: "0 0 0 2px rgba(2, 132, 199, 0.16)",
+        arrowColor: "#64748B",
+      },
+      InternalSelectMenu: {
+        color: "#FFFFFF",
+        optionTextColor: "#1E293B",
+        optionTextColorActive: "#0284C7",
+        optionColorPending: "rgba(2, 132, 199, 0.08)",
+        optionColorActive: "rgba(2, 132, 199, 0.12)",
+        optionColorActivePending: "rgba(2, 132, 199, 0.16)",
+        optionCheckColor: "#0284C7",
+        borderRadius: "10px",
+      },
+    },
+  },
+  Dropdown: {
+    color: "#FFFFFF",
+    optionTextColor: "#1E293B",
+    optionTextColorHover: "#0284C7",
+    optionColorHover: "rgba(2, 132, 199, 0.09)",
+    borderRadius: "10px",
+  },
+  Tabs: {
+    tabColorSegment: "#FFFFFF",
+    colorSegment: "#E2E8F2",
+    tabTextColorSegment: "#475569",
+    tabTextColorActiveSegment: "#0284C7",
+    tabTextColorHoverSegment: "#0F172A",
+    barColor: "#0284C7",
+    tabTextColorActiveLine: "#0284C7",
+    tabTextColorHoverLine: "#0F172A",
+    tabFontWeightActive: "650",
+  },
+  Slider: {
+    railColor: "rgba(15, 23, 42, 0.14)",
+    railColorHover: "rgba(15, 23, 42, 0.22)",
+    fillColor: "#0284C7",
+    fillColorHover: "#0EA5E9",
+    handleColor: "#FFFFFF",
+    handleSize: "15px",
+    railHeight: "5px",
+  },
+  Switch: {
+    railColor: "#CBD5E1",
+    railColorActive: "#0284C7",
+    buttonColor: "#FFFFFF",
+  },
+  Button: {
+    colorSecondary: "rgba(15, 23, 42, 0.06)",
+    colorSecondaryHover: "rgba(15, 23, 42, 0.11)",
+    colorSecondaryPressed: "rgba(15, 23, 42, 0.16)",
+    textColorPrimary: "#FFFFFF",
+    textColorHoverPrimary: "#FFFFFF",
+    textColorPressedPrimary: "#FFFFFF",
+    fontWeight: "550",
+  },
+  Input: {
+    color: "#FFFFFF",
+    colorFocus: "#FFFFFF",
+    border: "1px solid rgba(15, 23, 42, 0.16)",
+    borderHover: "1px solid rgba(2, 132, 199, 0.55)",
+    borderFocus: "1px solid #0284C7",
+  },
+  ColorPicker: {
+    color: "#FFFFFF",
+    border: "1px solid rgba(15, 23, 42, 0.18)",
+    borderRadius: "8px",
+  },
+  Alert: {
+    colorError: "rgba(225, 29, 72, 0.08)",
+    borderError: "1px solid rgba(225, 29, 72, 0.28)",
+    colorWarning: "rgba(217, 119, 6, 0.08)",
+    borderWarning: "1px solid rgba(217, 119, 6, 0.28)",
+    colorInfo: "rgba(2, 132, 199, 0.07)",
+    borderInfo: "1px solid rgba(2, 132, 199, 0.24)",
   },
 };

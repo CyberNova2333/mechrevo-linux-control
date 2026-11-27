@@ -11,6 +11,7 @@ import type {
   PerformanceStatus,
   ProfileBundle,
   ProfilesConfig,
+  ResolvedTheme,
   Rgb,
   SystemInfo,
   TuningConfig,
@@ -20,6 +21,8 @@ import type {
 
 export const api = {
   getSystemInfo: () => invoke<SystemInfo>("get_system_info"),
+  getSystemTheme: () => invoke<ResolvedTheme>("get_system_theme"),
+  setWindowTheme: (mode: ResolvedTheme | "system") => invoke<void>("set_window_theme", { mode }),
   getLiveTelemetry: () => invoke<LiveTelemetry>("get_live_telemetry"),
   allLightsOff: () => invoke<{ turned_off: string[]; errors: string[] }>("all_lights_off"),
 

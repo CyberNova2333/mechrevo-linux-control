@@ -3,6 +3,9 @@
 
 export type Rgb = [number, number, number];
 
+export type ThemePreference = "system" | "light" | "dark";
+export type ResolvedTheme = "light" | "dark";
+
 export type PageId =
   | "home"
   | "performance"

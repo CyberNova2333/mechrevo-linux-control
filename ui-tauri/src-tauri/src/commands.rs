@@ -104,6 +104,134 @@ fn check_flock_held(path: &Path) -> bool {
     }
 }
 
+// ----------------------------------------------------------------- OS Theme Detection & Window Sync
+
+fn parse_portal_color_scheme(output: &str) -> Option<&'static str> {
+    // Freedesktop XDG Portal org.freedesktop.appearance color-scheme:
+    // 1 = prefer dark, 2 = prefer light, 0 = no preference
+    if output.contains("uint32 1") {
+        Some("dark")
+    } else if output.contains("uint32 2") {
+        Some("light")
+    } else {
+        None
+    }
+}
+
+fn parse_gsettings_color_scheme(output: &str) -> Option<&'static str> {
+    let lower = output.trim().to_ascii_lowercase();
+    if lower.contains("prefer-dark") {
+        Some("dark")
+    } else if lower.contains("prefer-light") {
+        Some("light")
+    } else {
+        None
+    }
+}
+
+async fn run_quick_cmd(program: &str, args: &[&str]) -> Option<String> {
+    let mut cmd = Command::new(program);
+    cmd.args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
+    let out = tokio::time::timeout(Duration::from_millis(800), cmd.output())
+        .await
+        .ok()?
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+#[tauri::command]
+pub async fn get_system_theme() -> Result<String, String> {
+    // 1. Cross-DE Freedesktop XDG Desktop Portal (GNOME, KDE, Hyprland, COSMIC, XFCE)
+    if let Some(out) = run_quick_cmd(
+        "gdbus",
+        &[
+            "call",
+            "--session",
+            "--dest",
+            "org.freedesktop.portal.Desktop",
+            "--object-path",
+            "/org/freedesktop/portal/desktop",
+            "--method",
+            "org.freedesktop.portal.Settings.Read",
+            "org.freedesktop.appearance",
+            "color-scheme",
+        ],
+    )
+    .await
+    {
+        if let Some(theme) = parse_portal_color_scheme(&out) {
+            return Ok(theme.to_string());
+        }
+    }
+
+    // 2. GNOME gsettings color-scheme
+    if let Some(out) =
+        run_quick_cmd("gsettings", &["get", "org.gnome.desktop.interface", "color-scheme"]).await
+    {
+        if let Some(theme) = parse_gsettings_color_scheme(&out) {
+            return Ok(theme.to_string());
+        }
+    }
+
+    // 3. GNOME GTK theme name heuristic
+    if let Some(out) =
+        run_quick_cmd("gsettings", &["get", "org.gnome.desktop.interface", "gtk-theme"]).await
+    {
+        if !out.is_empty() {
+            return Ok(if out.to_ascii_lowercase().contains("dark") {
+                "dark".to_string()
+            } else {
+                "light".to_string()
+            });
+        }
+    }
+
+    // 4. KDE Plasma kdeglobals fallback
+    if let Ok(home) = std::env::var("HOME") {
+        let kde = Path::new(&home).join(".config/kdeglobals");
+        if let Ok(text) = fs::read_to_string(kde) {
+            for line in text.lines() {
+                if let Some(val) = line.strip_prefix("ColorScheme=") {
+                    return Ok(if val.to_ascii_lowercase().contains("dark") {
+                        "dark".to_string()
+                    } else {
+                        "light".to_string()
+                    });
+                }
+            }
+        }
+    }
+
+    // 5. GTK_THEME environment variable fallback
+    if let Ok(gtk_theme) = std::env::var("GTK_THEME") {
+        if gtk_theme.to_ascii_lowercase().contains("dark") {
+            return Ok("dark".to_string());
+        }
+    }
+
+    Ok("light".to_string())
+}
+
+#[tauri::command]
+pub async fn set_window_theme(
+    window: tauri::WebviewWindow,
+    mode: String,
+) -> Result<(), String> {
+    let target = match mode.as_str() {
+        "dark" => Some(tauri::Theme::Dark),
+        "light" => Some(tauri::Theme::Light),
+        _ => None,
+    };
+    window.set_theme(target).map_err(|e| e.to_string())
+}
+
 // ----------------------------------------------------------------- System & All-Off
 
 #[tauri::command]
@@ -768,6 +896,16 @@ pub async fn watercooling_request(req: Value) -> Result<Value, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_linux_os_theme_outputs() {
+        assert_eq!(parse_portal_color_scheme("(<<uint32 1>>,)"), Some("dark"));
+        assert_eq!(parse_portal_color_scheme("(<<uint32 2>>,)"), Some("light"));
+        assert_eq!(parse_portal_color_scheme("(<<uint32 0>>,)"), None);
+        assert_eq!(parse_gsettings_color_scheme("'prefer-dark'"), Some("dark"));
+        assert_eq!(parse_gsettings_color_scheme("'prefer-light'"), Some("light"));
+        assert_eq!(parse_gsettings_color_scheme("'default'"), None);
+    }
 
     #[test]
     fn logo_validation_rules() {

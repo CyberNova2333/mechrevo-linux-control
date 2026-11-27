@@ -50,7 +50,7 @@ const MODE_CARDS = [
     title: "办公模式",
     desc: "安静舒适，优先低噪与长续航",
     led: "绿色指示灯",
-    color: "#22C55E",
+    color: "var(--led-office)",
     icon: Leaf,
   },
   {
@@ -58,7 +58,7 @@ const MODE_CARDS = [
     title: "均衡模式",
     desc: "日常通用，兼顾性能与温控噪音",
     led: "蓝色指示灯",
-    color: "#00C8FF",
+    color: "var(--led-balanced)",
     icon: Gauge,
   },
   {
@@ -66,7 +66,7 @@ const MODE_CARDS = [
     title: "狂暴模式",
     desc: "性能全开，支持静音/高能双子档",
     led: "紫色指示灯",
-    color: "#A855F7",
+    color: "var(--led-turbo)",
     icon: Flame,
   },
   {
@@ -74,14 +74,14 @@ const MODE_CARDS = [
     title: "自定义模式",
     desc: "手动定制功耗墙与 11 段风扇曲线",
     led: "白色指示灯",
-    color: "#E2E8F0",
+    color: "var(--led-custom)",
     icon: Sliders,
   },
 ] as const;
 
 const activeModeColor = computed(() => {
   const m = props.perfStatus?.mode;
-  return MODE_CARDS.find((c) => c.id === m)?.color ?? "#00C8FF";
+  return MODE_CARDS.find((c) => c.id === m)?.color ?? "var(--accent-cyan)";
 });
 
 const turboInfo = computed(() => props.perfStatus?.turbo ?? {});
@@ -414,7 +414,7 @@ const coolerFlowText = computed(() => {
                 :key="r"
                 :points="radarRingPoints(r)"
                 fill="none"
-                stroke="rgba(148,163,184,0.16)"
+                stroke="var(--chart-grid)"
                 stroke-width="1"
               />
               <line
@@ -424,13 +424,13 @@ const coolerFlowText = computed(() => {
                 y1="98"
                 :x2="radarPt(i, 1)[0]"
                 :y2="radarPt(i, 1)[1]"
-                stroke="rgba(148,163,184,0.14)"
+                stroke="var(--chart-grid)"
                 stroke-width="1"
               />
               <polygon
                 :points="radarDataPoints"
-                fill="rgba(0, 200, 255, 0.22)"
-                stroke="#00C8FF"
+                fill="var(--radar-fill)"
+                stroke="var(--radar-stroke)"
                 stroke-width="2"
               />
               <circle
@@ -439,7 +439,7 @@ const coolerFlowText = computed(() => {
                 :cx="radarPt(i, m.value / 100)[0]"
                 :cy="radarPt(i, m.value / 100)[1]"
                 r="3.2"
-                fill="#5EE6FF"
+                fill="var(--radar-dot)"
               />
               <text
                 v-for="(m, i) in radarMetrics"
@@ -447,7 +447,7 @@ const coolerFlowText = computed(() => {
                 :x="radarPt(i, 1.32)[0]"
                 :y="radarPt(i, 1.28)[1] + 4"
                 text-anchor="middle"
-                fill="#94A3B8"
+                fill="var(--chart-axis)"
                 font-size="10.5"
               >
                 {{ m.label }}
@@ -466,7 +466,7 @@ const coolerFlowText = computed(() => {
                     cy="54"
                     :r="ARC_R"
                     fill="none"
-                    stroke="rgba(148,163,184,0.15)"
+                    stroke="var(--arc-rail)"
                     stroke-width="7.5"
                     stroke-linecap="round"
                     :stroke-dasharray="`${ARC_SWEEP} ${ARC_CIRC}`"
@@ -476,7 +476,7 @@ const coolerFlowText = computed(() => {
                     cy="54"
                     :r="ARC_R"
                     fill="none"
-                    :stroke="cpuTempVal >= 85 ? '#F43F5E' : '#00C8FF'"
+                    :stroke="cpuTempVal >= 85 ? '#F43F5E' : 'var(--accent-cyan)'"
                     stroke-width="7.5"
                     stroke-linecap="round"
                     :stroke-dasharray="`${ARC_SWEEP} ${ARC_CIRC}`"
@@ -484,10 +484,10 @@ const coolerFlowText = computed(() => {
                     style="transition: stroke-dashoffset 450ms ease"
                   />
                 </g>
-                <text x="54" y="51" text-anchor="middle" fill="#F8FAFC" font-size="19" font-weight="700" class="mono">
+                <text x="54" y="51" text-anchor="middle" fill="var(--ink-strong)" font-size="19" font-weight="700" class="mono">
                   {{ telemetry?.cpu.temp_c != null ? `${Math.round(cpuTempVal)}°` : "--" }}
                 </text>
-                <text x="54" y="68" text-anchor="middle" fill="#7E8FA8" font-size="10">
+                <text x="54" y="68" text-anchor="middle" fill="var(--ink-muted)" font-size="10">
                   CPU 封装
                 </text>
               </svg>
@@ -507,7 +507,7 @@ const coolerFlowText = computed(() => {
                     cy="54"
                     :r="ARC_R"
                     fill="none"
-                    stroke="rgba(148,163,184,0.15)"
+                    stroke="var(--arc-rail)"
                     stroke-width="7.5"
                     stroke-linecap="round"
                     :stroke-dasharray="`${ARC_SWEEP} ${ARC_CIRC}`"
@@ -517,7 +517,7 @@ const coolerFlowText = computed(() => {
                     cy="54"
                     :r="ARC_R"
                     fill="none"
-                    :stroke="gpuTempVal >= 82 ? '#F43F5E' : '#8B5CF6'"
+                    :stroke="gpuTempVal >= 82 ? '#F43F5E' : 'var(--accent-violet)'"
                     stroke-width="7.5"
                     stroke-linecap="round"
                     :stroke-dasharray="`${ARC_SWEEP} ${ARC_CIRC}`"
@@ -525,10 +525,10 @@ const coolerFlowText = computed(() => {
                     style="transition: stroke-dashoffset 450ms ease"
                   />
                 </g>
-                <text x="54" y="51" text-anchor="middle" fill="#F8FAFC" font-size="19" font-weight="700" class="mono">
+                <text x="54" y="51" text-anchor="middle" fill="var(--ink-strong)" font-size="19" font-weight="700" class="mono">
                   {{ telemetry?.gpu.temp_c != null ? `${Math.round(gpuTempVal)}°` : "--" }}
                 </text>
-                <text x="54" y="68" text-anchor="middle" fill="#7E8FA8" font-size="10">
+                <text x="54" y="68" text-anchor="middle" fill="var(--ink-muted)" font-size="10">
                   GPU 核心
                 </text>
               </svg>
@@ -551,7 +551,7 @@ const coolerFlowText = computed(() => {
     <div class="kpi-grid-4">
       <n-card size="small" :bordered="true" class="detail-card">
         <div class="detail-head">
-          <Cpu :size="16" color="#00C8FF" />
+          <Cpu :size="16" color="var(--accent-cyan)" />
           <span>中央处理器</span>
           <span class="mono detail-accent">{{ cpuUsageVal.toFixed(0) }}%</span>
         </div>
@@ -560,8 +560,8 @@ const coolerFlowText = computed(() => {
           :percentage="Math.round(cpuUsageVal)"
           :show-indicator="false"
           :height="5"
-          color="#00C8FF"
-          rail-color="rgba(148,163,184,0.16)"
+          color="var(--accent-cyan)"
+          rail-color="var(--arc-rail)"
         />
         <div class="detail-rows mono">
           <div>
@@ -587,9 +587,9 @@ const coolerFlowText = computed(() => {
 
       <n-card size="small" :bordered="true" class="detail-card">
         <div class="detail-head">
-          <Flame :size="16" color="#A855F7" />
+          <Flame :size="16" color="var(--accent-violet)" />
           <span>独立显卡</span>
-          <span class="mono detail-accent" style="color: #c084fc">
+          <span class="mono detail-accent" style="color: var(--accent-violet-soft)">
             {{ telemetry?.gpu.power_w != null ? `${telemetry.gpu.power_w.toFixed(1)}W` : "--" }}
           </span>
         </div>
@@ -598,8 +598,8 @@ const coolerFlowText = computed(() => {
           :percentage="Math.round(gpuUsageVal)"
           :show-indicator="false"
           :height="5"
-          color="#A855F7"
-          rail-color="rgba(148,163,184,0.16)"
+          color="var(--accent-violet)"
+          rail-color="var(--arc-rail)"
         />
         <div class="detail-rows mono">
           <div>
@@ -621,7 +621,7 @@ const coolerFlowText = computed(() => {
 
       <n-card size="small" :bordered="true" class="detail-card">
         <div class="detail-head">
-          <MemoryStick :size="16" color="#38BDF8" />
+          <MemoryStick :size="16" color="var(--accent-cyan)" />
           <span>内存与存储</span>
           <span class="mono detail-accent">
             {{ telemetry ? `${Math.round(telemetry.memory.usage_pct)}%` : "--" }}
@@ -632,8 +632,8 @@ const coolerFlowText = computed(() => {
           :percentage="Math.round(telemetry?.memory.usage_pct ?? 0)"
           :show-indicator="false"
           :height="5"
-          color="#38BDF8"
-          rail-color="rgba(148,163,184,0.16)"
+          color="var(--accent-cyan)"
+          rail-color="var(--arc-rail)"
         />
         <div class="detail-rows mono">
           <div>
@@ -742,8 +742,8 @@ const coolerFlowText = computed(() => {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: rgba(14, 21, 36, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: var(--bg-badge-icon);
+  border: 1px solid var(--border-strong);
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -761,7 +761,7 @@ const coolerFlowText = computed(() => {
   font-size: 19px;
   font-weight: 800;
   letter-spacing: 0.03em;
-  color: #f8fafc;
+  color: var(--ink-strong);
 }
 
 .hero-spec-line {
@@ -784,10 +784,10 @@ const coolerFlowText = computed(() => {
   gap: 8px;
   padding: 7px 14px;
   border-radius: 999px;
-  background: rgba(10, 14, 24, 0.85);
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: var(--bg-chip);
+  border: 1px solid var(--border-subtle);
   font-size: 12.5px;
-  color: #dce4f2;
+  color: var(--ink-secondary);
 }
 
 .turbo-strip {
@@ -802,8 +802,8 @@ const coolerFlowText = computed(() => {
 }
 
 .radar-box {
-  background: rgba(9, 13, 22, 0.72);
-  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: var(--bg-well);
+  border: 1px solid var(--border-subtle);
   border-radius: 11px;
   padding: 6px;
   display: grid;
@@ -828,8 +828,8 @@ const coolerFlowText = computed(() => {
   gap: 10px;
   padding: 8px 12px;
   border-radius: 11px;
-  background: rgba(9, 13, 22, 0.72);
-  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: var(--bg-well);
+  border: 1px solid var(--border-subtle);
 }
 
 .arc-svg {
@@ -847,7 +847,7 @@ const coolerFlowText = computed(() => {
 .arc-title {
   font-size: 13px;
   font-weight: 700;
-  color: #f1f5fb;
+  color: var(--ink-strong);
 }
 
 .arc-kv {
@@ -867,14 +867,14 @@ const coolerFlowText = computed(() => {
   gap: 8px;
   font-size: 13px;
   font-weight: 650;
-  color: #e2e8f0;
+  color: var(--ink-primary);
 }
 
 .detail-accent {
   margin-left: auto;
   font-size: 13px;
   font-weight: 700;
-  color: #00c8ff;
+  color: var(--accent-cyan);
 }
 
 .detail-rows {
@@ -893,7 +893,7 @@ const coolerFlowText = computed(() => {
 }
 
 .detail-rows strong {
-  color: #dce4f2;
+  color: var(--ink-primary);
   font-weight: 600;
 }
 

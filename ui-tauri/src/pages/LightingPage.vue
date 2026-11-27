@@ -664,7 +664,7 @@ onUnmounted(() => {
               <div>
                 <div class="ccu-field-row" style="margin-bottom: 6px">
                   <span class="ccu-field-label">亮度</span>
-                  <span class="mono" style="color: #00c8ff; font-weight: 700">
+                  <span class="mono" style="color: var(--accent-cyan); font-weight: 700">
                     {{ kbd.brightnessPct }}%
                   </span>
                 </div>
@@ -680,7 +680,7 @@ onUnmounted(() => {
               <div v-if="kbdSpec.speed">
                 <div class="ccu-field-row" style="margin-bottom: 6px">
                   <span class="ccu-field-label">动态速度</span>
-                  <span class="mono" style="color: #00c8ff; font-weight: 700">
+                  <span class="mono" style="color: var(--accent-cyan); font-weight: 700">
                     {{ kbd.speedUi }} / 10
                   </span>
                 </div>
@@ -846,7 +846,7 @@ onUnmounted(() => {
               <div>
                 <div class="ccu-field-row" style="margin-bottom: 6px">
                   <span class="ccu-field-label">亮度</span>
-                  <span class="mono" style="color: #00c8ff; font-weight: 700">
+                  <span class="mono" style="color: var(--accent-cyan); font-weight: 700">
                     {{ lb.brightnessPct }}%
                   </span>
                 </div>
@@ -862,7 +862,7 @@ onUnmounted(() => {
               <div v-if="lbSpec.speed">
                 <div class="ccu-field-row" style="margin-bottom: 6px">
                   <span class="ccu-field-label">速度</span>
-                  <span class="mono" style="color: #00c8ff; font-weight: 700">
+                  <span class="mono" style="color: var(--accent-cyan); font-weight: 700">
                     {{ lb.speedUi }} / 10
                   </span>
                 </div>
@@ -1307,6 +1307,6 @@ onUnmounted(() => {
   font-size: 11.5px;
   color: var(--ink-muted);
   padding-bottom: 6px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  border-bottom: 1px solid var(--border-subtle);
 }
 </style>

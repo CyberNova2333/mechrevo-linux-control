@@ -2,12 +2,13 @@
 <!-- This file is part of MECHREVO Linux Control and is licensed under GNU AGPLv3 with Additional Terms (see LICENSE and LICENSE-ADDITIONAL_TERMS-zh-CN.md; ref: LICENSE-ADDITIONAL_TERMS-en.md). -->
 
 <script setup lang="ts">
-import { computed, h, onMounted, onUnmounted, ref, shallowRef } from "vue";
+import { computed, h, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import {
   darkTheme,
   dateZhCN,
   NButton,
   NConfigProvider,
+  NDropdown,
   NLayout,
   NLayoutContent,
   NLayoutHeader,
@@ -16,6 +17,7 @@ import {
   NMessageProvider,
   NTag,
   zhCN,
+  type DropdownOption,
   type MenuOption,
 } from "naive-ui";
 import {
@@ -24,23 +26,33 @@ import {
   Gauge,
   Home,
   Layers,
+  Monitor,
+  Moon,
   PowerOff,
   Sparkles,
+  Sun,
 } from "lucide-vue-next";
 import { api } from "./api/tauri";
-import { mechrevoThemeOverrides } from "./theme/naiveTheme";
+import {
+  mechrevoDarkThemeOverrides,
+  mechrevoLightThemeOverrides,
+} from "./theme/naiveTheme";
 import type {
   LightingTabId,
   LiveTelemetry,
   PageId,
   PerformanceStatus,
+  ResolvedTheme,
   SystemInfo,
+  ThemePreference,
 } from "./types/hardware";
 import HomePage from "./pages/HomePage.vue";
 import PerformancePage from "./pages/PerformancePage.vue";
 import LightingPage from "./pages/LightingPage.vue";
 import WaterCoolingPage from "./pages/WaterCoolingPage.vue";
 import ProfilesPage from "./pages/ProfilesPage.vue";
+
+const THEME_STORAGE_KEY = "mechrevo-theme-pref";
 
 interface NavMeta {
   id: PageId;
@@ -77,11 +89,106 @@ const NAV_META: Record<PageId, NavMeta> = {
 };
 
 const MODE_BADGE: Record<string, { label: string; color: string }> = {
-  office: { label: "办公模式", color: "#22C55E" },
-  balanced: { label: "均衡模式", color: "#00C8FF" },
-  turbo: { label: "狂暴模式", color: "#A855F7" },
-  custom: { label: "自定义模式", color: "#E2E8F0" },
+  office: { label: "办公模式", color: "var(--led-office)" },
+  balanced: { label: "均衡模式", color: "var(--led-balanced)" },
+  turbo: { label: "狂暴模式", color: "var(--led-turbo)" },
+  custom: { label: "自定义模式", color: "var(--led-custom)" },
 };
+
+function loadSavedThemePref(): ThemePreference {
+  try {
+    const v = localStorage.getItem(THEME_STORAGE_KEY);
+    if (v === "light" || v === "dark" || v === "system") return v;
+  } catch {
+    // ignore storage errors
+  }
+  return "system";
+}
+
+function initialBrowserTheme(): ResolvedTheme {
+  if (typeof window !== "undefined" && window.matchMedia) {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  return "light";
+}
+
+const themePref = ref<ThemePreference>(loadSavedThemePref());
+const osTheme = ref<ResolvedTheme>(initialBrowserTheme());
+const resolvedTheme = computed<ResolvedTheme>(() =>
+  themePref.value === "system" ? osTheme.value : themePref.value
+);
+const isDark = computed(() => resolvedTheme.value === "dark");
+
+const naiveTheme = computed(() => (isDark.value ? darkTheme : null));
+const naiveOverrides = computed(() =>
+  isDark.value ? mechrevoDarkThemeOverrides : mechrevoLightThemeOverrides
+);
+
+const themeButtonLabel = computed(() => {
+  if (themePref.value === "system") return "自动";
+  return themePref.value === "dark" ? "深色" : "浅色";
+});
+
+const themeButtonTitle = computed(() => {
+  const activeText = isDark.value ? "深色" : "浅色";
+  if (themePref.value === "system") {
+    return `主题：跟随操作系统（当前 ${activeText}）· 快捷键 Ctrl+Shift+T`;
+  }
+  return `主题：固定${activeText}模式 · 快捷键 Ctrl+Shift+T`;
+});
+
+const themeDropdownOptions = computed<DropdownOption[]>(() => [
+  {
+    key: "system",
+    label: `跟随系统（当前：${osTheme.value === "dark" ? "深色" : "浅色"}）`,
+    icon: () => h(Monitor, { size: 14 }),
+  },
+  {
+    key: "light",
+    label: "浅色模式",
+    icon: () => h(Sun, { size: 14 }),
+  },
+  {
+    key: "dark",
+    label: "深色模式",
+    icon: () => h(Moon, { size: 14 }),
+  },
+]);
+
+function selectThemePref(next: string | number) {
+  if (next === "system" || next === "light" || next === "dark") {
+    themePref.value = next;
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, next);
+    } catch {
+      // ignore storage errors
+    }
+    if (next === "system") {
+      pollOsTheme();
+    }
+  }
+}
+
+function cycleThemePref() {
+  const order: ThemePreference[] = ["system", "light", "dark"];
+  const next = order[(order.indexOf(themePref.value) + 1) % order.length];
+  selectThemePref(next);
+}
+
+function applyResolvedTheme(mode: ResolvedTheme) {
+  document.documentElement.dataset.theme = mode;
+  api.setWindowTheme(mode).catch(() => {
+    // ignore if window theme call unavailable
+  });
+}
+
+watch(
+  resolvedTheme,
+  (mode) => {
+    applyResolvedTheme(mode);
+  },
+  { immediate: true }
+);
 
 const activePage = ref<PageId>("home");
 const lightingTab = ref<LightingTabId>("keyboard");
@@ -163,7 +270,9 @@ function navigateTo(page: PageId, subTab?: LightingTabId) {
 let sysTimer: number | null = null;
 let telemetryTimer: number | null = null;
 let perfTimer: number | null = null;
+let osThemeTimer: number | null = null;
 let noticeTimer: number | null = null;
+let mediaQuery: MediaQueryList | null = null;
 
 function showNotice(text: string) {
   noticeText.value = text;
@@ -171,6 +280,22 @@ function showNotice(text: string) {
   noticeTimer = window.setTimeout(() => {
     noticeText.value = "";
   }, 5000);
+}
+
+async function pollOsTheme() {
+  try {
+    const detected = await api.getSystemTheme();
+    if (detected === "dark" || detected === "light") {
+      osTheme.value = detected;
+    }
+  } catch {
+    // fallback to browser prefers-color-scheme
+  }
+}
+
+function onMediaThemeChange(e: MediaQueryListEvent) {
+  osTheme.value = e.matches ? "dark" : "light";
+  pollOsTheme();
 }
 
 async function pollSystem() {
@@ -218,6 +343,11 @@ async function handleAllLightsOff() {
 
 function onGlobalKeydown(e: KeyboardEvent) {
   if (!e.ctrlKey || e.altKey || e.metaKey) return;
+  if (e.shiftKey && e.key.toLowerCase() === "t") {
+    e.preventDefault();
+    cycleThemePref();
+    return;
+  }
   const map: Record<string, PageId> = {
     "1": "home",
     "2": "performance",
@@ -236,28 +366,41 @@ onMounted(() => {
   syncFromHash();
   window.addEventListener("hashchange", syncFromHash);
   window.addEventListener("keydown", onGlobalKeydown);
+
+  if (window.matchMedia) {
+    mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    mediaQuery.addEventListener("change", onMediaThemeChange);
+  }
+
+  pollOsTheme();
   pollSystem();
   pollTelemetry();
   pollPerfSummary();
+
   sysTimer = window.setInterval(pollSystem, 8000);
   telemetryTimer = window.setInterval(pollTelemetry, 2000);
   perfTimer = window.setInterval(pollPerfSummary, 5000);
+  osThemeTimer = window.setInterval(() => {
+    if (themePref.value === "system") pollOsTheme();
+  }, 6000);
 });
 
 onUnmounted(() => {
   window.removeEventListener("hashchange", syncFromHash);
   window.removeEventListener("keydown", onGlobalKeydown);
+  if (mediaQuery) mediaQuery.removeEventListener("change", onMediaThemeChange);
   if (sysTimer !== null) window.clearInterval(sysTimer);
   if (telemetryTimer !== null) window.clearInterval(telemetryTimer);
   if (perfTimer !== null) window.clearInterval(perfTimer);
+  if (osThemeTimer !== null) window.clearInterval(osThemeTimer);
   if (noticeTimer !== null) window.clearTimeout(noticeTimer);
 });
 </script>
 
 <template>
   <n-config-provider
-    :theme="darkTheme"
-    :theme-overrides="mechrevoThemeOverrides"
+    :theme="naiveTheme"
+    :theme-overrides="naiveOverrides"
     :locale="zhCN"
     :date-locale="dateZhCN"
   >
@@ -270,7 +413,7 @@ onUnmounted(() => {
                 <svg width="22" height="16" viewBox="0 0 24 18" fill="none">
                   <path
                     d="M2 15.5L7.4 2.8L12 11.4L16.6 2.8L22 15.5"
-                    stroke="#00C8FF"
+                    stroke="var(--accent-cyan)"
                     stroke-width="2.5"
                     stroke-linecap="round"
                     stroke-linejoin="round"
@@ -327,7 +470,7 @@ onUnmounted(() => {
               </n-tag>
 
               <div v-if="telemetry" class="mini-stat-chip mono" title="实时 CPU / GPU 温度">
-                <Cpu :size="13" color="#00C8FF" />
+                <Cpu :size="13" color="var(--accent-cyan)" />
                 <span>
                   CPU {{ telemetry.cpu.temp_c != null ? `${Math.round(telemetry.cpu.temp_c)}°C` : "--" }}
                 </span>
@@ -347,6 +490,22 @@ onUnmounted(() => {
                 />
                 <span>{{ activeModeBadge.label }}</span>
               </div>
+
+              <n-dropdown
+                trigger="click"
+                :options="themeDropdownOptions"
+                :value="themePref"
+                @select="selectThemePref"
+              >
+                <n-button size="small" secondary :title="themeButtonTitle">
+                  <template #icon>
+                    <Monitor v-if="themePref === 'system'" :size="14" />
+                    <Sun v-else-if="themePref === 'light'" :size="14" />
+                    <Moon v-else :size="14" />
+                  </template>
+                  {{ themeButtonLabel }}
+                </n-button>
+              </n-dropdown>
 
               <n-button
                 size="small"

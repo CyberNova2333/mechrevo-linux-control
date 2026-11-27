@@ -479,7 +479,7 @@ onUnmounted(() => {
               :fill="bodyEff ? rgbCss(bodyEff) : '#253147'"
             />
           </svg>
-          <span style="font-size: 11px; color: var(--ink-muted)">
+          <span style="font-size: 11px; color: #94a3b8">
             LCT22002 双区灯效 · 风轮 · 水流实时预览
           </span>
         </div>
@@ -555,7 +555,7 @@ onUnmounted(() => {
           <div>
             <div class="ccu-field-row" style="margin-bottom: 5px">
               <span class="ccu-field-label">水泵占空比</span>
-              <span class="mono" style="color: #00c8ff; font-weight: 700">
+              <span class="mono" style="color: var(--accent-cyan); font-weight: 700">
                 {{ cfg.manual.pump_duty }}%
               </span>
             </div>
@@ -569,7 +569,7 @@ onUnmounted(() => {
           <div>
             <div class="ccu-field-row" style="margin-bottom: 5px">
               <span class="ccu-field-label">冷排风扇占空比</span>
-              <span class="mono" style="color: #00c8ff; font-weight: 700">
+              <span class="mono" style="color: var(--accent-cyan); font-weight: 700">
                 {{ cfg.manual.fan_duty }}%
               </span>
             </div>
@@ -594,10 +594,10 @@ onUnmounted(() => {
                 :y1="mapCurveY(pct)"
                 x2="424"
                 :y2="mapCurveY(pct)"
-                stroke="rgba(148,163,184,0.14)"
+                stroke="var(--chart-grid)"
                 stroke-width="1"
               />
-              <text x="4" :y="mapCurveY(pct) + 3" fill="#64748b" font-size="9.5" class="mono">
+              <text x="4" :y="mapCurveY(pct) + 3" fill="var(--chart-axis)" font-size="9.5" class="mono">
                 {{ pct }}%
               </text>
             </g>
@@ -606,7 +606,7 @@ onUnmounted(() => {
               :key="t"
               :x="mapCurveX(t) - 10"
               y="132"
-              fill="#64748b"
+              fill="var(--chart-axis)"
               font-size="9.5"
               class="mono"
             >
@@ -618,15 +618,15 @@ onUnmounted(() => {
               y1="14"
               :x2="mapCurveX(snap.temp_c)"
               y2="116"
-              stroke="#FBBF24"
+              stroke="#F59E0B"
               stroke-width="1.3"
               stroke-dasharray="3 2"
             />
-            <polyline :points="pumpPoly" fill="none" stroke="#8B5CF6" stroke-width="2.3" />
-            <polyline :points="fanPoly" fill="none" stroke="#00C8FF" stroke-width="2.3" />
+            <polyline :points="pumpPoly" fill="none" stroke="var(--accent-violet)" stroke-width="2.3" />
+            <polyline :points="fanPoly" fill="none" stroke="var(--accent-cyan)" stroke-width="2.3" />
             <g v-for="(p, i) in sortedPoints" :key="i">
-              <circle :cx="mapCurveX(p.temp_c)" :cy="mapCurveY(p.pump_duty)" r="3.4" fill="#8B5CF6" />
-              <circle :cx="mapCurveX(p.temp_c)" :cy="mapCurveY(p.fan_duty)" r="3.4" fill="#00C8FF" />
+              <circle :cx="mapCurveX(p.temp_c)" :cy="mapCurveY(p.pump_duty)" r="3.4" fill="var(--accent-violet)" />
+              <circle :cx="mapCurveX(p.temp_c)" :cy="mapCurveY(p.fan_duty)" r="3.4" fill="var(--accent-cyan)" />
             </g>
           </svg>
 
@@ -855,8 +855,8 @@ onUnmounted(() => {
 .cooler-rig-box {
   width: 264px;
   flex-shrink: 0;
-  background: rgba(8, 11, 18, 0.85);
-  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: linear-gradient(180deg, #0c111d 0%, #080b12 100%);
+  border: 1px solid rgba(15, 23, 42, 0.24);
   border-radius: 12px;
   padding: 12px 10px 10px;
   display: flex;
@@ -869,9 +869,9 @@ onUnmounted(() => {
 .wc-curve-svg {
   width: 100%;
   height: 142px;
-  background: #080b12;
+  background: var(--bg-chart);
   border-radius: 9px;
-  border: 1px solid rgba(148, 163, 184, 0.14);
+  border: 1px solid var(--border-subtle);
 }
 
 .wc-point-head,
@@ -897,9 +897,9 @@ onUnmounted(() => {
   text-align: left;
   padding: 10px 12px;
   border-radius: 9px;
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  background: rgba(15, 21, 35, 0.85);
-  color: #dce4f2;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-tile);
+  color: var(--ink-secondary);
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -908,13 +908,13 @@ onUnmounted(() => {
 }
 
 .wc-preset-tile:hover {
-  border-color: rgba(0, 200, 255, 0.45);
+  border-color: color-mix(in srgb, var(--accent-cyan) 48%, transparent);
 }
 
 .wc-preset-tile.selected {
-  border-color: #00c8ff;
-  background: rgba(0, 200, 255, 0.13);
-  box-shadow: 0 0 14px rgba(0, 200, 255, 0.14);
+  border-color: var(--accent-cyan);
+  background: var(--bg-tile-selected);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent-cyan) 14%, transparent);
 }
 
 .wc-preset-head {
@@ -923,7 +923,7 @@ onUnmounted(() => {
   justify-content: space-between;
   font-size: 13px;
   font-weight: 650;
-  color: #f8fafc;
+  color: var(--ink-strong);
 }
 
 .wc-preset-desc {
@@ -934,6 +934,6 @@ onUnmounted(() => {
 
 .wc-preset-spec {
   font-size: 11px;
-  color: #93c5fd;
+  color: var(--ink-spec-accent);
 }
 </style>

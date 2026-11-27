@@ -355,7 +355,7 @@ onMounted(async () => {
             <div style="display: flex; align-items: center; gap: 10px; min-width: 0">
               <n-checkbox v-model:checked="rule.enabled" />
               <div>
-                <div style="font-weight: 650; font-size: 13px; color: #e2e8f0">{{ rule.name }}</div>
+                <div style="font-weight: 650; font-size: 13px; color: var(--ink-strong)">{{ rule.name }}</div>
                 <div class="ccu-field-hint mono">
                   {{ rule.match.join(", ") }} →
                   <n-tag size="tiny" :bordered="false" type="info">{{ rule.profile }}</n-tag>
