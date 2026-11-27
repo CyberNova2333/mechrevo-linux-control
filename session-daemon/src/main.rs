@@ -257,6 +257,8 @@ async fn spawn_logind_watcher(
 ) -> Result<tokio::task::AbortHandle, String> {
     let rule = MatchRule::builder()
         .msg_type(zbus::message::Type::Signal)
+        .sender("org.freedesktop.login1")
+        .map_err(|e| e.to_string())?
         .interface("org.freedesktop.login1.Manager")
         .map_err(|e| e.to_string())?
         .path("/org/freedesktop/login1")

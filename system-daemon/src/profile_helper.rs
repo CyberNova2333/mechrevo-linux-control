@@ -10,7 +10,7 @@ use crate::common::{
 };
 use crate::ec_guard::{
     fan_safety_protect_ec, gpu_round_adapter, logo_mask, mode_name, read_tuning_state,
-    reconcile_ec, restore_tuning, run_guard, run_with_lock, save_tuning_state, set_mode, snapshot,
+    reconcile_ec, restore_tuning, run_with_lock, save_tuning_state, set_mode, snapshot,
     standard_state, tuning_matches, tuning_put, unmanaged_gpu_clean, validate_tuning_config,
     watercooling_status, EcIo, TuningState, BASE_OWN_MASKS, GPU_OWN_MASKS, LOGO_MASKS, REG_MODE,
     TUNING_STATE_PATH, TURBO_JOURNAL_PATH,
@@ -188,9 +188,9 @@ pub fn logo_status<E: EcIo>(ec: &E) -> Result<Value, String> {
         LOGO_COLORS[(breathing - 1) as usize]
     } else {
         [
-            (((channels[0] as u16) * 51 + 9) / 10) as u8,
-            (((channels[1] as u16) * 51 + 9) / 10) as u8,
-            (((channels[2] as u16) * 51 + 9) / 10) as u8,
+            ((channels[0] as u16) * 51).div_ceil(10) as u8,
+            ((channels[1] as u16) * 51).div_ceil(10) as u8,
+            ((channels[2] as u16) * 51).div_ceil(10) as u8,
         ]
     };
     let mode = if rainbow {
@@ -636,9 +636,11 @@ pub fn apply_tuning<E: EcIo>(
     };
     save_tuning_state(state_path, &state)?;
 
+    let mut safety_triggered = false;
     let res = (|| -> Result<(), String> {
-        let put = |ec: &mut E, state: &mut TuningState, a: u16, v: u8| -> Result<(), String> {
+        let mut put = |ec: &mut E, state: &mut TuningState, a: u16, v: u8| -> Result<(), String> {
             if fan_safety_protect_ec(ec)? {
+                safety_triggered = true;
                 return Err("EC 触发高温风扇安全保护，撤销自定义调校".to_string());
             }
             if has_gpu && !gpu_round_adapter(ec)? {
@@ -676,7 +678,7 @@ pub fn apply_tuning<E: EcIo>(
     })();
 
     if let Err(err) = res {
-        if let Err(rec_err) = restore_tuning(ec, state_path, false) {
+        if let Err(rec_err) = restore_tuning(ec, state_path, safety_triggered) {
             return Err(format!("{err}；恢复尚未完成：{rec_err}"));
         }
         return Err(err);
@@ -687,11 +689,6 @@ pub fn apply_tuning<E: EcIo>(
 // ----------------------------------------------------------------- CLI entrypoint
 
 pub fn run_cli(args: &[String]) -> Result<Value, String> {
-    if args.len() == 1 && args[0] == "guard" {
-        run_guard()?;
-        return Ok(Value::Null);
-    }
-
     let usage = "用法：status | set office|balanced|turbo|custom | apply JSON | reset | logo-status | logo on|off|JSON | turbo-status | turbo quiet|extreme|off | lc-status";
     let is_valid = match args.len() {
         1 => matches!(

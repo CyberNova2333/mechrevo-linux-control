@@ -10,6 +10,7 @@ import {
   NCheckbox,
   NInput,
   NInputNumber,
+  NPopconfirm,
   NSelect,
   NSwitch,
   NTag,
@@ -80,7 +81,7 @@ function summarizeProfile(body: ProfileBundle | undefined): string {
   return parts.join(" · ") || "空预设";
 }
 
-async function persist(next: ProfilesConfig, msgText: string) {
+async function persist(next: ProfilesConfig, msgText: string): Promise<boolean> {
   busy.value = true;
   isError.value = false;
   try {
@@ -88,10 +89,12 @@ async function persist(next: ProfilesConfig, msgText: string) {
     cfg.value = saved;
     status.value = msgText;
     message.success(msgText);
+    return true;
   } catch (err) {
     status.value = `保存失败：${String(err)}`;
     isError.value = true;
     message.error(String(err));
+    return false;
   } finally {
     busy.value = false;
   }
@@ -156,12 +159,14 @@ async function handleDeleteSelected() {
   delete nextProfiles[deleting];
   const nextRules = cfg.value.rules.filter((r) => r.profile !== deleting);
   const nextNames = Object.keys(nextProfiles);
-  selectedName.value = nextNames[0] ?? null;
-  if (ruleTarget.value === deleting) ruleTarget.value = nextNames[0] ?? null;
-  await persist(
+  const ok = await persist(
     { ...cfg.value, profiles: nextProfiles, rules: nextRules },
     `已删除预设 ${deleting}`
   );
+  if (ok) {
+    selectedName.value = nextNames[0] ?? null;
+    if (ruleTarget.value === deleting) ruleTarget.value = nextNames[0] ?? null;
+  }
 }
 
 async function handleCapture() {
@@ -274,15 +279,23 @@ onMounted(async () => {
             <n-button size="small" secondary :disabled="busy" @click="handleImportTemplates">
               导入内置模板
             </n-button>
-            <n-button
-              size="small"
-              secondary
-              type="error"
-              :disabled="busy || !selectedName"
-              @click="handleDeleteSelected"
+            <n-popconfirm
+              positive-text="确认删除"
+              negative-text="取消"
+              @positive-click="handleDeleteSelected"
             >
-              删除预设
-            </n-button>
+              <template #trigger>
+                <n-button
+                  size="small"
+                  secondary
+                  type="error"
+                  :disabled="busy || !selectedName"
+                >
+                  删除预设
+                </n-button>
+              </template>
+              确认删除情景预设「{{ selectedName }}」以及引用它的联动规则？
+            </n-popconfirm>
           </div>
         </div>
 

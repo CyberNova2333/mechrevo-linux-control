@@ -251,11 +251,6 @@ pub fn preset_cells(name: &str, accent: Rgb) -> Result<Vec<Rgb>, String> {
         }
         return Ok(cells);
     }
-    if name == "wasd_fps" {
-        for &idx in &[0usize, 63, 77, 84, 85, 112] {
-            cells[idx] = [20, 45, 70];
-        }
-    }
     for (group, indices) in keycap_groups() {
         let col = match name {
             "wasd_fps" => match group {
@@ -285,6 +280,11 @@ pub fn preset_cells(name: &str, accent: Rgb) -> Result<Vec<Rgb>, String> {
             if idx < KBD_MATRIX_CELLS {
                 cells[idx] = col;
             }
+        }
+    }
+    if name == "wasd_fps" {
+        for &idx in &[0usize, 63, 77, 84, 85, 112] {
+            cells[idx] = [20, 45, 70];
         }
     }
     Ok(cells)
@@ -585,8 +585,12 @@ fn query_keyboard_hw_locked(saved_mode: Option<&str>) -> Result<KeyboardHwInfo, 
     )?;
     let mut buf = [0u8; 9];
     let req = hidiocgfeature(buf.len() as u32);
-    if unsafe { libc::ioctl(file.as_raw_fd(), req as libc::Ioctl, buf.as_mut_ptr()) } < 0 {
+    let rc = unsafe { libc::ioctl(file.as_raw_fd(), req as libc::Ioctl, buf.as_mut_ptr()) };
+    if rc < 0 {
         return Err(format!("读取键盘硬件状态失败: {}", std::io::Error::last_os_error()));
+    }
+    if rc < 8 || buf[1] != QUERY_EFFECT {
+        return Err(format!("读取键盘硬件状态返回异常帧 (rc={rc}, cmd=0x{:02x})", buf[1]));
     }
     let power = buf[2];
     let mode = buf[3];
@@ -622,12 +626,20 @@ pub fn apply_and_save_hid(device: &str, params: &Value, save_manual: bool) -> Re
     if save_manual {
         let _sguard = ZoneGuard::acquire("manual-state")?;
         let path = state_dir().join("state.json");
-        let mut root = match read_user_json(&path, MAX_STATE_BYTES).ok().flatten() {
+        let mut root = match read_user_json(&path, MAX_STATE_BYTES)? {
             Some(Value::Object(m)) => m,
-            _ => Map::new(),
+            None => Map::new(),
+            Some(_) => return Err("灯光状态文件格式无效（需为 JSON 对象）".to_string()),
         };
         root.insert(device.to_string(), params.clone());
-        write_user_json(&path, &Value::Object(root))?;
+        let val = Value::Object(root);
+        let encoded_len = serde_json::to_string_pretty(&val)
+            .map(|s| s.len() + 1)
+            .unwrap_or(usize::MAX);
+        if encoded_len > MAX_STATE_BYTES {
+            return Err("灯光状态超过大小限制".to_string());
+        }
+        write_user_json(&path, &val)?;
     }
     Ok(hw)
 }

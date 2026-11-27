@@ -403,17 +403,27 @@ pub fn scan_processes(proc_root: &Path, uid: u32) -> Vec<Vec<String>> {
         if !meta.is_dir() || meta.uid() != uid {
             continue;
         }
-        let Ok(comm_raw) = fs::read(path.join("comm")) else {
+        let mut comm_raw = Vec::new();
+        let Ok(comm_f) = fs::File::open(path.join("comm")) else {
             continue;
         };
-        let Ok(cmd_raw) = fs::read(path.join("cmdline")) else {
+        if std::io::Read::read_to_end(&mut std::io::Read::take(comm_f, 256), &mut comm_raw).is_err()
+        {
+            continue;
+        }
+        let mut cmd_raw = Vec::new();
+        let Ok(cmd_f) = fs::File::open(path.join("cmdline")) else {
             continue;
         };
+        if std::io::Read::read_to_end(&mut std::io::Read::take(cmd_f, 4096), &mut cmd_raw).is_err()
+        {
+            continue;
+        }
         if cmd_raw.is_empty() {
             continue;
         }
-        let comm_text = String::from_utf8_lossy(&comm_raw[..comm_raw.len().min(256)]);
-        let tokens = extract_tokens(&comm_text, &cmd_raw[..cmd_raw.len().min(4096)]);
+        let comm_text = String::from_utf8_lossy(&comm_raw);
+        let tokens = extract_tokens(&comm_text, &cmd_raw);
         if tokens.is_empty()
             || tokens.iter().any(|t| {
                 IGNORED_SELF_TOKENS.contains(&t.as_str())
@@ -539,7 +549,11 @@ impl RuleEvaluator {
     {
         match self.last_b0_seq {
             None => self.last_b0_seq = Some(b0_seq),
-            Some(prev) if b0_seq > prev => {
+            Some(prev) if b0_seq == 0 && prev > 0 => {
+                // Guard daemon restarted and sequence counter reset to 0.
+                self.last_b0_seq = Some(0);
+            }
+            Some(prev) if b0_seq > 0 && b0_seq != prev => {
                 self.last_b0_seq = Some(b0_seq);
                 if let Some(yielded) = self.active_rule.clone() {
                     let prev_prof = self.active_profile.clone();
@@ -808,8 +822,8 @@ async fn apply_performance(perf: &Value) -> Result<(), String> {
     }
 
     if target_mode == "turbo" {
+        let turbo = latest_st.get("turbo").and_then(|v| v.as_object());
         if let Some(desired_turbo) = perf.get("turbo").and_then(|v| v.as_str()) {
-            let turbo = latest_st.get("turbo").and_then(|v| v.as_object());
             let eligible = turbo.map(|t| {
                 t.get("available").and_then(|v| v.as_bool()) == Some(true)
                     && t.get("round_adapter").and_then(|v| v.as_bool()) == Some(true)
@@ -824,6 +838,9 @@ async fn apply_performance(perf: &Value) -> Result<(), String> {
             if eligible && cur_variant != Some(desired_turbo) {
                 run_profile_helper(&["turbo", desired_turbo], 6).await?;
             }
+        } else if turbo.and_then(|t| t.get("active").and_then(|v| v.as_bool())) == Some(true) {
+            // Baseline was standard firmware turbo; release active turbo submode lease.
+            run_profile_helper(&["turbo", "off"], 6).await?;
         }
     }
     Ok(())

@@ -72,9 +72,14 @@ function hydrateTuning(t: TuningConfig) {
   }
 }
 
+let alive = true;
+let refreshSeq = 0;
+
 async function refresh(syncPrefs: boolean) {
+  const seq = ++refreshSeq;
   try {
     const res = await api.getPerformanceStatus();
+    if (!alive || seq !== refreshSeq || busy.value) return;
     perf.value = res.status;
     emit("statusUpdated", res.status);
     if (syncPrefs) {
@@ -85,27 +90,31 @@ async function refresh(syncPrefs: boolean) {
     statusMsg.value = res.status.reason || "已连接固件档位控制";
     isError.value = false;
   } catch (err) {
+    if (!alive || seq !== refreshSeq) return;
     statusMsg.value = `读取固件状态失败：${String(err)}`;
     isError.value = true;
   }
 }
 
 async function runOp(label: string, fn: () => Promise<PerformanceStatus>) {
+  refreshSeq += 1;
   busy.value = true;
   statusMsg.value = label;
   isError.value = false;
   try {
     const next = await fn();
+    if (!alive) return;
     perf.value = next;
     emit("statusUpdated", next);
     statusMsg.value = next.reason || "设置已生效，硬件回读一致";
     message.success("固件状态已更新");
   } catch (err) {
+    if (!alive) return;
     statusMsg.value = String(err);
     isError.value = true;
     message.error(String(err));
   } finally {
-    busy.value = false;
+    if (alive) busy.value = false;
   }
 }
 
@@ -136,9 +145,12 @@ function updateFanNode(which: "cpu" | "gpu", idx: number, val: number | null) {
   const arr = which === "cpu" ? cpuFan.value.slice() : gpuFan.value.slice();
   const clamped = Math.max(MIN_FAN_DUTY[idx], Math.min(100, Math.round(val ?? MIN_FAN_DUTY[idx])));
   arr[idx] = clamped;
-  // Auto-keep upper nodes >= clamped for smooth UX
-  for (let j = idx + 1; j < arr.length; j++) {
-    if (arr[j] < clamped) arr[j] = clamped;
+  // Auto-keep lower nodes <= clamped (never below factory floor) and upper nodes >= clamped
+  for (let j = idx - 1; j >= 0; j--) {
+    if (arr[j] > clamped) arr[j] = Math.max(MIN_FAN_DUTY[j], clamped);
+  }
+  for (let j = 1; j < arr.length; j++) {
+    if (arr[j] < arr[j - 1]) arr[j] = arr[j - 1];
   }
   arr[10] = 100;
   if (which === "cpu") cpuFan.value = arr;
@@ -244,12 +256,14 @@ const curvePts = computed(() =>
 
 let pollTimer: number | null = null;
 onMounted(() => {
+  alive = true;
   refresh(true);
   pollTimer = window.setInterval(() => {
-    if (!busy.value) refresh(false);
+    if (!busy.value) refresh(!initialized.value);
   }, 3500);
 });
 onUnmounted(() => {
+  alive = false;
   if (pollTimer !== null) window.clearInterval(pollTimer);
 });
 </script>

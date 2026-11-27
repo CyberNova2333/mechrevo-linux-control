@@ -9,9 +9,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashSet;
 use std::fs;
-use std::io::Write;
-use std::os::unix::fs::PermissionsExt;
+use std::io::{Read, Write};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+const MAX_CONFIG_BYTES: u64 = 65_536;
+static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
 
 #[allow(dead_code)]
 pub const NUS_SERVICE_UUID: &str = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
@@ -431,11 +435,34 @@ pub fn merge_config_patch(current: &CoolerConfig, patch: &Value) -> Result<Coole
 }
 
 pub fn load_config(path: &Path) -> Result<CoolerConfig, String> {
-    if !path.exists() {
-        return Ok(CoolerConfig::default());
+    let f = match fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK)
+        .open(path)
+    {
+        Ok(f) => f,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(CoolerConfig::default()),
+        Err(e) => return Err(format!("读取水冷配置失败: {e}")),
+    };
+    let meta = f.metadata().map_err(|e| format!("读取水冷配置属性失败: {e}"))?;
+    if !meta.is_file() {
+        return Err("水冷配置文件不是普通文件".to_string());
     }
-    let text = fs::read_to_string(path).map_err(|e| format!("读取水冷配置失败: {e}"))?;
-    let raw: Value = serde_json::from_str(&text).map_err(|e| format!("解析水冷配置 JSON 失败: {e}"))?;
+    if meta.len() > MAX_CONFIG_BYTES {
+        return Err("水冷配置文件体积超过限制".to_string());
+    }
+    let my_uid = unsafe { libc::geteuid() };
+    if meta.uid() != my_uid || (meta.mode() & 0o002) != 0 {
+        return Err("水冷配置文件归属或权限不安全".to_string());
+    }
+    let mut buf = Vec::new();
+    f.take(MAX_CONFIG_BYTES + 1)
+        .read_to_end(&mut buf)
+        .map_err(|e| format!("读取水冷配置失败: {e}"))?;
+    if (buf.len() as u64) > MAX_CONFIG_BYTES {
+        return Err("水冷配置文件体积超过限制".to_string());
+    }
+    let raw: Value = serde_json::from_slice(&buf).map_err(|e| format!("解析水冷配置 JSON 失败: {e}"))?;
     validate_config_value(&raw)
 }
 
@@ -444,20 +471,38 @@ pub fn save_config(cfg: &CoolerConfig, path: &Path) -> Result<CoolerConfig, Stri
     let canonical = validate_config_value(&val)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("创建配置目录失败: {e}"))?;
+        let _ = fs::set_permissions(parent, fs::Permissions::from_mode(0o700));
     }
+    let seq = TMP_SEQ.fetch_add(1, Ordering::Relaxed);
     let mut tmp = path.as_os_str().to_os_string();
-    tmp.push(".tmp");
+    tmp.push(format!(".tmp.{}.{seq}", std::process::id()));
     let tmp_path = PathBuf::from(tmp);
     let mut body = serde_json::to_string_pretty(&canonical).map_err(|e| e.to_string())?;
     body.push('\n');
-    {
-        let mut f = fs::File::create(&tmp_path).map_err(|e| format!("写入临时配置失败: {e}"))?;
-        let _ = f.set_permissions(fs::Permissions::from_mode(0o644));
+    let write_res: Result<(), String> = (|| {
+        let mut f = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(&tmp_path)
+            .map_err(|e| format!("创建临时配置失败: {e}"))?;
+        f.set_permissions(fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("设置临时配置权限失败: {e}"))?;
         f.write_all(body.as_bytes())
             .map_err(|e| format!("写入临时配置失败: {e}"))?;
-        let _ = f.sync_all();
+        f.sync_all()
+            .map_err(|e| format!("刷盘临时配置失败: {e}"))?;
+        Ok(())
+    })();
+    if let Err(e) = write_res {
+        let _ = fs::remove_file(&tmp_path);
+        return Err(e);
     }
-    fs::rename(&tmp_path, path).map_err(|e| format!("替换配置文件失败: {e}"))?;
+    if let Err(e) = fs::rename(&tmp_path, path) {
+        let _ = fs::remove_file(&tmp_path);
+        return Err(format!("替换配置文件失败: {e}"));
+    }
     Ok(canonical)
 }
 

@@ -231,9 +231,12 @@ fn build_item(spec: &ServiceSpec, props: Option<&HashMap<String, String>>) -> Se
     }
 }
 
-async fn query_scope_props(scope: ServiceScope, units: &[&str]) -> HashMap<String, HashMap<String, String>> {
+async fn query_scope_props(
+    scope: ServiceScope,
+    units: &[&str],
+) -> Result<HashMap<String, HashMap<String, String>>, String> {
     if units.is_empty() {
-        return HashMap::new();
+        return Ok(HashMap::new());
     }
     let mut cmd = Command::new(SYSTEMCTL);
     if scope == ServiceScope::User {
@@ -245,14 +248,58 @@ async fn query_scope_props(scope: ServiceScope, units: &[&str]) -> HashMap<Strin
         .args(units)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .kill_on_drop(true);
 
-    let Ok(Ok(out)) = tokio::time::timeout(Duration::from_secs(4), cmd.output()).await else {
-        return HashMap::new();
-    };
+    let out = tokio::time::timeout(Duration::from_secs(4), cmd.output())
+        .await
+        .map_err(|_| "查询 systemd 服务状态超时 (4s)".to_string())?
+        .map_err(|e| format!("无法调用 systemctl: {e}"))?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            format!("systemctl show 返回错误码 {}", out.status.code().unwrap_or(-1))
+        } else {
+            stderr
+        });
+    }
     let stdout = String::from_utf8_lossy(&out.stdout);
-    parse_systemctl_show_blocks(&stdout)
+    Ok(parse_systemctl_show_blocks(&stdout))
+}
+
+/// Live active status of the 4 core background daemons, sourced directly from systemd.
+pub async fn check_core_daemons_active() -> (bool, bool, bool, bool) {
+    let user_map = query_scope_props(
+        ServiceScope::User,
+        &[
+            "iteglow-watercooling.service",
+            "iteglow-session-restore.service",
+        ],
+    )
+    .await
+    .unwrap_or_default();
+    let sys_map = query_scope_props(
+        ServiceScope::System,
+        &[
+            "mechrevo-turbo.service",
+            "mechrevo-profile-guard.service",
+        ],
+    )
+    .await
+    .unwrap_or_default();
+
+    let is_active = |map: &HashMap<String, HashMap<String, String>>, unit: &str| {
+        map.get(unit)
+            .and_then(|p| p.get("ActiveState"))
+            .map(|s| s.trim() == "active")
+            .unwrap_or(false)
+    };
+    (
+        is_active(&user_map, "iteglow-watercooling.service"),
+        is_active(&user_map, "iteglow-session-restore.service"),
+        is_active(&sys_map, "mechrevo-turbo.service"),
+        is_active(&sys_map, "mechrevo-profile-guard.service"),
+    )
 }
 
 #[tauri::command]
@@ -268,8 +315,8 @@ pub async fn list_services() -> Result<Vec<ServiceStatusItem>, String> {
         .map(|s| s.unit)
         .collect();
 
-    let user_map = query_scope_props(ServiceScope::User, &user_units).await;
-    let sys_map = query_scope_props(ServiceScope::System, &sys_units).await;
+    let user_map = query_scope_props(ServiceScope::User, &user_units).await?;
+    let sys_map = query_scope_props(ServiceScope::System, &sys_units).await?;
 
     let items = MANAGED_SERVICES
         .iter()
@@ -317,7 +364,7 @@ pub async fn control_service(unit: String, action: String) -> Result<Value, Stri
         }
         ServiceScope::System => {
             let mut c = Command::new(PKEXEC);
-            c.args([SYSTEMCTL, &action, spec.unit]);
+            c.args(["--disable-internal-agent", SYSTEMCTL, &action, spec.unit]);
             (c, 60u64)
         }
     };
@@ -336,7 +383,11 @@ pub async fn control_service(unit: String, action: String) -> Result<Value, Stri
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
         let code = output.status.code().unwrap_or(-1);
-        if code == 126 || code == 127 || stderr.to_ascii_lowercase().contains("dismissed") {
+        if spec.scope == ServiceScope::System
+            && (code == 126
+                || (code == 127 && stderr.to_ascii_lowercase().contains("not authorized"))
+                || stderr.to_ascii_lowercase().contains("dismissed"))
+        {
             return Err("管理员授权已取消，未修改系统服务".to_string());
         }
         let detail = if !stderr.is_empty() {
@@ -350,13 +401,17 @@ pub async fn control_service(unit: String, action: String) -> Result<Value, Stri
     }
 
     // Re-read fresh status for the controlled unit immediately
-    let fresh_map = query_scope_props(spec.scope, &[spec.unit]).await;
+    let fresh_map = query_scope_props(spec.scope, &[spec.unit])
+        .await
+        .unwrap_or_default();
     let item = build_item(spec, fresh_map.get(spec.unit));
     Ok(json!({
         "ok": true,
         "service": item,
     }))
 }
+
+const MAX_LOG_BYTES: usize = 512 * 1024;
 
 #[tauri::command]
 pub async fn get_service_logs(unit: String, lines: Option<u32>) -> Result<Value, String> {
@@ -386,7 +441,12 @@ pub async fn get_service_logs(unit: String, lines: Option<u32>) -> Result<Value,
         .map_err(|_| "读取日志超时 (5s)".to_string())?
         .map_err(|e| format!("无法调用 journalctl：{e}"))?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let raw_bytes = if output.stdout.len() > MAX_LOG_BYTES {
+        &output.stdout[output.stdout.len() - MAX_LOG_BYTES..]
+    } else {
+        &output.stdout[..]
+    };
+    let stdout = String::from_utf8_lossy(raw_bytes).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
     let log_lines: Vec<String> = stdout.lines().map(|l| l.to_string()).collect();
 
@@ -394,7 +454,7 @@ pub async fn get_service_logs(unit: String, lines: Option<u32>) -> Result<Value,
         "unit": spec.unit,
         "title": spec.title,
         "lines": log_lines,
-        "warning": if !output.status.success() && !stderr.is_empty() { Some(stderr) } else { None::<String> },
+        "warning": if !stderr.is_empty() { Some(stderr) } else { None::<String> },
     }))
 }
 

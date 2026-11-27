@@ -166,10 +166,13 @@ pub fn collect(tables_dir: &Path, dest_dir: &Path, capture: bool) -> Result<Valu
         let pretty = serde_json::to_string_pretty(&report)
             .map_err(|e| format!("序列化报告失败: {e}"))?;
         write_private_file(&folder.join("report.json"), pretty.as_bytes())?;
-        let latest_tmp = dest_dir.join("latest.new");
-        write_private_file(&latest_tmp, pretty.as_bytes())?;
-        fs::rename(&latest_tmp, dest_dir.join("latest.json"))
-            .map_err(|e| format!("更新 latest.json 失败: {e}"))?;
+        crate::common::atomic_write_json(
+            &dest_dir.join("latest.json"),
+            &report,
+            0o600,
+            ".latest-",
+            true,
+        )?;
         if let Some(obj) = report.as_object_mut() {
             obj.insert(
                 "capture_directory".to_string(),

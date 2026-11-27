@@ -14,7 +14,7 @@ use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::io::{AsRawFd, FromRawFd};
@@ -329,9 +329,9 @@ impl<D: TurboDevice> Controller<D> {
         }
     }
 
-    fn take_lock(&self) -> Result<Option<RootFlock>, LockError> {
+    fn take_lock(&self, wait: Option<Duration>) -> Result<Option<RootFlock>, LockError> {
         match &self.lock_path {
-            Some(p) => RootFlock::acquire(p, None).map(Some),
+            Some(p) => RootFlock::acquire(p, wait).map(Some),
             None => Ok(None),
         }
     }
@@ -395,7 +395,7 @@ impl<D: TurboDevice> Controller<D> {
     }
 
     pub fn release(&mut self, reason: &str) -> Result<Value, LockError> {
-        let _guard = self.take_lock()?;
+        let _guard = self.take_lock(Some(Duration::from_millis(1500)))?;
         self.release_locked(reason).map_err(LockError::Other)
     }
 
@@ -403,7 +403,7 @@ impl<D: TurboDevice> Controller<D> {
         if variant != "quiet" && variant != "extreme" {
             return Err(LockError::Other("子模式仅支持quiet/extreme".to_string()));
         }
-        let _guard = self.take_lock()?;
+        let _guard = self.take_lock(Some(Duration::from_millis(1500)))?;
         let ident = (self.machine_fn)().map_err(LockError::Other)?;
         check_identity(&ident).map_err(LockError::Other)?;
         if let Err(err) = (self.runtime_ready_fn)() {
@@ -477,7 +477,7 @@ impl<D: TurboDevice> Controller<D> {
     }
 
     pub fn tick(&mut self, sample: Option<LoadSample>) -> Result<Value, LockError> {
-        let _guard = self.take_lock()?;
+        let _guard = self.take_lock(None)?;
         let status = self.device.status().map_err(LockError::Other)?;
         if status["active"].as_bool() != Some(true) {
             if self.record.is_some() {
@@ -556,8 +556,8 @@ impl<D: TurboDevice> Controller<D> {
                     return Err("实际WMI ACK不是整数".to_string());
                 };
                 let ack = (ack_u64 & 0xFF) as u8;
-                if replies.contains_key(&op) {
-                    replies.insert(op, ack);
+                if let std::collections::hash_map::Entry::Occupied(mut e) = replies.entry(op) {
+                    e.insert(ack);
                 } else if ack != op.expected_ack() {
                     return Err("游戏负载通知ACK不匹配".to_string());
                 }
@@ -727,7 +727,7 @@ fn check_peer_root(stream: &UnixStream) -> Result<(), String> {
             &mut len,
         )
     };
-    if rc != 0 || cred.uid != 0 {
+    if rc != 0 || len != std::mem::size_of::<libc::ucred>() as libc::socklen_t || cred.uid != 0 {
         return Err("仅接受root控制客户端".to_string());
     }
     Ok(())
@@ -738,15 +738,15 @@ fn handle_client<D: TurboDevice>(controller: &mut Controller<D>, mut stream: Uni
     let _ = stream.set_write_timeout(Some(Duration::from_millis(300)));
     let response = (|| -> Result<Value, String> {
         check_peer_root(&stream)?;
-        let mut buf = [0u8; 2049];
-        let n = stream
-            .read(&mut buf)
+        let mut reader = std::io::BufReader::new(&stream);
+        let mut buf = Vec::new();
+        let n = std::io::BufRead::read_until(&mut std::io::Read::take(&mut reader, 2049), b'\n', &mut buf)
             .map_err(|e| format!("读取客户端请求失败: {e}"))?;
-        if n == 0 || n > 2048 || !buf[..n].contains(&b'\n') {
+        if n == 0 || n > 2048 || !buf.ends_with(b"\n") {
             return Err("请求过长或不完整".to_string());
         }
         let req: Value =
-            serde_json::from_slice(&buf[..n]).map_err(|e| format!("请求 JSON 无效: {e}"))?;
+            serde_json::from_slice(&buf).map_err(|e| format!("请求 JSON 无效: {e}"))?;
         dispatch(controller, &req)
     })();
     let reply = match response {
@@ -762,6 +762,9 @@ fn handle_client<D: TurboDevice>(controller: &mut Controller<D>, mut stream: Uni
 pub fn run_daemon() -> Result<(), String> {
     if unsafe { libc::geteuid() } != 0 {
         return Err("守护进程需要root与已验收的专用内核lease".to_string());
+    }
+    unsafe {
+        libc::umask(0o077);
     }
     check_identity(&identity()?)?;
     check_runtime()?;

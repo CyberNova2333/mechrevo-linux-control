@@ -163,7 +163,22 @@ pub fn apply_patch(build_dir: &Path) -> Result<&'static str, String> {
 
     let mut written: Vec<usize> = Vec::new();
     for (idx, (path, content)) in updated.iter().enumerate() {
-        if let Err(err) = fs::write(path, content) {
+        let tmp = path.with_extension(format!("mechrevo-tmp-{}", std::process::id()));
+        let write_ok = (|| -> Result<(), std::io::Error> {
+            use std::io::Write;
+            use std::os::unix::fs::OpenOptionsExt;
+            let mut f = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+                .open(&tmp)?;
+            f.write_all(content.as_bytes())?;
+            f.sync_all()?;
+            fs::rename(&tmp, path)?;
+            Ok(())
+        })();
+        if let Err(err) = write_ok {
+            let _ = fs::remove_file(&tmp);
             for w in written {
                 let _ = fs::write(&originals[w].0, &originals[w].1);
             }

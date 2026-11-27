@@ -12,12 +12,13 @@ use crate::hid::{
     PRESET_NAMES, QUERY_EFFECT, QUERY_FW_VERSION,
 };
 use crate::zone_lock::{
-    config_dir, read_json_file, runtime_dir, state_dir, user_home_for_name, user_home_for_uid,
-    write_json_file, ZoneGuard, MAX_PROFILE_BYTES, MAX_STATE_BYTES, SYSTEM_STATE_PATH,
+    config_dir, read_json_file, read_user_state_for_pin, runtime_dir, state_dir,
+    user_home_for_uid, user_info_for_name, write_json_file, ZoneGuard, MAX_PROFILE_BYTES,
+    MAX_STATE_BYTES, SYSTEM_STATE_PATH,
 };
 use serde_json::{json, Map, Value};
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::UnixStream;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
@@ -72,8 +73,8 @@ fn run_profile_helper(args: &[&str]) -> Result<Value, String> {
             .ok()
             .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(String::from))
             .filter(|s| !s.is_empty())
-            .or_else(|| if !stderr.is_empty() { Some(stderr) } else { None })
-            .or_else(|| if !stdout.is_empty() { Some(stdout) } else { None })
+            .or((!stderr.is_empty()).then_some(stderr))
+            .or((!stdout.is_empty()).then_some(stdout))
             .unwrap_or_else(|| "hardware helper failed or unauthorized".to_string());
         return Err(msg);
     }
@@ -116,26 +117,35 @@ fn cmd_doctor() -> Result<bool, String> {
         let access = unsafe { libc::access(c_path.as_ptr(), libc::R_OK | libc::W_OK) } == 0;
         let mut extra = String::new();
         if access {
-            if let Ok(mut f) = open_hidraw(label) {
-                if let Ok(raw_fw) = query_raw(&mut f, QUERY_FW_VERSION) {
-                    let fw = parse_fw_version(&raw_fw);
-                    extra.push_str(&format!("  fw {}.{}", fw.0, fw.1));
-                }
-                if label == "keyboard" {
-                    if let Ok(raw_eff) = query_raw(&mut f, QUERY_EFFECT) {
-                        let hw = parse_keyboard_state(&raw_eff);
-                        let onoff = if hw.power == 0x01 || hw.brightness == 0 {
-                            "off"
-                        } else {
-                            "on"
-                        };
-                        let (mode_name, _) = decode_keyboard_mode(hw, None);
-                        extra.push_str(&format!(
-                            "  [{onoff}, {mode_name} 0x{:02x}, brightness {}]",
-                            hw.mode, hw.brightness
-                        ));
+            let _guard = if unsafe { libc::geteuid() } != 0 {
+                ZoneGuard::acquire(label).ok()
+            } else {
+                None
+            };
+            if unsafe { libc::geteuid() } == 0 || _guard.is_some() {
+                if let Ok(mut f) = open_hidraw(label) {
+                    if let Ok(raw_fw) = query_raw(&mut f, QUERY_FW_VERSION) {
+                        let fw = parse_fw_version(&raw_fw);
+                        extra.push_str(&format!("  fw {}.{}", fw.0, fw.1));
+                    }
+                    if label == "keyboard" {
+                        if let Ok(raw_eff) = query_raw(&mut f, QUERY_EFFECT) {
+                            let hw = parse_keyboard_state(&raw_eff);
+                            let onoff = if hw.power == 0x01 || hw.brightness == 0 {
+                                "off"
+                            } else {
+                                "on"
+                            };
+                            let (mode_name, _) = decode_keyboard_mode(hw, None);
+                            extra.push_str(&format!(
+                                "  [{onoff}, {mode_name} 0x{:02x}, brightness {}]",
+                                hw.mode, hw.brightness
+                            ));
+                        }
                     }
                 }
+            } else {
+                extra.push_str("  [lock busy]");
             }
         }
         let access_str = if access {
@@ -380,34 +390,58 @@ fn cmd_pin() -> Result<(), String> {
     if unsafe { libc::geteuid() } != 0 {
         return Err("pin writes the system state; run it with sudo.".to_string());
     }
-    let home = if let Ok(uid_str) = std::env::var("PKEXEC_UID") {
+    let invoker: Option<(u32, PathBuf)> = if let Ok(uid_str) = std::env::var("PKEXEC_UID") {
         let uid: u32 = uid_str.parse().map_err(|_| "invalid PKEXEC_UID")?;
-        user_home_for_uid(uid)
+        let home = user_home_for_uid(uid).ok_or("cannot resolve PKEXEC_UID home directory")?;
+        Some((uid, home))
     } else if let Ok(user) = std::env::var("SUDO_USER") {
-        if user != "root" && !user.is_empty() {
-            user_home_for_name(&user)
+        if !user.is_empty() && user != "root" {
+            let info =
+                user_info_for_name(&user).ok_or("cannot resolve SUDO_USER account info")?;
+            Some(info)
         } else {
             None
         }
     } else {
         None
     };
-    let src = match home {
-        Some(h) => h.join(".local/state/iteglow/state.json"),
-        None => state_dir().join("state.json"),
+
+    let (src_display, data_opt) = match invoker {
+        Some((uid, home)) => {
+            let disp = home.join(".local/state/iteglow/state.json");
+            let data = read_user_state_for_pin(&home, uid, MAX_STATE_BYTES)?;
+            (disp, data)
+        }
+        None => {
+            let src = state_dir().join("state.json");
+            let data = read_json_file(&src, MAX_STATE_BYTES, true)?;
+            (src, data)
+        }
     };
-    let Some(data) = read_json_file(&src, MAX_STATE_BYTES, false)? else {
+    let Some(data) = data_opt else {
         return Err(format!(
             "no saved state at {}; run `iteglow set ...` (or the GUI) first.",
-            src.display()
+            src_display.display()
         ));
     };
     let Some(obj) = data.as_object() else {
         return Err("invalid saved lighting state".to_string());
     };
-    write_json_file(Path::new(SYSTEM_STATE_PATH), &data, 0o644)?;
-    let mut keys: Vec<&str> = obj.keys().map(|s| s.as_str()).collect();
+    let mut clean = Map::new();
+    for (label, params) in obj {
+        if label != "keyboard" && label != "lightbar" {
+            return Err(format!("unexpected device key {label:?} in saved lighting state"));
+        }
+        build_reports(label, params)
+            .map_err(|e| format!("invalid saved {label} state: {e}"))?;
+        clean.insert(label.clone(), params.clone());
+    }
+    if clean.is_empty() {
+        return Err("saved lighting state contains no valid device entries".to_string());
+    }
+    let mut keys: Vec<String> = clean.keys().cloned().collect();
     keys.sort();
+    write_json_file(Path::new(SYSTEM_STATE_PATH), &Value::Object(clean), 0o644)?;
     println!("pinned {} -> {SYSTEM_STATE_PATH}", keys.join(", "));
     println!("Export only; restore it manually with `iteglow restore --system`.");
     println!("Automatic restore uses your user state via iteglow-session-restore.service when configured.");
@@ -472,6 +506,34 @@ fn builtin_templates() -> Map<String, Value> {
     val.as_object().cloned().unwrap_or_default()
 }
 
+const MAX_PROFILES: usize = 32;
+const MAX_RULES: usize = 32;
+const MAX_MATCH_TOKENS: usize = 8;
+
+fn validate_identifier(name: &str, max_len: usize, kind: &str) -> Result<(), String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() || trimmed != name || trimmed.chars().count() > max_len {
+        return Err(format!("{kind} name must be 1..={max_len} non-whitespace-padded characters"));
+    }
+    if trimmed.chars().any(|c| c.is_control() || c == '/' || c == '\\') {
+        return Err(format!("{kind} name contains forbidden control or path characters"));
+    }
+    Ok(())
+}
+
+fn ensure_profiles_schema(cfg: &mut Value) -> Result<(), String> {
+    let Some(root) = cfg.as_object_mut() else {
+        return Err("invalid profiles config: expected JSON object".to_string());
+    };
+    if !root.get("profiles").map(|v| v.is_object()).unwrap_or(false) {
+        return Err("invalid profiles config: 'profiles' must be a JSON object".to_string());
+    }
+    if !root.get("rules").map(|v| v.is_array()).unwrap_or(false) {
+        return Err("invalid profiles config: 'rules' must be a JSON array".to_string());
+    }
+    Ok(())
+}
+
 fn cmd_profile(args: &[String]) -> Result<(), String> {
     user_lighting_only()?;
     let Some(action) = args.first().map(|s| s.as_str()) else {
@@ -480,6 +542,7 @@ fn cmd_profile(args: &[String]) -> Result<(), String> {
     let path = config_dir().join("profiles.json");
     let mut cfg = read_json_file(&path, MAX_PROFILE_BYTES, true)?
         .unwrap_or_else(default_profiles_config);
+    ensure_profiles_schema(&mut cfg)?;
 
     match action {
         "list" => {
@@ -570,6 +633,7 @@ fn cmd_profile(args: &[String]) -> Result<(), String> {
         }
         "save" => {
             let name = args.get(1).ok_or("Usage: iteglow profile save <name> [--label L] [--no-performance] [--no-lighting]")?;
+            validate_identifier(name, 48, "profile")?;
             let mut label: Option<String> = None;
             let mut include_perf = true;
             let mut include_light = true;
@@ -604,10 +668,11 @@ fn cmd_profile(args: &[String]) -> Result<(), String> {
                                     }
                                 }
                             }
-                        } else if mode == "custom" && st["tuning_active"].as_bool() == Some(true) {
-                            if st["tuning"].is_object() {
-                                p.insert("tuning".into(), st["tuning"].clone());
-                            }
+                        } else if mode == "custom"
+                            && st["tuning_active"].as_bool() == Some(true)
+                            && st["tuning"].is_object()
+                        {
+                            p.insert("tuning".into(), st["tuning"].clone());
                         }
                         bundle.insert("performance".into(), Value::Object(p));
                     }
@@ -636,10 +701,14 @@ fn cmd_profile(args: &[String]) -> Result<(), String> {
             if !bundle.contains_key("performance") && !bundle.contains_key("lighting") {
                 return Err("nothing captured".to_string());
             }
-            cfg["profiles"]
-                .as_object_mut()
-                .ok_or("invalid profiles config")?
-                .insert(name.clone(), Value::Object(bundle));
+            let profs = cfg
+                .get_mut("profiles")
+                .and_then(|v| v.as_object_mut())
+                .ok_or("invalid profiles config")?;
+            if !profs.contains_key(name) && profs.len() >= MAX_PROFILES {
+                return Err(format!("profile count exceeds maximum ({MAX_PROFILES})"));
+            }
+            profs.insert(name.clone(), Value::Object(bundle));
             write_json_file(&path, &cfg, 0o600)?;
             println!("saved profile {name:?} -> {}", path.display());
             Ok(())
@@ -707,7 +776,9 @@ fn cmd_profile(args: &[String]) -> Result<(), String> {
                         run_profile_helper(&["set", mode])?;
                         if mode == "turbo" {
                             if let Some(var) = perf.get("turbo").and_then(|v| v.as_str()) {
-                                let _ = run_profile_helper(&["turbo", var]);
+                                if let Err(e) = run_profile_helper(&["turbo", var]) {
+                                    eprintln!("warning: turbo variant {var:?} failed: {e}");
+                                }
                             }
                         }
                     }
@@ -763,9 +834,11 @@ fn cmd_profile(args: &[String]) -> Result<(), String> {
                 return Err("Usage: iteglow profile rule-add <name> <profile> --match <kw...> [--disabled]".to_string());
             }
             let rname = &args[1];
+            validate_identifier(rname, 64, "rule")?;
             let target_prof = &args[2];
-            if !cfg["profiles"]
-                .as_object()
+            if !cfg
+                .get("profiles")
+                .and_then(|v| v.as_object())
                 .map(|m| m.contains_key(target_prof))
                 .unwrap_or(false)
             {
@@ -779,7 +852,11 @@ fn cmd_profile(args: &[String]) -> Result<(), String> {
                     "--match" => {
                         while i + 1 < args.len() && !args[i + 1].starts_with("--") {
                             i += 1;
-                            matches.push(args[i].clone());
+                            let tok = args[i].trim();
+                            if tok.is_empty() || tok.len() > 64 {
+                                return Err("match token must be 1..=64 characters".to_string());
+                            }
+                            matches.push(tok.to_string());
                         }
                     }
                     "--disabled" => disabled = true,
@@ -787,11 +864,17 @@ fn cmd_profile(args: &[String]) -> Result<(), String> {
                 }
                 i += 1;
             }
-            if matches.is_empty() {
-                return Err("--match requires at least one process keyword".to_string());
+            if matches.is_empty() || matches.len() > MAX_MATCH_TOKENS {
+                return Err(format!("--match requires 1..={MAX_MATCH_TOKENS} process keywords"));
             }
-            let rules = cfg["rules"].as_array_mut().ok_or("invalid rules")?;
+            let rules = cfg
+                .get_mut("rules")
+                .and_then(|v| v.as_array_mut())
+                .ok_or("invalid rules")?;
             rules.retain(|r| r["name"].as_str() != Some(rname.as_str()));
+            if rules.len() >= MAX_RULES {
+                return Err(format!("rule count exceeds maximum ({MAX_RULES})"));
+            }
             rules.push(json!({
                 "name": rname,
                 "enabled": !disabled,
@@ -875,7 +958,7 @@ fn default_wc_config() -> Value {
         "auto_connect": false,
         "mac": "",
         "strategy": "preset",
-        "preset": "balanced",
+        "preset": "silent",
         "manual": {"pump_volt": 7, "pump_duty": 60, "fan_duty": 40},
         "curve": {
             "hysteresis_c": 3,
@@ -886,7 +969,7 @@ fn default_wc_config() -> Value {
             ],
         },
         "led": {
-            "mode": "static",
+            "mode": "off",
             "color": [0, 128, 255],
             "fan_policy": "sync",
             "fan_color": [0, 128, 255],
@@ -982,11 +1065,15 @@ fn wc_service_request(req: &Value, timeout_secs: u64) -> Result<Value, String> {
     stream
         .write_all(line.as_bytes())
         .map_err(|e| format!("发送 IPC 请求失败: {e}"))?;
-    let mut reader = BufReader::new(stream);
+    let reader = BufReader::new(stream);
     let mut resp = String::new();
     reader
+        .take(65_537)
         .read_line(&mut resp)
         .map_err(|e| format!("读取 IPC 响应失败: {e}"))?;
+    if resp.len() > 65_536 {
+        return Err("IPC 响应超过大小限制".to_string());
+    }
     let parsed: Value =
         serde_json::from_str(resp.trim()).map_err(|e| format!("解析响应失败: {e}"))?;
     if parsed.get("ok").and_then(|v| v.as_bool()) != Some(true) {
@@ -1105,11 +1192,15 @@ fn cmd_cooler(args: &[String]) -> Result<(), String> {
                 match args[i].as_str() {
                     "--timeout" => {
                         i += 1;
-                        timeout = args
+                        let parsed = args
                             .get(i)
                             .ok_or("--timeout requires number")?
                             .parse::<f64>()
                             .map_err(|_| "invalid timeout")?;
+                        if !parsed.is_finite() || !(0.5..=20.0).contains(&parsed) {
+                            return Err("--timeout must be a finite number between 0.5 and 20.0".to_string());
+                        }
+                        timeout = parsed;
                     }
                     "--mac" => {
                         i += 1;
@@ -1198,17 +1289,32 @@ fn cmd_cooler(args: &[String]) -> Result<(), String> {
                     "--auto-connect" => {
                         i += 1;
                         let v = args.get(i).ok_or("--auto-connect requires on|off")?;
-                        patch.insert("auto_connect".into(), json!(v == "on"));
+                        let b = match v.as_str() {
+                            "on" => true,
+                            "off" => false,
+                            _ => return Err("--auto-connect requires strictly 'on' or 'off'".to_string()),
+                        };
+                        patch.insert("auto_connect".into(), json!(b));
                     }
                     "--flow-protection" => {
                         i += 1;
                         let v = args.get(i).ok_or("--flow-protection requires on|off")?;
-                        patch.insert("flow_protection".into(), json!(v == "on"));
+                        let b = match v.as_str() {
+                            "on" => true,
+                            "off" => false,
+                            _ => return Err("--flow-protection requires strictly 'on' or 'off'".to_string()),
+                        };
+                        patch.insert("flow_protection".into(), json!(b));
                     }
                     "--sleep-on-disconnect" => {
                         i += 1;
                         let v = args.get(i).ok_or("--sleep-on-disconnect requires on|off")?;
-                        patch.insert("sleep_on_disconnect".into(), json!(v == "on"));
+                        let b = match v.as_str() {
+                            "on" => true,
+                            "off" => false,
+                            _ => return Err("--sleep-on-disconnect requires strictly 'on' or 'off'".to_string()),
+                        };
+                        patch.insert("sleep_on_disconnect".into(), json!(b));
                     }
                     "--pump-volt" => {
                         i += 1;

@@ -8,12 +8,15 @@
       (function () {
         try {
           var pref = localStorage.getItem("mechrevo-theme-pref") || "system";
+          var cachedOs = localStorage.getItem("mechrevo-os-theme-cache");
           var resolved =
             pref === "dark" || pref === "light"
               ? pref
-              : window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
-                ? "dark"
-                : "light";
+              : cachedOs === "dark" || cachedOs === "light"
+                ? cachedOs
+                : window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+                  ? "dark"
+                  : "light";
           document.documentElement.dataset.theme = resolved;
         } catch (_) {
           document.documentElement.dataset.theme = "light";

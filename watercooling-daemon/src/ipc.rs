@@ -9,10 +9,13 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
-use tokio::sync::{mpsc, oneshot, RwLock};
+use tokio::sync::{mpsc, oneshot, RwLock, Semaphore};
 use tokio::time::timeout;
+
+const MAX_IPC_LINE_BYTES: u64 = 16_384;
+const MAX_CONCURRENT_IPC: usize = 24;
 
 pub struct IpcCommand {
     pub req: Value,
@@ -36,13 +39,23 @@ pub async fn serve_ipc(
     cmd_tx: mpsc::Sender<IpcCommand>,
     snapshot: Arc<RwLock<StatusSnapshot>>,
 ) {
+    let sem = Arc::new(Semaphore::new(MAX_CONCURRENT_IPC));
     loop {
-        let Ok((stream, _addr)) = listener.accept().await else {
-            break;
+        let stream = match listener.accept().await {
+            Ok((stream, _addr)) => stream,
+            Err(_) => {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                continue;
+            }
+        };
+        let Ok(permit) = sem.clone().try_acquire_owned() else {
+            drop(stream);
+            continue;
         };
         let tx = cmd_tx.clone();
         let snap = snapshot.clone();
         tokio::spawn(async move {
+            let _permit = permit;
             handle_client(stream, my_uid, tx, snap).await;
         });
     }
@@ -71,11 +84,11 @@ async fn handle_client(
     }
 
     let (read_half, mut write_half) = stream.split();
-    let mut reader = BufReader::new(read_half);
+    let mut reader = BufReader::new(read_half.take(MAX_IPC_LINE_BYTES + 1));
     let mut line = String::new();
     let read_res = timeout(Duration::from_secs(2), reader.read_line(&mut line)).await;
     let req: Value = match read_res {
-        Ok(Ok(n)) if n > 0 && n <= 16384 && line.ends_with('\n') => {
+        Ok(Ok(n)) if n > 0 && (n as u64) <= MAX_IPC_LINE_BYTES && line.ends_with('\n') => {
             match serde_json::from_str(line.trim()) {
                 Ok(v) => v,
                 Err(e) => {
@@ -109,8 +122,13 @@ async fn handle_client(
     }
 
     let (reply_tx, reply_rx) = oneshot::channel();
-    if cmd_tx.send(IpcCommand { req, reply: reply_tx }).await.is_err() {
-        let _ = write_json(&mut write_half, &json!({"ok": false, "error": "水冷服务正在退出"})).await;
+    if timeout(Duration::from_secs(3), cmd_tx.send(IpcCommand { req, reply: reply_tx }))
+        .await
+        .map_err(|_| ())
+        .and_then(|r| r.map_err(|_| ()))
+        .is_err()
+    {
+        let _ = write_json(&mut write_half, &json!({"ok": false, "error": "水冷服务正忙或正在退出"})).await;
         return;
     }
 
@@ -125,8 +143,12 @@ async fn handle_client(
 async fn write_json<W: AsyncWriteExt + Unpin>(w: &mut W, val: &Value) -> std::io::Result<()> {
     let mut s = serde_json::to_string(val).unwrap_or_else(|_| "{\"ok\":false,\"error\":\"encode error\"}".to_string());
     s.push('\n');
-    w.write_all(s.as_bytes()).await?;
-    w.flush().await
+    timeout(Duration::from_secs(2), async {
+        w.write_all(s.as_bytes()).await?;
+        w.flush().await
+    })
+    .await
+    .map_err(|_| std::io::Error::new(std::io::ErrorKind::TimedOut, "ipc write timeout"))?
 }
 
 #[cfg(test)]

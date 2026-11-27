@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python3 -I
 """Apply and verify the minimal NVIDIA DKMS hibernate-shutdown fix."""
 
 import argparse

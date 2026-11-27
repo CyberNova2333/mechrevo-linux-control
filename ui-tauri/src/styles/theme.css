@@ -169,7 +169,9 @@ body,
 }
 
 input,
-textarea {
+textarea,
+.n-alert,
+.sider-hw-meta {
   user-select: text;
 }
 
@@ -250,6 +252,11 @@ textarea {
 }
 
 .sider-hardware-card {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
   margin-top: 12px;
   padding: 12px 13px;
   border-radius: 11px;
@@ -258,6 +265,20 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  transition: border-color 150ms ease, transform 120ms ease;
+}
+
+.sider-hardware-card:hover {
+  border-color: color-mix(in srgb, var(--accent-cyan) 48%, var(--border-strong));
+}
+
+.notice-ellipsis {
+  display: inline-block;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
 }
 
 .sider-hw-model {

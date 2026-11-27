@@ -289,6 +289,8 @@ impl BluezBleTransport {
             .map_err(|e| e.to_string())?
             .member("PropertiesChanged")
             .map_err(|e| e.to_string())?
+            .path_namespace(dev_path.as_str())
+            .map_err(|e| e.to_string())?
             .build();
         let mut stream = MessageStream::for_match_rule(rule, &self.conn, Some(64))
             .await
@@ -312,7 +314,9 @@ impl BluezBleTransport {
                 };
 
                 let expected_rx = rx_path.lock().await.clone();
-                if expected_rx.as_deref() == Some(path.as_str()) {
+                if iface == "org.bluez.GattCharacteristic1"
+                    && expected_rx.as_deref() == Some(path.as_str())
+                {
                     if let Some(val) = changed.get("Value") {
                         if let Ok(bytes) = Vec::<u8>::try_from(val.clone()) {
                             let _ = events.send(BleEvent::Notify(bytes));
@@ -583,6 +587,12 @@ impl BleTransport for BluezBleTransport {
     }
 }
 
+impl Drop for BluezBleTransport {
+    fn drop(&mut self) {
+        self.stop_watcher();
+    }
+}
+
 pub struct CoolerBleClient<T: BleTransport> {
     pub transport: T,
     pub min_gap: Duration,
@@ -592,6 +602,7 @@ pub struct CoolerBleClient<T: BleTransport> {
     pub device_mac: String,
     pub fw_version: Option<String>,
     pub meter_state: Option<u8>,
+    meter_rx_seq: u64,
     pub preferred_write_type: String,
     event_rx: Option<mpsc::UnboundedReceiver<BleEvent>>,
     pending_disconnect: Option<String>,
@@ -608,6 +619,7 @@ impl<T: BleTransport> CoolerBleClient<T> {
             device_mac: String::new(),
             fw_version: None,
             meter_state: None,
+            meter_rx_seq: 0,
             preferred_write_type: "request".to_string(),
             event_rx: None,
             pending_disconnect: None,
@@ -642,10 +654,7 @@ impl<T: BleTransport> CoolerBleClient<T> {
             return;
         }
         let deadline = Instant::now() + dur;
-        loop {
-            let Some(rem) = deadline.checked_duration_since(Instant::now()) else {
-                break;
-            };
+        while let Some(rem) = deadline.checked_duration_since(Instant::now()) {
             if rem.is_zero() {
                 break;
             }
@@ -678,7 +687,10 @@ impl<T: BleTransport> CoolerBleClient<T> {
 
     fn handle_rx(&mut self, raw: &[u8]) {
         match protocol::parse_rx_packet(raw) {
-            RxPacket::Meter { meter_state, .. } => self.meter_state = Some(meter_state),
+            RxPacket::Meter { meter_state, .. } => {
+                self.meter_state = Some(meter_state);
+                self.meter_rx_seq = self.meter_rx_seq.wrapping_add(1);
+            }
             RxPacket::Firmware { fw_version, .. } => {
                 if fw_version.is_some() {
                     self.fw_version = fw_version;
@@ -791,10 +803,16 @@ impl<T: BleTransport> CoolerBleClient<T> {
         self.preferred_write_type = "request".to_string();
 
         let hs = protocol::encode_handshake();
-        self.send_paced(&hs, None).await?;
+        if let Err(e) = self.send_paced(&hs, None).await {
+            self.disconnect(false, false).await;
+            return Err(e);
+        }
         self.pump_events(Duration::from_millis(350)).await;
         let mq = protocol::encode_meter_query();
-        self.send_paced(&mq, None).await?;
+        if let Err(e) = self.send_paced(&mq, None).await {
+            self.disconnect(false, false).await;
+            return Err(e);
+        }
         self.pump_events(Duration::from_millis(250)).await;
 
         Ok(ConnectInfo {
@@ -806,9 +824,14 @@ impl<T: BleTransport> CoolerBleClient<T> {
     }
 
     pub async fn query_meter(&mut self) -> Result<Option<u8>, String> {
+        let before_seq = self.meter_rx_seq;
         let mq = protocol::encode_meter_query();
         self.send_paced(&mq, None).await?;
         self.pump_events(Duration::from_millis(180)).await;
+        if self.meter_rx_seq == before_seq {
+            // No fresh meter notification arrived; do not retain stale `Some(2)` across silent stalls.
+            self.meter_state = None;
+        }
         Ok(self.meter_state)
     }
 

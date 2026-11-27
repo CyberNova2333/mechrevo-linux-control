@@ -152,12 +152,15 @@ impl KeyboardHotkeySync {
     {
         let (_, manual) = self.read_manual_kbd();
         if manual != self.last_manual {
-            self.last_manual = manual;
             let _guard = if use_zone_lock {
-                ZoneGuard::acquire("keyboard").ok()
+                match ZoneGuard::acquire("keyboard") {
+                    Ok(g) => Some(g),
+                    Err(_) => return None,
+                }
             } else {
                 None
             };
+            self.last_manual = manual;
             self.last_hw = query_kbd();
             if let Some(seq) = self.current_wmi_seq() {
                 self.last_wmi_seq = Some(seq);
@@ -167,9 +170,6 @@ impl KeyboardHotkeySync {
 
         let seq = self.current_wmi_seq();
         let wmi_changed = seq.is_some() && seq != self.last_wmi_seq;
-        if let Some(s) = seq {
-            self.last_wmi_seq = Some(s);
-        }
         if !(wmi_changed || force_query) {
             return None;
         }
@@ -183,27 +183,35 @@ impl KeyboardHotkeySync {
             None
         };
 
-        let (full_state, current_manual) = self.read_manual_kbd();
+        let (_, current_manual) = self.read_manual_kbd();
         if current_manual != self.last_manual {
             self.last_manual = current_manual;
             self.last_hw = query_kbd();
+            if let Some(s) = seq {
+                self.last_wmi_seq = Some(s);
+            }
             return None;
         }
 
         let actual = query_kbd()?;
         let Some(prev_hw) = self.last_hw else {
             self.last_hw = Some(actual);
+            if let Some(s) = seq {
+                self.last_wmi_seq = Some(s);
+            }
             return None;
         };
 
         let mut changed = actual.power != prev_hw.power || actual.brightness != prev_hw.brightness;
         if !changed && actual.power != 1 && actual.brightness > 0 {
-            changed = actual.mode != prev_hw.mode;
+            changed = actual.mode != prev_hw.mode || actual.direction != prev_hw.direction;
         }
         if !changed {
+            if let Some(s) = seq {
+                self.last_wmi_seq = Some(s);
+            }
             return None;
         }
-        self.last_hw = Some(actual);
 
         let new_bright: u8 = if actual.power == 1 || actual.brightness == 0 {
             0
@@ -240,13 +248,7 @@ impl KeyboardHotkeySync {
         };
 
         validate_hid("keyboard", &updated_val).ok()?;
-
-        let mut next_data = match full_state {
-            Some(Value::Object(m)) => m,
-            _ => Map::new(),
-        };
         let mode_str = updated_val["mode"].as_str().unwrap_or("off").to_string();
-        next_data.insert("keyboard".to_string(), updated_val.clone());
 
         let _state_guard = if use_zone_lock {
             match ZoneGuard::acquire("manual-state") {
@@ -256,7 +258,19 @@ impl KeyboardHotkeySync {
         } else {
             None
         };
+        // Re-read state.json while holding `manual-state` so concurrent lightbar writes are never clobbered.
+        let (latest_full_state, _) = self.read_manual_kbd();
+        let mut next_data = match latest_full_state {
+            Some(Value::Object(m)) => m,
+            _ => Map::new(),
+        };
+        next_data.insert("keyboard".to_string(), updated_val.clone());
+
         write_state_json(&self.directory.join("state.json"), &Value::Object(next_data)).ok()?;
+        self.last_hw = Some(actual);
+        if let Some(s) = seq {
+            self.last_wmi_seq = Some(s);
+        }
         self.last_manual = Some(updated_val);
         Some(json!({
             "hotkey_sync": "keyboard",
@@ -266,6 +280,7 @@ impl KeyboardHotkeySync {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn check_eligible_session_props(
     user_uid: Option<u32>,
     seat_id: Option<&str>,

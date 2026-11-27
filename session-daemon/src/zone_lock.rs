@@ -15,23 +15,32 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
-use std::thread;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
+use std::thread::{self, ThreadId};
 use std::time::{Duration, Instant};
 
 pub const VALID_ZONES: &[&str] = &["keyboard", "lightbar", "logo", "manual-state"];
 pub const MAX_STATE_BYTES: usize = 65_536;
 pub const MAX_PROFILE_BYTES: usize = 262_144;
 
-struct LockEntry {
+static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
+
+struct LockState {
+    owner: Option<ThreadId>,
     depth: usize,
     fd: Option<RawFd>,
 }
 
-static ENTRIES: OnceLock<Mutex<HashMap<(PathBuf, String), Arc<Mutex<LockEntry>>>>> =
-    OnceLock::new();
+struct LockEntry {
+    state: Mutex<LockState>,
+    cvar: Condvar,
+}
 
-fn entry_for(runtime_dir: &Path, zone: &str) -> Arc<Mutex<LockEntry>> {
+type EntryMap = HashMap<(PathBuf, String), Arc<LockEntry>>;
+static ENTRIES: OnceLock<Mutex<EntryMap>> = OnceLock::new();
+
+fn entry_for(runtime_dir: &Path, zone: &str) -> Arc<LockEntry> {
     let map = ENTRIES.get_or_init(|| Mutex::new(HashMap::new()));
     let mut guard = map.lock().unwrap_or_else(|e| e.into_inner());
     let abs = if runtime_dir.is_absolute() {
@@ -44,10 +53,14 @@ fn entry_for(runtime_dir: &Path, zone: &str) -> Arc<Mutex<LockEntry>> {
     guard
         .entry((abs, zone.to_string()))
         .or_insert_with(|| {
-            Arc::new(Mutex::new(LockEntry {
-                depth: 0,
-                fd: None,
-            }))
+            Arc::new(LockEntry {
+                state: Mutex::new(LockState {
+                    owner: None,
+                    depth: 0,
+                    fd: None,
+                }),
+                cvar: Condvar::new(),
+            })
         })
         .clone()
 }
@@ -152,9 +165,10 @@ fn open_lock_fd(runtime_dir: &Path, zone: &str) -> Result<RawFd, String> {
     result
 }
 
-/// RAII guard matching `iteglow.zone_lock.ZoneTransaction`.
+/// RAII guard matching `iteglow.zone_lock.ZoneTransaction` with true intra-process
+/// per-thread mutual exclusion plus cross-process `flock`.
 pub struct ZoneGuard {
-    entry: Arc<Mutex<LockEntry>>,
+    entry: Arc<LockEntry>,
     acquired: bool,
 }
 
@@ -168,39 +182,80 @@ impl ZoneGuard {
             return Err("unknown lighting lock".to_string());
         }
         let entry = entry_for(runtime_dir, zone);
+        let me = thread::current().id();
         let deadline = Instant::now() + timeout;
-        let mut state = entry.lock().unwrap_or_else(|e| e.into_inner());
+
+        let mut state = entry.state.lock().unwrap_or_else(|e| e.into_inner());
+        // Wait until either free or already owned by this exact thread (re-entrant)
+        while state.depth > 0 && state.owner != Some(me) {
+            let Some(rem) = deadline.checked_duration_since(Instant::now()) else {
+                return Err("lighting transaction is busy".to_string());
+            };
+            if rem.is_zero() {
+                return Err("lighting transaction is busy".to_string());
+            }
+            let (s, wait_res) = entry
+                .cvar
+                .wait_timeout(state, rem)
+                .unwrap_or_else(|e| e.into_inner());
+            state = s;
+            if wait_res.timed_out() && state.depth > 0 && state.owner != Some(me) {
+                return Err("lighting transaction is busy".to_string());
+            }
+        }
+
         if state.depth == 0 {
-            let fd = open_lock_fd(runtime_dir, zone)?;
+            // Claim intra-process ownership while acquiring the OS flock
+            state.owner = Some(me);
+            state.depth = 1;
+            drop(state);
+
+            let fd = match open_lock_fd(runtime_dir, zone) {
+                Ok(fd) => fd,
+                Err(e) => {
+                    let mut st = entry.state.lock().unwrap_or_else(|e| e.into_inner());
+                    st.owner = None;
+                    st.depth = 0;
+                    entry.cvar.notify_all();
+                    return Err(e);
+                }
+            };
             loop {
                 let rc = unsafe { libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB) };
                 if rc == 0 {
-                    state.fd = Some(fd);
+                    let mut st = entry.state.lock().unwrap_or_else(|e| e.into_inner());
+                    st.fd = Some(fd);
                     break;
                 }
                 let err = std::io::Error::last_os_error();
+                if err.raw_os_error() == Some(libc::EINTR) {
+                    continue;
+                }
                 if err.raw_os_error() != Some(libc::EWOULDBLOCK)
                     && err.raw_os_error() != Some(libc::EAGAIN)
                 {
                     unsafe { libc::close(fd) };
+                    let mut st = entry.state.lock().unwrap_or_else(|e| e.into_inner());
+                    st.owner = None;
+                    st.depth = 0;
+                    entry.cvar.notify_all();
                     return Err(format!("flock failed: {err}"));
                 }
                 if Instant::now() >= deadline {
                     unsafe { libc::close(fd) };
+                    let mut st = entry.state.lock().unwrap_or_else(|e| e.into_inner());
+                    st.owner = None;
+                    st.depth = 0;
+                    entry.cvar.notify_all();
                     return Err("lighting transaction is busy".to_string());
                 }
-                drop(state);
                 thread::sleep(Duration::from_millis(20));
-                state = entry.lock().unwrap_or_else(|e| e.into_inner());
-                if state.depth > 0 {
-                    // Another thread in this process acquired while we slept; reuse it.
-                    unsafe { libc::close(fd) };
-                    break;
-                }
             }
+        } else {
+            state.depth += 1;
+            drop(state);
         }
-        state.depth += 1;
-        drop(state);
+
         Ok(Self {
             entry,
             acquired: true,
@@ -214,16 +269,18 @@ impl Drop for ZoneGuard {
             return;
         }
         self.acquired = false;
-        let mut state = self.entry.lock().unwrap_or_else(|e| e.into_inner());
+        let mut state = self.entry.state.lock().unwrap_or_else(|e| e.into_inner());
         if state.depth > 0 {
             state.depth -= 1;
             if state.depth == 0 {
+                state.owner = None;
                 if let Some(fd) = state.fd.take() {
                     unsafe {
                         let _ = libc::flock(fd, libc::LOCK_UN);
                         libc::close(fd);
                     }
                 }
+                self.entry.cvar.notify_all();
             }
         }
     }
@@ -330,25 +387,37 @@ pub fn read_system_json(path: &Path, max_bytes: usize) -> Option<Value> {
 pub fn write_state_json(path: &Path, data: &Value) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("create_dir_all failed: {e}"))?;
+        let _ = fs::set_permissions(parent, fs::Permissions::from_mode(0o700));
     }
-    let tmp = PathBuf::from(format!("{}.tmp", path.display()));
-    let mut file = OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .mode(0o600)
-        .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW)
-        .open(&tmp)
-        .map_err(|e| format!("open temp state file failed: {e}"))?;
+    let seq = TMP_SEQ.fetch_add(1, Ordering::Relaxed);
+    let tmp = PathBuf::from(format!("{}.tmp.{}.{seq}", path.display(), std::process::id()));
     let mut encoded = serde_json::to_string_pretty(data)
         .map_err(|e| format!("serialize state JSON failed: {e}"))?;
     encoded.push('\n');
-    file.write_all(encoded.as_bytes())
-        .map_err(|e| format!("write temp state file failed: {e}"))?;
-    file.flush()
-        .map_err(|e| format!("flush temp state file failed: {e}"))?;
-    let _ = fs::set_permissions(&tmp, fs::Permissions::from_mode(0o600));
-    fs::rename(&tmp, path).map_err(|e| format!("rename state file failed: {e}"))?;
+    let write_res: Result<(), String> = (|| {
+        let mut file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .mode(0o600)
+            .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW)
+            .open(&tmp)
+            .map_err(|e| format!("open temp state file failed: {e}"))?;
+        file.set_permissions(fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("fchmod temp state file failed: {e}"))?;
+        file.write_all(encoded.as_bytes())
+            .map_err(|e| format!("write temp state file failed: {e}"))?;
+        file.sync_all()
+            .map_err(|e| format!("fsync temp state file failed: {e}"))?;
+        Ok(())
+    })();
+    if let Err(e) = write_res {
+        let _ = fs::remove_file(&tmp);
+        return Err(e);
+    }
+    if let Err(e) = fs::rename(&tmp, path) {
+        let _ = fs::remove_file(&tmp);
+        return Err(format!("rename state file failed: {e}"));
+    }
     Ok(())
 }
 

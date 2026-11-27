@@ -721,12 +721,6 @@ pub fn preset_cells(name: &str, accent: Rgb) -> Result<Vec<Rgb>, String> {
         return Ok(cells);
     }
 
-    if name == "wasd_fps" {
-        for &idx in &[0usize, 63, 77, 84, 85, 112] {
-            cells[idx] = (20, 45, 70);
-        }
-    }
-
     let color_for = |group: KeyGroup| -> Rgb {
         match name {
             "wasd_fps" => match group {
@@ -760,6 +754,12 @@ pub fn preset_cells(name: &str, accent: Rgb) -> Result<Vec<Rgb>, String> {
             if idx < KBD_MATRIX_CELLS {
                 cells[idx] = col;
             }
+        }
+    }
+
+    if name == "wasd_fps" {
+        for &idx in &[0usize, 63, 77, 84, 85, 112] {
+            cells[idx] = (20, 45, 70);
         }
     }
     Ok(cells)
@@ -1150,11 +1150,14 @@ pub fn query_keyboard_hw_locked() -> Result<KeyboardHwState, String> {
     let mut buf = [0u8; 9]; // report id 0 + 8-byte reply
     let req = hidiocgfeature(buf.len() as u32);
     let rc = unsafe { libc::ioctl(file.as_raw_fd(), req as libc::Ioctl, buf.as_mut_ptr()) };
-    if rc < 0 {
+    if rc < 8 {
         return Err(format!(
-            "HIDIOCGFEATURE failed: {}",
+            "HIDIOCGFEATURE failed or short reply (rc={rc}): {}",
             std::io::Error::last_os_error()
         ));
+    }
+    if buf[1] != QUERY_EFFECT {
+        return Err(format!("unexpected HID query echo byte: 0x{:02x}", buf[1]));
     }
     parse_keyboard_state(&buf[1..]).ok_or_else(|| "short keyboard query reply".to_string())
 }

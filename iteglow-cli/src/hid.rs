@@ -344,11 +344,6 @@ pub fn preset_cells(name: &str, accent: Rgb) -> Result<Vec<Rgb>, String> {
         }
         return Ok(cells);
     }
-    if name == "wasd_fps" {
-        for &idx in &[0usize, 63, 77, 84, 85, 112] {
-            cells[idx] = [20, 45, 70];
-        }
-    }
     for (_, group, indices) in keycap_defs() {
         let col = match name {
             "wasd_fps" => match group {
@@ -378,6 +373,11 @@ pub fn preset_cells(name: &str, accent: Rgb) -> Result<Vec<Rgb>, String> {
             if idx < KBD_MATRIX_CELLS {
                 cells[idx] = col;
             }
+        }
+    }
+    if name == "wasd_fps" {
+        for &idx in &[0usize, 63, 77, 84, 85, 112] {
+            cells[idx] = [20, 45, 70];
         }
     }
     Ok(cells)
@@ -658,8 +658,15 @@ pub fn query_raw(file: &mut File, cmd: u8) -> Result<[u8; 8], String> {
     send_reports(file, &[Report::Feature([cmd, 0, 0, 0, 0, 0, 0, 0])])?;
     let mut buf = [0u8; 9];
     let req = hidiocgfeature(buf.len() as u32);
-    if unsafe { libc::ioctl(file.as_raw_fd(), req as libc::Ioctl, buf.as_mut_ptr()) } < 0 {
+    let rc = unsafe { libc::ioctl(file.as_raw_fd(), req as libc::Ioctl, buf.as_mut_ptr()) };
+    if rc < 0 {
         return Err(format!("HIDIOCGFEATURE failed: {}", std::io::Error::last_os_error()));
+    }
+    if rc < 8 {
+        return Err(format!("HIDIOCGFEATURE short reply ({rc} bytes)"));
+    }
+    if cmd == QUERY_EFFECT && buf[1] != QUERY_EFFECT {
+        return Err(format!("unexpected HIDIOCGFEATURE opcode 0x{:02x}", buf[1]));
     }
     let mut out = [0u8; 8];
     out.copy_from_slice(&buf[1..9]);
@@ -718,12 +725,20 @@ pub fn apply_and_save_hid(device: &str, params: &Value, save_manual: bool) -> Re
     if save_manual {
         let _sguard = ZoneGuard::acquire("manual-state")?;
         let path = state_dir().join("state.json");
-        let mut root = match read_json_file(&path, MAX_STATE_BYTES, true).ok().flatten() {
+        let mut root = match read_json_file(&path, MAX_STATE_BYTES, true)? {
             Some(Value::Object(m)) => m,
-            _ => Map::new(),
+            None => Map::new(),
+            Some(_) => return Err("saved lighting state must be a JSON object".to_string()),
         };
         root.insert(device.to_string(), params.clone());
-        write_json_file(&path, &Value::Object(root), 0o600)?;
+        let val = Value::Object(root);
+        let size = serde_json::to_string_pretty(&val)
+            .map(|s| s.len() + 1)
+            .unwrap_or(usize::MAX);
+        if size > MAX_STATE_BYTES {
+            return Err("lighting state exceeds size limit".to_string());
+        }
+        write_json_file(&path, &val, 0o600)?;
     }
     Ok(())
 }

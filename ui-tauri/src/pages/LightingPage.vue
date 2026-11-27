@@ -113,6 +113,8 @@ const hidTimers: Record<"keyboard" | "lightbar", number | null> = {
   keyboard: null,
   lightbar: null,
 };
+let alive = true;
+let kbdApplying = false;
 
 const kbdSpec = computed(() => KEYBOARD_MODES.find((m) => m.id === kbd.value.mode) ?? KEYBOARD_MODES[0]);
 const lbSpec = computed(() => LIGHTBAR_MODES.find((m) => m.id === lb.value.mode) ?? LIGHTBAR_MODES[0]);
@@ -227,15 +229,20 @@ function scheduleHidApply(device: "keyboard" | "lightbar") {
       if (z.calibrate) payload.calibrate = true;
     }
     try {
+      if (isKbd) kbdApplying = true;
       const res = await api.applyLighting(device, payload);
+      if (!alive) return;
       if (isKbd && res.hardware) lastKbdHw.value = res.hardware;
       const mInfo = modes.find((m) => m.id === z.mode);
       const suffix = mInfo?.trigger && z.reactive ? " · 随按键触发" : "";
       z.status = `已应用：${mInfo?.title ?? z.mode}${suffix}`;
       z.isError = false;
     } catch (err) {
+      if (!alive) return;
       z.status = `设置未成功：${String(err)}`;
       z.isError = true;
+    } finally {
+      if (isKbd) kbdApplying = false;
     }
   }, 90);
 }
@@ -443,22 +450,38 @@ const onMouseUp = () => {
 };
 
 onMounted(() => {
+  alive = true;
   window.addEventListener("mouseup", onMouseUp);
+  window.addEventListener("blur", onMouseUp);
   loadHidZone("keyboard");
   loadHidZone("lightbar");
   loadLogoStatus(true);
   loadPolicy();
 
   hotkeyTimer = window.setInterval(async () => {
-    if (!kbd.value.available || !kbd.value.loaded || hidTimers.keyboard !== null) return;
+    if (
+      activeTab.value !== "keyboard" ||
+      !kbd.value.available ||
+      !kbd.value.loaded ||
+      kbdApplying ||
+      hidTimers.keyboard !== null
+    ) {
+      return;
+    }
     try {
       const hw = await api.pollKeyboardHw();
+      if (!alive || kbdApplying || hidTimers.keyboard !== null) return;
       const prev = lastKbdHw.value;
       if (!prev) {
         lastKbdHw.value = hw;
         return;
       }
-      if (hw.power !== prev.power || hw.brightness !== prev.brightness || hw.mode !== prev.mode) {
+      if (
+        hw.power !== prev.power ||
+        hw.brightness !== prev.brightness ||
+        hw.mode !== prev.mode ||
+        hw.direction !== prev.direction
+      ) {
         lastKbdHw.value = hw;
         if (hw.power === 1 || hw.brightness === 0) {
           kbd.value.brightnessPct = 0;
@@ -480,13 +503,15 @@ onMounted(() => {
 
   logoTimer = window.setInterval(() => {
     if (!logoBusy.value && activeTab.value === "logo") {
-      loadLogoStatus(false);
+      loadLogoStatus(!logoInit.value);
     }
   }, 4000);
 });
 
 onUnmounted(() => {
+  alive = false;
   window.removeEventListener("mouseup", onMouseUp);
+  window.removeEventListener("blur", onMouseUp);
   if (hotkeyTimer !== null) window.clearInterval(hotkeyTimer);
   if (logoTimer !== null) window.clearInterval(logoTimer);
   if (hidTimers.keyboard !== null) window.clearTimeout(hidTimers.keyboard);
@@ -500,7 +525,7 @@ onUnmounted(() => {
       <!-- ==================== TAB 1: KEYBOARD ==================== -->
       <n-tab-pane name="keyboard" tab="键盘背光">
         <div class="page-stack" style="margin-top: 12px">
-          <section class="ccu-hero" style="--hero-accent: #00c8ff">
+          <section class="ccu-hero" style="--hero-accent: var(--accent-cyan)">
             <div class="ccu-field-row" style="margin-bottom: 14px">
               <div>
                 <h2 class="ccu-section-title">101 键单键 RGB 物理视图</h2>
@@ -601,7 +626,7 @@ onUnmounted(() => {
                   :title="kbd.mode === 'matrix' ? `${cap.name}（左键上色 · 右键熄灭）` : cap.name"
                   @mousedown="
                     (e) => {
-                      if (kbd.mode !== 'matrix') return;
+                      if (kbd.mode !== 'matrix' || (e.button !== 0 && e.button !== 2)) return;
                       e.preventDefault();
                       const erase = e.button === 2;
                       painting = erase ? 'erase' : 'paint';
@@ -786,7 +811,7 @@ onUnmounted(() => {
       <!-- ==================== TAB 2: LIGHTBAR ==================== -->
       <n-tab-pane name="lightbar" tab="海岸灯带">
         <div class="page-stack" style="margin-top: 12px">
-          <section class="ccu-hero" style="--hero-accent: #38bdf8">
+          <section class="ccu-hero" style="--hero-accent: var(--accent-cyan)">
             <div class="ccu-field-row" style="margin-bottom: 14px">
               <div>
                 <h2 class="ccu-section-title">机身前缘海岸灯带</h2>
@@ -948,7 +973,7 @@ onUnmounted(() => {
       <!-- ==================== TAB 3: REAR-LID LOGO ==================== -->
       <n-tab-pane name="logo" tab="后盖 LOGO">
         <div class="page-stack" style="margin-top: 12px">
-          <section class="ccu-hero" style="--hero-accent: #8b5cf6">
+          <section class="ccu-hero" style="--hero-accent: var(--accent-violet)">
             <div class="ccu-field-row" style="margin-bottom: 14px">
               <div>
                 <h2 class="ccu-section-title">屏幕后盖独立发光徽标</h2>
@@ -1087,7 +1112,7 @@ onUnmounted(() => {
                     :style="{
                       background: rgbCss(item.rgb),
                       marginRight: '6px',
-                      border: '1px solid rgba(255,255,255,0.25)',
+                      border: '1px solid var(--border-strong)',
                     }"
                   />
                   {{ item.name }}

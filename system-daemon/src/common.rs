@@ -26,6 +26,12 @@ pub const PROFILE_LOCK: &str = "/run/mechrevo-profile.lock";
 pub const TURBO_SOCKET: &str = "/run/mechrevo-turbo.sock";
 pub const TURBO_DEVICE: &str = "/dev/mechrevo-turbo";
 
+pub fn boot_id() -> Result<String, String> {
+    fs::read_to_string("/proc/sys/kernel/random/boot_id")
+        .map(|s| s.trim().to_string())
+        .map_err(|e| format!("读取 boot_id 失败: {e}"))
+}
+
 pub fn kernel_release() -> Result<String, String> {
     let mut uts: libc::utsname = unsafe { std::mem::zeroed() };
     if unsafe { libc::uname(&mut uts) } != 0 {
@@ -182,7 +188,7 @@ impl RootFlock {
         let meta = file
             .metadata()
             .map_err(|e| LockError::Other(format!("stat 锁文件失败: {e}")))?;
-        if !meta.is_file() || meta.uid() != 0 || (meta.mode() & 0o022) != 0 {
+        if !meta.is_file() || meta.uid() != 0 || (meta.mode() & 0o077) != 0 {
             return Err(LockError::Other("性能控制锁文件权限异常".to_string()));
         }
         let deadline = wait.map(|d| Instant::now() + d);
@@ -259,10 +265,8 @@ pub fn atomic_write_json(
             .map_err(|e| format!("flush 临时文件失败: {e}"))?;
         file.sync_all()
             .map_err(|e| format!("fsync 临时文件失败: {e}"))?;
-        if mode != 0o600 {
-            fs::set_permissions(&temp_path, fs::Permissions::from_mode(mode))
-                .map_err(|e| format!("chmod 临时文件失败: {e}"))?;
-        }
+        file.set_permissions(fs::Permissions::from_mode(mode))
+            .map_err(|e| format!("fchmod 临时文件失败: {e}"))?;
         fs::rename(&temp_path, target).map_err(|e| format!("原子替换失败: {e}"))?;
         if fsync_dir {
             let c_dir = CString::new(parent.as_os_str().as_bytes())
@@ -273,11 +277,13 @@ pub fn atomic_write_json(
                     libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC,
                 )
             };
-            if dfd >= 0 {
-                unsafe {
-                    let _ = libc::fsync(dfd);
-                    libc::close(dfd);
-                }
+            if dfd < 0 {
+                return Err(format!("打开父目录 fsync 失败: {}", std::io::Error::last_os_error()));
+            }
+            let sync_rc = unsafe { libc::fsync(dfd) };
+            unsafe { libc::close(dfd) };
+            if sync_rc != 0 {
+                return Err(format!("父目录 fsync 失败: {}", std::io::Error::last_os_error()));
             }
         }
         Ok(())
@@ -295,12 +301,48 @@ pub struct CmdOutput {
     pub stderr: String,
 }
 
-/// Run an external binary with a hard wall-clock timeout and kill on expiry.
+fn set_nonblock(fd: i32) {
+    unsafe {
+        let flags = libc::fcntl(fd, libc::F_GETFL);
+        if flags >= 0 {
+            let _ = libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK);
+        }
+    }
+}
+
+fn drain_fd_capped(fd: i32, dst: &mut Vec<u8>, cap: usize) -> bool {
+    let mut chunk = [0u8; 4096];
+    loop {
+        let n = unsafe { libc::read(fd, chunk.as_mut_ptr() as *mut libc::c_void, chunk.len()) };
+        if n > 0 {
+            let take = (n as usize).min(cap.saturating_sub(dst.len()));
+            if take > 0 {
+                dst.extend_from_slice(&chunk[..take]);
+            }
+            continue;
+        }
+        if n == 0 {
+            return true; // EOF
+        }
+        let err = std::io::Error::last_os_error();
+        if err.raw_os_error() == Some(libc::EINTR) {
+            continue;
+        }
+        if err.raw_os_error() == Some(libc::EAGAIN) || err.raw_os_error() == Some(libc::EWOULDBLOCK) {
+            return false;
+        }
+        return true;
+    }
+}
+
+/// Run an external binary with a hard wall-clock timeout, non-blocking pipe draining
+/// (preventing 64 KiB pipe deadlocks and grandchild FD hangs), and kill on expiry.
 pub fn run_command_timeout(
     program: &str,
     args: &[&str],
     timeout: Duration,
 ) -> Result<CmdOutput, String> {
+    const MAX_PIPE_BYTES: usize = 262_144;
     let mut child = Command::new(program)
         .args(args)
         .stdin(Stdio::null())
@@ -309,8 +351,32 @@ pub fn run_command_timeout(
         .spawn()
         .map_err(|e| format!("执行 {program} 失败: {e}"))?;
 
+    let out_pipe = child.stdout.take();
+    let err_pipe = child.stderr.take();
+    if let Some(ref f) = out_pipe {
+        set_nonblock(f.as_raw_fd());
+    }
+    if let Some(ref f) = err_pipe {
+        set_nonblock(f.as_raw_fd());
+    }
+
+    let mut out_buf = Vec::new();
+    let mut err_buf = Vec::new();
+    let mut out_eof = out_pipe.is_none();
+    let mut err_eof = err_pipe.is_none();
+
     let deadline = Instant::now() + timeout;
     let status = loop {
+        if let Some(ref f) = out_pipe {
+            if !out_eof && drain_fd_capped(f.as_raw_fd(), &mut out_buf, MAX_PIPE_BYTES) {
+                out_eof = true;
+            }
+        }
+        if let Some(ref f) = err_pipe {
+            if !err_eof && drain_fd_capped(f.as_raw_fd(), &mut err_buf, MAX_PIPE_BYTES) {
+                err_eof = true;
+            }
+        }
         match child.try_wait() {
             Ok(Some(st)) => break st,
             Ok(None) => {
@@ -319,7 +385,33 @@ pub fn run_command_timeout(
                     let _ = child.wait();
                     return Err(format!("命令超时 ({}ms): {program}", timeout.as_millis()));
                 }
-                thread::sleep(Duration::from_millis(10));
+                let mut pfds = [
+                    libc::pollfd {
+                        fd: if !out_eof {
+                            out_pipe.as_ref().map(|f| f.as_raw_fd()).unwrap_or(-1)
+                        } else {
+                            -1
+                        },
+                        events: libc::POLLIN,
+                        revents: 0,
+                    },
+                    libc::pollfd {
+                        fd: if !err_eof {
+                            err_pipe.as_ref().map(|f| f.as_raw_fd()).unwrap_or(-1)
+                        } else {
+                            -1
+                        },
+                        events: libc::POLLIN,
+                        revents: 0,
+                    },
+                ];
+                let rem_ms = deadline
+                    .saturating_duration_since(Instant::now())
+                    .as_millis()
+                    .clamp(1, 20) as libc::c_int;
+                unsafe {
+                    let _ = libc::poll(pfds.as_mut_ptr(), 2, rem_ms);
+                }
             }
             Err(e) => {
                 let _ = child.kill();
@@ -329,18 +421,17 @@ pub fn run_command_timeout(
         }
     };
 
-    let mut stdout = String::new();
-    let mut stderr = String::new();
-    if let Some(mut out) = child.stdout.take() {
-        let _ = out.read_to_string(&mut stdout);
+    // Final non-blocking drain after child exit (bounded so inherited grandchild FDs never hang)
+    if let Some(ref f) = out_pipe {
+        let _ = drain_fd_capped(f.as_raw_fd(), &mut out_buf, MAX_PIPE_BYTES);
     }
-    if let Some(mut err) = child.stderr.take() {
-        let _ = err.read_to_string(&mut stderr);
+    if let Some(ref f) = err_pipe {
+        let _ = drain_fd_capped(f.as_raw_fd(), &mut err_buf, MAX_PIPE_BYTES);
     }
     Ok(CmdOutput {
         code: status.code().unwrap_or(-1),
-        stdout,
-        stderr,
+        stdout: String::from_utf8_lossy(&out_buf).into_owned(),
+        stderr: String::from_utf8_lossy(&err_buf).into_owned(),
     })
 }
 
@@ -385,6 +476,24 @@ pub fn turbo_socket_request(sock_path: &Path, request: &Value, timeout: Duration
     }
     let mut stream = UnixStream::connect(sock_path)
         .map_err(|e| format!("连接狂暴调度守护进程失败: {e}"))?;
+    let mut cred = libc::ucred {
+        pid: 0,
+        uid: u32::MAX,
+        gid: u32::MAX,
+    };
+    let mut clen = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+    let crc = unsafe {
+        libc::getsockopt(
+            stream.as_raw_fd(),
+            libc::SOL_SOCKET,
+            libc::SO_PEERCRED,
+            (&mut cred as *mut libc::ucred) as *mut libc::c_void,
+            &mut clen,
+        )
+    };
+    if crc != 0 || clen != std::mem::size_of::<libc::ucred>() as libc::socklen_t || cred.uid != 0 {
+        return Err("控制socket对端身份非root，拒绝通信".to_string());
+    }
     let _ = stream.set_read_timeout(Some(timeout));
     let _ = stream.set_write_timeout(Some(timeout));
     let mut line = serde_json::to_string(request).map_err(|e| e.to_string())?;

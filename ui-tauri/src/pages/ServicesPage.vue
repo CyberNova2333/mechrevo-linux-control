@@ -95,19 +95,25 @@ function stateBadge(item: ManagedServiceItem): {
   return { type: "default", label: "已停止" };
 }
 
+let alive = true;
+let logReqId = 0;
+
 async function refresh(silent = false) {
   if (!silent) loading.value = true;
   try {
-    services.value = await api.listServices();
+    const next = await api.listServices();
+    if (!alive) return;
+    services.value = next;
     if (!silent) {
       statusText.value = `已同步 ${services.value.length} 项受管 systemd 单元状态`;
     }
     isError.value = false;
   } catch (err) {
+    if (!alive) return;
     statusText.value = `读取后台服务状态失败：${String(err)}`;
     isError.value = true;
   } finally {
-    loading.value = false;
+    if (alive) loading.value = false;
   }
 }
 
@@ -133,7 +139,11 @@ async function runAction(
   isError.value = false;
   try {
     const res = await api.controlService(item.unit, action);
+    if (!alive) return;
     services.value = services.value.map((s) => (s.unit === item.unit ? res.service : s));
+    if (action === "enable" || action === "disable") {
+      await refresh(true);
+    }
     statusText.value = `已${actionName}：${item.title} (${item.unit})`;
     message.success(`已${actionName} ${item.title}`);
     emit("servicesChanged");
@@ -172,16 +182,21 @@ async function restartAllUserDaemons() {
 
 async function openLogs(item: ManagedServiceItem) {
   logTarget.value = item;
+  logLines.value = [];
+  logWarning.value = null;
   logDrawerOpen.value = true;
   await fetchLogs();
 }
 
 async function fetchLogs() {
-  if (!logTarget.value) return;
+  const target = logTarget.value;
+  if (!target) return;
+  const reqId = ++logReqId;
   logLoading.value = true;
   logWarning.value = null;
   try {
-    const res = await api.getServiceLogs(logTarget.value.unit, logLineCount.value);
+    const res = await api.getServiceLogs(target.unit, logLineCount.value);
+    if (!alive || reqId !== logReqId) return;
     logLines.value = res.lines;
     logWarning.value = res.warning;
     await nextTick();
@@ -189,10 +204,11 @@ async function fetchLogs() {
       logConsoleRef.value.scrollTop = logConsoleRef.value.scrollHeight;
     }
   } catch (err) {
+    if (!alive || reqId !== logReqId) return;
     logLines.value = [];
     logWarning.value = `读取日志失败：${String(err)}`;
   } finally {
-    logLoading.value = false;
+    if (alive && reqId === logReqId) logLoading.value = false;
   }
 }
 
@@ -208,12 +224,14 @@ async function copyLogs() {
 
 let pollTimer: number | null = null;
 onMounted(() => {
+  alive = true;
   refresh(false);
   pollTimer = window.setInterval(() => {
     if (!busyUnit.value) refresh(true);
   }, 5000);
 });
 onUnmounted(() => {
+  alive = false;
   if (pollTimer !== null) window.clearInterval(pollTimer);
 });
 </script>

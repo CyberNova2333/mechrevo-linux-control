@@ -5,8 +5,8 @@
 //! with `system/mechrevo-profile-helper`.
 
 use crate::common::{
-    atomic_write_json, check_machine, monotonic_ms, turbo_socket_request, LockError, RootFlock,
-    PROFILE_LOCK, TURBO_DEVICE, TURBO_SOCKET,
+    atomic_write_json, boot_id, check_machine, monotonic_ms, trusted_file, turbo_socket_request,
+    LockError, RootFlock, PROFILE_LOCK, TURBO_DEVICE, TURBO_SOCKET,
 };
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -28,6 +28,7 @@ pub const LC_EC_STATE_PATH: &str = "/run/mechrevo-watercooler-ec.json";
 pub const TUNING_STATE_PATH: &str = "/run/mechrevo-tuning.json";
 pub const TURBO_JOURNAL_PATH: &str = "/run/mechrevo-turbo.json";
 pub const SLEEP_MARKER_PATH: &str = "/run/mechrevo-turbo-sleep.json";
+pub const GUARD_LOCK_PATH: &str = "/run/mechrevo-profile-guard.lock";
 
 pub const WMI_SCANCODE_MODE_SWITCH: i64 = 0xB0;
 pub const WMI_SCANCODE_SAFETY_TEMP: i64 = 0xBB;
@@ -119,7 +120,7 @@ fn mode_byte(name: &str) -> Option<u8> {
 fn owned_group(addr: u16) -> &'static str {
     match addr {
         REG_MODE | 0x726 | 0x727 => "mode",
-        0x743 | 0x744 | 0x745 | 0x746 => "gpu",
+        0x743..=0x746 => "gpu",
         0x783 | 0x784 => "cpu",
         0x741 => "appe",
         _ => "fan",
@@ -542,7 +543,12 @@ fn parse_u16_byte_map(val: &Value, expected: &BTreeMap<u16, u8>) -> Result<BTree
         if !(0..=255).contains(&byte) {
             return Err("自定义恢复记录数据异常".to_string());
         }
-        out.insert(addr, byte as u8);
+        if out.insert(addr, byte as u8).is_some() {
+            return Err("自定义恢复记录存在重复寄存器键".to_string());
+        }
+    }
+    if out.len() != expected.len() {
+        return Err("自定义恢复记录数据异常".to_string());
     }
     Ok(out)
 }
@@ -1141,8 +1147,10 @@ fn read_turbo_bridge(fd: RawFd) -> Result<Value, String> {
         serde_json::from_slice(&buf).map_err(|e| format!("解析 WMI 桥接 JSON 失败: {e}"))?;
     if data.get("abi").and_then(|v| v.as_i64()) != Some(1)
         || !data.get("active").map(|v| v.is_boolean()).unwrap_or(false)
+        || !data.get("recovery_needed").map(|v| v.is_boolean()).unwrap_or(false)
+        || data.get("read_rc").and_then(|v| v.as_i64()) != Some(0)
     {
-        return Err("内核 WMI 桥接状态格式异常".to_string());
+        return Err("内核 WMI 桥接状态格式异常或读数无效".to_string());
     }
     Ok(data)
 }
@@ -1309,10 +1317,32 @@ pub fn reset_tuning() -> Result<Value, String> {
     .map_err(|e| e.to_string())
 }
 
+fn sleep_transition_active(marker_path: &Path) -> bool {
+    let Ok(raw) = trusted_file(marker_path, true, 65_536) else {
+        return false;
+    };
+    let Ok(val) = serde_json::from_slice::<Value>(&raw) else {
+        return false;
+    };
+    if let Some(marker_boot) = val.get("boot_id").and_then(|v| v.as_str()) {
+        if let Ok(cur_boot) = boot_id() {
+            if !marker_boot.is_empty() && marker_boot != cur_boot {
+                return false;
+            }
+        }
+    }
+    matches!(
+        val.get("phase").and_then(|v| v.as_str()),
+        Some("preparing" | "quiesced")
+    )
+}
+
 pub fn run_guard() -> Result<(), String> {
     if unsafe { libc::geteuid() } != 0 {
         return Err("性能恢复守护进程需要root权限".to_string());
     }
+    let _single_instance = RootFlock::acquire(Path::new(GUARD_LOCK_PATH), None)
+        .map_err(|e| format!("性能恢复守护进程已在运行或锁异常: {e}"))?;
     let mut pipe_fds = [-1i32; 2];
     if unsafe { libc::pipe2(pipe_fds.as_mut_ptr(), libc::O_NONBLOCK | libc::O_CLOEXEC) } != 0 {
         return Err(format!("pipe2 失败: {}", std::io::Error::last_os_error()));
@@ -1357,7 +1387,7 @@ pub fn run_guard() -> Result<(), String> {
     let turbo_dev = Path::new(TURBO_DEVICE);
 
     while !GUARD_STOP.load(Ordering::SeqCst) {
-        let sleeping = sleep_marker.exists();
+        let sleeping = sleep_transition_active(sleep_marker);
         if sleeping {
             wmi_file = None;
         } else if wmi_file.is_none() && turbo_dev.exists() {

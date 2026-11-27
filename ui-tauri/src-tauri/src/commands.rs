@@ -17,7 +17,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 use tokio::process::Command;
 
@@ -50,8 +50,8 @@ async fn run_profile_helper(args: &[&str], timeout_secs: u64) -> Result<Value, S
             .ok()
             .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(String::from))
             .filter(|s| !s.is_empty())
-            .or_else(|| if !stderr.is_empty() { Some(stderr) } else { None })
-            .or_else(|| if !stdout.is_empty() { Some(stdout) } else { None })
+            .or((!stderr.is_empty()).then_some(stderr))
+            .or((!stdout.is_empty()).then_some(stdout))
             .unwrap_or_else(|| "硬件助手未授权或执行失败".to_string());
         return Err(msg);
     }
@@ -86,22 +86,6 @@ fn kernel_release() -> String {
         .map(|&c| c as u8)
         .collect();
     String::from_utf8(bytes).unwrap_or_else(|_| "--".to_string())
-}
-
-fn check_flock_held(path: &Path) -> bool {
-    let Ok(f) = fs::OpenOptions::new().read(true).open(path) else {
-        return false;
-    };
-    use std::os::unix::io::AsRawFd;
-    let rc = unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-    if rc == 0 {
-        unsafe {
-            let _ = libc::flock(f.as_raw_fd(), libc::LOCK_UN);
-        }
-        false
-    } else {
-        true
-    }
 }
 
 // ----------------------------------------------------------------- OS Theme Detection & Window Sync
@@ -150,7 +134,7 @@ async fn run_quick_cmd(program: &str, args: &[&str]) -> Option<String> {
 pub async fn get_system_theme() -> Result<String, String> {
     // 1. Cross-DE Freedesktop XDG Desktop Portal (GNOME, KDE, Hyprland, COSMIC, XFCE)
     if let Some(out) = run_quick_cmd(
-        "gdbus",
+        "/usr/bin/gdbus",
         &[
             "call",
             "--session",
@@ -172,8 +156,11 @@ pub async fn get_system_theme() -> Result<String, String> {
     }
 
     // 2. GNOME gsettings color-scheme
-    if let Some(out) =
-        run_quick_cmd("gsettings", &["get", "org.gnome.desktop.interface", "color-scheme"]).await
+    if let Some(out) = run_quick_cmd(
+        "/usr/bin/gsettings",
+        &["get", "org.gnome.desktop.interface", "color-scheme"],
+    )
+    .await
     {
         if let Some(theme) = parse_gsettings_color_scheme(&out) {
             return Ok(theme.to_string());
@@ -181,8 +168,11 @@ pub async fn get_system_theme() -> Result<String, String> {
     }
 
     // 3. GNOME GTK theme name heuristic
-    if let Some(out) =
-        run_quick_cmd("gsettings", &["get", "org.gnome.desktop.interface", "gtk-theme"]).await
+    if let Some(out) = run_quick_cmd(
+        "/usr/bin/gsettings",
+        &["get", "org.gnome.desktop.interface", "gtk-theme"],
+    )
+    .await
     {
         if !out.is_empty() {
             return Ok(if out.to_ascii_lowercase().contains("dark") {
@@ -236,13 +226,8 @@ pub async fn set_window_theme(
 
 #[tauri::command]
 pub async fn get_system_info() -> Result<Value, String> {
-    let rdir = runtime_dir();
-    let wc_sock = rdir.join("iteglow-watercooling.sock");
-    let wc_up = UnixStream::connect(&wc_sock).await.is_ok();
-    let session_up = check_flock_held(&rdir.join("iteglow-session-restore.lock"));
-    let turbo_up = Path::new("/run/mechrevo-turbo.sock").exists();
-    let guard_up = Path::new("/run/mechrevo-watercooler-ec.json").exists()
-        || Path::new("/run/mechrevo-wmi-state.json").exists();
+    let (wc_up, session_up, turbo_up, guard_up) =
+        crate::services::check_core_daemons_active().await;
 
     Ok(json!({
         "sys_vendor": read_dmi("sys_vendor"),
@@ -560,11 +545,31 @@ pub async fn get_profiles_config() -> Result<Value, String> {
     }
 }
 
-#[tauri::command]
-pub async fn save_profiles_config(config: Value) -> Result<Value, String> {
+const MAX_PROFILES: usize = 32;
+const MAX_RULES: usize = 32;
+const MAX_MATCH_TOKENS: usize = 8;
+
+fn validate_profile_identifier(name: &str, max_len: usize, label: &str) -> Result<(), String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() || trimmed != name || trimmed.chars().count() > max_len {
+        return Err(format!("{label}长度需为 1..={max_len} 且首尾不含空白"));
+    }
+    if trimmed.chars().any(|c| c.is_control() || c == '/' || c == '\\') {
+        return Err(format!("{label}包含非法控制字符或路径分隔符"));
+    }
+    Ok(())
+}
+
+fn validate_profiles_config(config: &Value) -> Result<(), String> {
     let obj = config.as_object().ok_or("情景配置格式无效")?;
     if obj.get("version").and_then(|v| v.as_i64()) != Some(1) {
         return Err("不支持的 profiles 版本".to_string());
+    }
+    if obj.get("auto_switch_enabled").and_then(|v| v.as_bool()).is_none() {
+        return Err("auto_switch_enabled 需为布尔值".to_string());
+    }
+    if obj.get("restore_previous").and_then(|v| v.as_bool()).is_none() {
+        return Err("restore_previous 需为布尔值".to_string());
     }
     let cooldown = obj
         .get("cooldown_seconds")
@@ -573,6 +578,67 @@ pub async fn save_profiles_config(config: Value) -> Result<Value, String> {
     if !(0..=120).contains(&cooldown) {
         return Err("退出防抖需在 0..120 秒之间".to_string());
     }
+    let profiles = obj
+        .get("profiles")
+        .and_then(|v| v.as_object())
+        .ok_or("profiles 需为对象")?;
+    if profiles.len() > MAX_PROFILES {
+        return Err(format!("情景预设数量超过上限 ({MAX_PROFILES})"));
+    }
+    for (name, body) in profiles {
+        validate_profile_identifier(name, 48, "预设名称")?;
+        if !body.is_object() {
+            return Err(format!("预设 {name} 格式无效"));
+        }
+    }
+    let rules = obj
+        .get("rules")
+        .and_then(|v| v.as_array())
+        .ok_or("rules 需为数组")?;
+    if rules.len() > MAX_RULES {
+        return Err(format!("自动联动规则数量超过上限 ({MAX_RULES})"));
+    }
+    for rule in rules {
+        let robj = rule.as_object().ok_or("规则项必须是对象")?;
+        let rname = robj.get("name").and_then(|v| v.as_str()).ok_or("规则缺少名称")?;
+        validate_profile_identifier(rname, 64, "规则名称")?;
+        if robj.get("enabled").and_then(|v| v.as_bool()).is_none() {
+            return Err(format!("规则 {rname} 的 enabled 需为布尔值"));
+        }
+        let target = robj
+            .get("profile")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| format!("规则 {rname} 缺少目标预设"))?;
+        if !profiles.contains_key(target) {
+            return Err(format!("规则 {rname} 引用了不存在的预设 {target}"));
+        }
+        let matches = robj
+            .get("match")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| format!("规则 {rname} 缺少进程关键词列表"))?;
+        if matches.is_empty() || matches.len() > MAX_MATCH_TOKENS {
+            return Err(format!("规则 {rname} 需包含 1..={MAX_MATCH_TOKENS} 个进程关键词"));
+        }
+        for tok in matches {
+            let s = tok.as_str().ok_or("进程关键词需为字符串")?;
+            let clean = s.trim();
+            if clean.is_empty() || clean.chars().count() > 64 || clean.chars().any(|c| c.is_control()) {
+                return Err(format!("规则 {rname} 包含无效进程关键词"));
+            }
+        }
+    }
+    let encoded_len = serde_json::to_string_pretty(config)
+        .map(|s| s.len() + 1)
+        .unwrap_or(usize::MAX);
+    if encoded_len > MAX_PROFILE_BYTES {
+        return Err("情景配置文件超过大小限制".to_string());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn save_profiles_config(config: Value) -> Result<Value, String> {
+    validate_profiles_config(&config)?;
     let path = config_dir().join("profiles.json");
     write_user_json(&path, &config)?;
     Ok(config)
@@ -670,7 +736,8 @@ pub async fn apply_profile_bundle(profile: Value) -> Result<Value, String> {
                 .and_then(|v| v.as_str())
                 .unwrap_or("solid")
                 .to_string();
-            let brightness = lcfg.get("brightness").and_then(|v| v.as_u64()).unwrap_or(0) as u8;
+            let raw_b = lcfg.get("brightness").and_then(|v| v.as_u64()).unwrap_or(0);
+            let brightness = u8::try_from(raw_b).map_err(|_| "Logo 亮度数值越界".to_string())?;
             let color = crate::hid::parse_rgb(lcfg.get("color").unwrap_or(&json!([255, 255, 255])))?;
             apply_logo(mode, brightness, color).await?;
             applied_lighting.push("logo".to_string());
@@ -694,7 +761,9 @@ pub async fn apply_profile_bundle(profile: Value) -> Result<Value, String> {
             set_performance_mode(mode.to_string()).await?;
             if mode == "turbo" {
                 if let Some(var) = perf.get("turbo").and_then(|v| v.as_str()) {
-                    let _ = set_turbo_variant(var.to_string()).await;
+                    if let Err(e) = set_turbo_variant(var.to_string()).await {
+                        warnings.push(format!("turbo/{var}: {e}"));
+                    }
                 }
             }
             applied_perf = Some(mode.to_string());
@@ -756,6 +825,8 @@ fn validate_tuning(cfg: &Value) -> Result<Value, String> {
             }
             out.insert("gpu_db".into(), json!(d));
         }
+    } else if obj.get("gpu_db").filter(|v| !v.is_null()).is_some() {
+        return Err("设置 Dynamic Boost 时必须同时指定 GPU 基础功耗 (cTGP)".to_string());
     }
     Ok(Value::Object(out))
 }
@@ -791,9 +862,10 @@ pub async fn set_turbo_variant(variant: String) -> Result<Value, String> {
 #[tauri::command]
 pub async fn apply_performance_tuning(config: Value) -> Result<Value, String> {
     let clean = validate_tuning(&config)?;
-    let _ = write_user_json(&state_dir().join("performance.json"), &clean);
     let encoded = serde_json::to_string(&clean).map_err(|e| e.to_string())?;
-    run_profile_helper(&["apply", &encoded], 8).await
+    let resp = run_profile_helper(&["apply", &encoded], 8).await?;
+    let _ = write_user_json(&state_dir().join("performance.json"), &clean);
+    Ok(resp)
 }
 
 #[tauri::command]
@@ -803,13 +875,24 @@ pub async fn reset_performance_tuning() -> Result<Value, String> {
 
 // ----------------------------------------------------------------- Water-Cooling AF_UNIX IPC
 
+const ALLOWED_WC_OPS: &[&str] = &[
+    "ping",
+    "status",
+    "scan",
+    "connect",
+    "disconnect",
+    "set_config",
+    "reset_fault",
+    "emergency_stop",
+];
+
 fn default_watercooling_config() -> Value {
     json!({
         "version": 1,
         "auto_connect": false,
         "mac": "",
         "strategy": "preset",
-        "preset": "balanced",
+        "preset": "silent",
         "manual": {"pump_volt": 7, "pump_duty": 60, "fan_duty": 40},
         "curve": {
             "hysteresis_c": 3,
@@ -820,7 +903,7 @@ fn default_watercooling_config() -> Value {
             ],
         },
         "led": {
-            "mode": "static",
+            "mode": "off",
             "color": [0, 128, 255],
             "fan_policy": "sync",
             "fan_color": [0, 128, 255],
@@ -828,6 +911,30 @@ fn default_watercooling_config() -> Value {
         "flow_protection": true,
         "sleep_on_disconnect": true,
     })
+}
+
+fn validate_offline_wc_config(cfg: &Value) -> Result<(), String> {
+    let obj = cfg.as_object().ok_or("水冷配置必须是对象")?;
+    if let Some(m) = obj.get("manual").and_then(|v| v.as_object()) {
+        let pv = m.get("pump_volt").and_then(|v| v.as_i64()).unwrap_or(0);
+        let pd = m.get("pump_duty").and_then(|v| v.as_i64()).unwrap_or(0);
+        if !matches!(pv, 0 | 7 | 8 | 11 | 12) {
+            return Err("手动水泵电压仅支持 0、7、8、11、12 V".to_string());
+        }
+        if !(0..=100).contains(&pd) {
+            return Err("手动水泵占空比需在 0..100%".to_string());
+        }
+        if pv > 0 && pd == 0 {
+            return Err("水泵电压大于 0 V 时占空比不能为 0%".to_string());
+        }
+    }
+    let encoded_len = serde_json::to_string_pretty(cfg)
+        .map(|s| s.len() + 1)
+        .unwrap_or(usize::MAX);
+    if encoded_len > MAX_STATE_BYTES {
+        return Err("水冷配置文件超过大小限制".to_string());
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -839,49 +946,71 @@ pub async fn get_watercooling_local_config() -> Result<Value, String> {
     }
 }
 
+enum WcIpcErr {
+    Offline(String),
+    Other(String),
+}
+
 #[tauri::command]
 pub async fn watercooling_request(req: Value) -> Result<Value, String> {
     let sock_path = runtime_dir().join("iteglow-watercooling.sock");
     let op = req.get("op").and_then(|v| v.as_str()).unwrap_or("");
+    if !ALLOWED_WC_OPS.contains(&op) {
+        return Err(format!("不支持的水冷 IPC 操作: {op}"));
+    }
     let timeout_s = match op {
         "scan" | "connect" => 15u64,
         _ => 5u64,
     };
 
     let io_fut = async {
-        let mut stream = UnixStream::connect(&sock_path)
-            .await
-            .map_err(|e| format!("无法连接水冷后台服务 ({}): {e}", sock_path.display()))?;
-        let mut line = serde_json::to_string(&req).map_err(|e| e.to_string())?;
+        let mut stream = UnixStream::connect(&sock_path).await.map_err(|e| {
+            let msg = format!("无法连接水冷后台服务 ({}): {e}", sock_path.display());
+            if matches!(
+                e.kind(),
+                std::io::ErrorKind::NotFound
+                    | std::io::ErrorKind::ConnectionRefused
+                    | std::io::ErrorKind::PermissionDenied
+            ) {
+                WcIpcErr::Offline(msg)
+            } else {
+                WcIpcErr::Other(msg)
+            }
+        })?;
+        let mut line = serde_json::to_string(&req).map_err(|e| WcIpcErr::Other(e.to_string()))?;
         line.push('\n');
         stream
             .write_all(line.as_bytes())
             .await
-            .map_err(|e| format!("发送 IPC 请求失败: {e}"))?;
-        let mut reader = BufReader::new(stream);
+            .map_err(|e| WcIpcErr::Other(format!("发送 IPC 请求失败: {e}")))?;
+        let mut reader = BufReader::new(stream).take(65_537);
         let mut resp_line = String::new();
         reader
             .read_line(&mut resp_line)
             .await
-            .map_err(|e| format!("读取 IPC 响应失败: {e}"))?;
+            .map_err(|e| WcIpcErr::Other(format!("读取 IPC 响应失败: {e}")))?;
+        if resp_line.len() > 65_536 {
+            return Err(WcIpcErr::Other("水冷服务响应超过大小限制".to_string()));
+        }
         let parsed: Value = serde_json::from_str(resp_line.trim())
-            .map_err(|e| format!("解析水冷服务响应失败: {e}"))?;
+            .map_err(|e| WcIpcErr::Other(format!("解析水冷服务响应失败: {e}")))?;
         if parsed.get("ok").and_then(|v| v.as_bool()) != Some(true) {
             let err = parsed
                 .get("error")
                 .and_then(|v| v.as_str())
                 .unwrap_or("水冷服务返回错误");
-            return Err(err.to_string());
+            return Err(WcIpcErr::Other(err.to_string()));
         }
         Ok(parsed.get("result").cloned().unwrap_or(Value::Null))
     };
 
     match tokio::time::timeout(Duration::from_secs(timeout_s), io_fut).await {
         Ok(Ok(res)) => Ok(res),
-        Ok(Err(e)) => {
-            // If saving config while daemon is offline, persist locally cleanly.
+        Ok(Err(WcIpcErr::Offline(e))) => {
+            // ONLY when the daemon is genuinely offline may we persist validated config locally.
             if op == "set_config" {
                 if let Some(cfg) = req.get("config") {
+                    validate_offline_wc_config(cfg)?;
                     let path = config_dir().join("watercooling.json");
                     write_user_json(&path, cfg)?;
                     return Ok(json!({"saved_offline": true, "config": cfg}));
@@ -889,6 +1018,7 @@ pub async fn watercooling_request(req: Value) -> Result<Value, String> {
             }
             Err(e)
         }
+        Ok(Err(WcIpcErr::Other(e))) => Err(e),
         Err(_) => Err(format!("水冷后台服务响应超时 ({timeout_s}s)")),
     }
 }

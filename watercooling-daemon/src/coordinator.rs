@@ -271,11 +271,12 @@ impl<T: BleTransport> CoolerCoordinator<T> {
     }
 
     pub async fn emergency_stop(&mut self) -> Result<StatusSnapshot, String> {
+        // Safety-first: physically stop pump/fan & put cooler to sleep BEFORE touching disk config.
+        self.disconnect(Some(true)).await;
         self.config.strategy = "preset".to_string();
         self.config.preset = "stop".to_string();
         self.config.led.mode = "off".to_string();
         self.config = protocol::save_config(&self.config, &self.config_path)?;
-        self.disconnect(Some(true)).await;
         self.last_reason = "emergency_stop".to_string();
         Ok(self.status().await)
     }
@@ -337,14 +338,19 @@ impl<T: BleTransport> CoolerCoordinator<T> {
             let was_tripped = self.last_reason == "flow_fault_locked";
             self.last_error = self.flow_monitor.trip_reason.clone();
             if self.applied.pump_volt != 0 || self.applied.pump_duty != 0 || self.applied.fan_duty != 0 {
-                if let Err(e) = self.client.apply_actuators(0, 0, 0).await {
-                    self.last_error = format!("{}; 紧急停泵失败: {e}", self.flow_monitor.trip_reason);
+                match self.client.apply_actuators(0, 0, 0).await {
+                    Ok(()) => {
+                        self.applied = StageConfig {
+                            pump_volt: 0,
+                            pump_duty: 0,
+                            fan_duty: 0,
+                        };
+                    }
+                    Err(e) => {
+                        // Keep `self.applied` non-zero so subsequent ticks keep retrying emergency stop.
+                        self.last_error = format!("{}; 紧急停泵失败(将重试): {e}", self.flow_monitor.trip_reason);
+                    }
                 }
-                self.applied = StageConfig {
-                    pump_volt: 0,
-                    pump_duty: 0,
-                    fan_duty: 0,
-                };
             }
             self.last_reason = "flow_fault_locked".to_string();
             self.actuators_dirty = false;
@@ -376,7 +382,12 @@ impl<T: BleTransport> CoolerCoordinator<T> {
             fan_duty: fd,
         };
         if force || self.actuators_dirty || target != self.applied {
+            let starting_pump = self.applied.pump_volt == 0 && pv > 0;
             self.client.apply_actuators(pv, pd, fd).await?;
+            if starting_pump {
+                // Do not let a pre-stop `Some(2)` meter value mask dry-run on pump restart.
+                self.client.meter_state = None;
+            }
             self.applied = target;
             self.actuators_dirty = false;
             self.flow_monitor.update(
@@ -401,10 +412,12 @@ impl<T: BleTransport> CoolerCoordinator<T> {
         self.drain_ble_events();
         let now = self.clock.now_secs();
         if self.sleeping {
+            self.sample_inputs();
             self.publish_snapshot().await;
             return;
         }
         if !self.client.connected {
+            self.sample_inputs();
             if self.config.auto_connect && !self.flow_monitor.tripped && now >= self.next_connect_at {
                 if let Err(e) = self.connect("").await {
                     let delay = RECONNECT_BACKOFF_S
@@ -477,10 +490,14 @@ impl<T: BleTransport> CoolerCoordinator<T> {
             "ping" => Ok(json!({"pong": true, "connected": self.client.connected})),
             "status" => serde_json::to_value(self.status().await).map_err(|e| e.to_string()),
             "scan" => {
-                let timeout_s = req
+                let raw_t = req
                     .get("timeout_s")
                     .and_then(Value::as_f64)
                     .unwrap_or(5.0);
+                if !raw_t.is_finite() {
+                    return Err("timeout_s 必须是有限数值".to_string());
+                }
+                let timeout_s = raw_t.clamp(0.5, 20.0);
                 let devices = self.scan(timeout_s).await?;
                 Ok(json!({"devices": devices}))
             }

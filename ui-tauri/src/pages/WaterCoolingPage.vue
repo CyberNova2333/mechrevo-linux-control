@@ -80,7 +80,7 @@ const DEFAULT_WC: WaterCoolingConfig = {
   auto_connect: false,
   mac: "",
   strategy: "preset",
-  preset: "balanced",
+  preset: "silent",
   manual: { pump_volt: 7, pump_duty: 60, fan_duty: 40 },
   curve: {
     hysteresis_c: 3,
@@ -91,7 +91,7 @@ const DEFAULT_WC: WaterCoolingConfig = {
     ],
   },
   led: {
-    mode: "static",
+    mode: "off",
     color: [0, 200, 255],
     fan_policy: "sync",
     fan_color: [0, 200, 255],
@@ -107,20 +107,69 @@ const busy = ref(false);
 const msg = ref("正在读取水冷守护状态…");
 const isError = ref(false);
 
+let alive = true;
+let statusReqId = 0;
+let daemonSynced = false;
+
 function markDirty() {
   dirty.value = true;
 }
 
+function updateManualVolt(v: number) {
+  cfg.value.manual.pump_volt = v;
+  if (v === 0) {
+    cfg.value.manual.pump_duty = 0;
+  } else if (cfg.value.manual.pump_duty === 0) {
+    cfg.value.manual.pump_duty = 60;
+  }
+  markDirty();
+}
+
+function updateCurveVolt(idx: number, v: number) {
+  const pt = cfg.value.curve.points[idx];
+  if (!pt) return;
+  pt.pump_volt = v;
+  if (v === 0) {
+    pt.pump_duty = 0;
+  } else if (pt.pump_duty === 0) {
+    pt.pump_duty = 60;
+  }
+  markDirty();
+}
+
+function handleSaveConfig() {
+  if (cfg.value.strategy === "manual" && cfg.value.manual.pump_volt > 0 && cfg.value.manual.pump_duty === 0) {
+    msg.value = "手动模式下水泵供电大于 0V 时，占空比不能为 0%（若需停泵请选 0V）";
+    isError.value = true;
+    message.warning("水泵供电大于 0V 时占空比不能为 0%");
+    return;
+  }
+  if (cfg.value.strategy === "smart_curve") {
+    const bad = cfg.value.curve.points.findIndex((p) => p.pump_volt > 0 && p.pump_duty === 0);
+    if (bad !== -1) {
+      msg.value = `温控曲线节点 T${bad + 1} 供电大于 0V 但占空比为 0%，请调整后再保存`;
+      isError.value = true;
+      message.warning(`温控曲线节点 T${bad + 1} 占空比不能为 0%`);
+      return;
+    }
+  }
+  sendOp("正在保存并应用水冷配置…", { op: "set_config", config: cfg.value }, true);
+}
+
 async function pollStatus(forceConfigSync: boolean): Promise<boolean> {
+  const reqId = ++statusReqId;
   try {
     const res = await api.waterCoolingRequest<WaterCoolingSnapshot>({ op: "status" });
+    if (!alive || reqId !== statusReqId) return false;
     snap.value = res;
+    daemonSynced = true;
     if (res.config && (forceConfigSync || !dirty.value)) {
       cfg.value = structuredClone(res.config);
     }
     isError.value = false;
     return true;
   } catch (err) {
+    if (!alive || reqId !== statusReqId) return false;
     msg.value = `读取水冷后台服务失败：${String(err)}`;
     isError.value = true;
     return false;
@@ -259,20 +308,24 @@ const fanPoly = computed(() =>
 
 let pollTimer: number | null = null;
 onMounted(() => {
+  alive = true;
   api
     .getWaterCoolingLocalConfig()
     .then((local) => {
-      if (!dirty.value) cfg.value = structuredClone(local);
+      if (alive && !dirty.value && !daemonSynced) {
+        cfg.value = structuredClone(local);
+      }
     })
     .catch(() => {});
   pollStatus(true).then((ok) => {
-    if (ok) msg.value = "已连接冰河水冷 Rust 守护进程";
+    if (alive && ok) msg.value = "已连接冰河水冷 Rust 守护进程";
   });
   pollTimer = window.setInterval(() => {
     if (!busy.value) pollStatus(false);
   }, 3000);
 });
 onUnmounted(() => {
+  alive = false;
   if (pollTimer !== null) window.clearInterval(pollTimer);
 });
 </script>
@@ -280,7 +333,7 @@ onUnmounted(() => {
 <template>
   <div class="page-stack">
     <!-- Hero Telemetry & LCT22002 Visualizer -->
-    <section class="ccu-hero" style="--hero-accent: #22d3ee">
+    <section class="ccu-hero" style="--hero-accent: var(--accent-cyan)">
       <div class="ccu-field-row" style="margin-bottom: 14px">
         <div>
           <h2 class="ccu-section-title">
@@ -546,10 +599,10 @@ onUnmounted(() => {
           <div class="ccu-field-row">
             <span class="ccu-field-label">水泵供电电压</span>
             <n-select
-              v-model:value="cfg.manual.pump_volt"
+              :value="cfg.manual.pump_volt"
               style="width: 150px"
               :options="VOLT_OPTIONS"
-              @update:value="markDirty"
+              @update:value="(v: number) => updateManualVolt(v)"
             />
           </div>
           <div>
@@ -561,8 +614,9 @@ onUnmounted(() => {
             </div>
             <n-slider
               v-model:value="cfg.manual.pump_duty"
-              :min="0"
+              :min="cfg.manual.pump_volt > 0 ? 10 : 0"
               :max="100"
+              :disabled="cfg.manual.pump_volt === 0"
               @update:value="markDirty"
             />
           </div>
@@ -631,9 +685,9 @@ onUnmounted(() => {
           </svg>
 
           <div style="display: flex; gap: 14px; font-size: 11px; color: var(--ink-muted)">
-            <span><span class="status-dot" style="background: #8b5cf6; margin-right: 5px" />水泵占空比</span>
-            <span><span class="status-dot" style="background: #00c8ff; margin-right: 5px" />冷排风扇</span>
-            <span><span class="status-dot" style="background: #fbbf24; margin-right: 5px" />实时 CPU 温度</span>
+            <span><span class="status-dot" style="background: var(--accent-violet); margin-right: 5px" />水泵占空比</span>
+            <span><span class="status-dot" style="background: var(--accent-cyan); margin-right: 5px" />冷排风扇</span>
+            <span><span class="status-dot" style="background: #f59e0b; margin-right: 5px" />实时 CPU 温度</span>
           </div>
 
           <div class="ccu-field-row">
@@ -679,22 +733,18 @@ onUnmounted(() => {
               size="tiny"
               :options="VOLT_SHORT_OPTIONS"
               :value="pt.pump_volt"
-              @update:value="
-                (v: number) => {
-                  pt.pump_volt = v;
-                  markDirty();
-                }
-              "
+              @update:value="(v: number) => updateCurveVolt(idx, v)"
             />
             <n-input-number
               size="tiny"
               :show-button="false"
-              :min="0"
+              :min="pt.pump_volt > 0 ? 10 : 0"
               :max="100"
+              :disabled="pt.pump_volt === 0"
               :value="pt.pump_duty"
               @update:value="
                 (v) => {
-                  pt.pump_duty = v ?? 0;
+                  pt.pump_duty = v ?? (pt.pump_volt > 0 ? 60 : 0);
                   markDirty();
                 }
               "
@@ -814,13 +864,7 @@ onUnmounted(() => {
             <n-button
               type="primary"
               :loading="busy"
-              @click="
-                sendOp(
-                  '正在保存并应用水冷配置…',
-                  { op: 'set_config', config: cfg },
-                  true
-                )
-              "
+              @click="handleSaveConfig"
             >
               保存并应用全部水冷设置
             </n-button>

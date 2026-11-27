@@ -55,6 +55,7 @@ import ProfilesPage from "./pages/ProfilesPage.vue";
 import ServicesPage from "./pages/ServicesPage.vue";
 
 const THEME_STORAGE_KEY = "mechrevo-theme-pref";
+const OS_THEME_CACHE_KEY = "mechrevo-os-theme-cache";
 
 interface NavMeta {
   id: PageId;
@@ -113,6 +114,12 @@ function loadSavedThemePref(): ThemePreference {
 }
 
 function initialBrowserTheme(): ResolvedTheme {
+  try {
+    const cached = localStorage.getItem(OS_THEME_CACHE_KEY);
+    if (cached === "dark" || cached === "light") return cached;
+  } catch {
+    // ignore storage errors
+  }
   if (typeof window !== "undefined" && window.matchMedia) {
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }
@@ -300,6 +307,11 @@ async function pollOsTheme() {
     const detected = await api.getSystemTheme();
     if (detected === "dark" || detected === "light") {
       osTheme.value = detected;
+      try {
+        localStorage.setItem(OS_THEME_CACHE_KEY, detected);
+      } catch {
+        // ignore storage errors
+      }
     }
   } catch {
     // fallback to browser prefers-color-scheme
@@ -307,6 +319,7 @@ async function pollOsTheme() {
 }
 
 function onMediaThemeChange(e: MediaQueryListEvent) {
+  if (themePref.value !== "system") return;
   osTheme.value = e.matches ? "dark" : "light";
   pollOsTheme();
 }
@@ -356,6 +369,16 @@ async function handleAllLightsOff() {
 
 function onGlobalKeydown(e: KeyboardEvent) {
   if (!e.ctrlKey || e.altKey || e.metaKey) return;
+  const targetEl = e.target as HTMLElement | null;
+  if (
+    targetEl &&
+    (targetEl.tagName === "INPUT" ||
+      targetEl.tagName === "TEXTAREA" ||
+      targetEl.tagName === "SELECT" ||
+      targetEl.isContentEditable)
+  ) {
+    return;
+  }
   if (e.shiftKey && e.key.toLowerCase() === "t") {
     e.preventDefault();
     cycleThemePref();
@@ -393,7 +416,9 @@ onMounted(() => {
 
   sysTimer = window.setInterval(pollSystem, 8000);
   telemetryTimer = window.setInterval(pollTelemetry, 2000);
-  perfTimer = window.setInterval(pollPerfSummary, 5000);
+  perfTimer = window.setInterval(() => {
+    if (activePage.value !== "performance") pollPerfSummary();
+  }, 5000);
   osThemeTimer = window.setInterval(() => {
     if (themePref.value === "system") pollOsTheme();
   }, 6000);
@@ -449,9 +474,9 @@ onUnmounted(() => {
 
             <div class="sider-spacer" />
 
-            <div
+            <button
+              type="button"
               class="sider-hardware-card"
-              style="cursor: pointer"
               title="点击进入后台服务管理（快捷键 Ctrl+6）"
               @click="navigateTo('services')"
             >
@@ -469,7 +494,7 @@ onUnmounted(() => {
                   Rust 守护 <strong class="mono">{{ daemonCount }}/4</strong> 在线
                 </span>
               </div>
-            </div>
+            </button>
           </div>
         </n-layout-sider>
 
@@ -481,8 +506,16 @@ onUnmounted(() => {
             </div>
 
             <div class="topbar-right">
-              <n-tag v-if="noticeText" size="small" type="info" round :bordered="false">
-                {{ noticeText }}
+              <n-tag
+                v-if="noticeText"
+                size="small"
+                type="info"
+                round
+                :bordered="false"
+                :title="noticeText"
+                style="max-width: 260px"
+              >
+                <span class="notice-ellipsis">{{ noticeText }}</span>
               </n-tag>
 
               <div v-if="telemetry" class="mini-stat-chip mono" title="实时 CPU / GPU 温度">

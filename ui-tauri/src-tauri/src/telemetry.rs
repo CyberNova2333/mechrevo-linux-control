@@ -84,11 +84,7 @@ fn read_cpu_cur_mhz() -> Option<u32> {
             }
         }
     }
-    if count > 0 {
-        Some(((sum_khz / count) / 1000) as u32)
-    } else {
-        None
-    }
+    sum_khz.checked_div(count).map(|avg| (avg / 1000) as u32)
 }
 
 fn parse_proc_stat_totals(content: &str) -> Option<(u64, u64)> {
@@ -105,7 +101,8 @@ fn parse_proc_stat_totals(content: &str) -> Option<(u64, u64)> {
         return None;
     }
     let idle = nums[3] + nums.get(4).copied().unwrap_or(0);
-    let total: u64 = nums.iter().sum();
+    // Linux proc(5): guest & guest_nice (cols 9-10) are already included in user & nice
+    let total: u64 = nums.iter().take(8).sum();
     Some((idle, total))
 }
 
@@ -151,7 +148,9 @@ fn read_hwmon_temps() -> (Option<f64>, Option<f64>) {
     let Ok(entries) = fs::read_dir("/sys/class/hwmon") else {
         return (None, None);
     };
-    for ent in entries.flatten() {
+    let mut dirs: Vec<_> = entries.flatten().collect();
+    dirs.sort_by_key(|e| e.file_name());
+    for ent in dirs {
         let dir = ent.path();
         let name = fs::read_to_string(dir.join("name"))
             .map(|s| s.trim().to_string())
@@ -168,6 +167,9 @@ fn read_hwmon_temps() -> (Option<f64>, Option<f64>) {
                 let Ok(mc) = raw.trim().parse::<f64>() else {
                     continue;
                 };
+                if !mc.is_finite() {
+                    continue;
+                }
                 let c = (mc / 1000.0 * 10.0).round() / 10.0;
                 if first_val.is_none() {
                     first_val = Some(c);
@@ -186,13 +188,17 @@ fn read_hwmon_temps() -> (Option<f64>, Option<f64>) {
         } else if name == "acpitz" && fallback_cpu.is_none() {
             if let Ok(raw) = fs::read_to_string(dir.join("temp1_input")) {
                 if let Ok(mc) = raw.trim().parse::<f64>() {
-                    fallback_cpu = Some((mc / 1000.0 * 10.0).round() / 10.0);
+                    if mc.is_finite() {
+                        fallback_cpu = Some((mc / 1000.0 * 10.0).round() / 10.0);
+                    }
                 }
             }
         } else if name == "nvme" && nvme_temp.is_none() {
             if let Ok(raw) = fs::read_to_string(dir.join("temp1_input")) {
                 if let Ok(mc) = raw.trim().parse::<f64>() {
-                    nvme_temp = Some((mc / 1000.0 * 10.0).round() / 10.0);
+                    if mc.is_finite() {
+                        nvme_temp = Some((mc / 1000.0 * 10.0).round() / 10.0);
+                    }
                 }
             }
         }
@@ -226,7 +232,7 @@ fn read_root_storage() -> (f64, f64, f64) {
     };
     let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
     let rc = unsafe { libc::statvfs(c_path.as_ptr(), &mut st) };
-    if rc != 0 || st.f_blocks == 0 {
+    if rc != 0 || st.f_blocks == 0 || st.f_frsize == 0 {
         return (0.0, 0.0, 0.0);
     }
     let frsize = st.f_frsize as f64;
@@ -246,7 +252,9 @@ fn read_power_supply() -> Value {
     let mut battery_status = "Unknown".to_string();
 
     if let Ok(entries) = fs::read_dir("/sys/class/power_supply") {
-        for ent in entries.flatten() {
+        let mut supplies: Vec<_> = entries.flatten().collect();
+        supplies.sort_by_key(|e| e.file_name());
+        for ent in supplies {
             let p = ent.path();
             let ptype = fs::read_to_string(p.join("type"))
                 .map(|s| s.trim().to_string())
@@ -259,6 +267,12 @@ fn read_power_supply() -> Value {
                     ac_online = true;
                 }
             } else if ptype == "Battery" && battery_pct.is_none() {
+                let scope = fs::read_to_string(p.join("scope"))
+                    .map(|s| s.trim().to_string())
+                    .unwrap_or_default();
+                if scope.eq_ignore_ascii_case("Device") {
+                    continue;
+                }
                 battery_pct = fs::read_to_string(p.join("capacity"))
                     .ok()
                     .and_then(|s| s.trim().parse::<u32>().ok());
@@ -281,7 +295,37 @@ fn parse_opt_f64(field: &str) -> Option<f64> {
     if clean.is_empty() || clean.contains("N/A") {
         return None;
     }
-    clean.parse::<f64>().ok()
+    clean
+        .parse::<f64>()
+        .ok()
+        .filter(|v| v.is_finite() && *v >= 0.0)
+}
+
+/// Returns true if an NVIDIA PCI display controller is present and ALL of them
+/// are currently runtime-suspended (RTD3). Calling `nvidia-smi` in that state
+/// would needlessly wake the dGPU on battery power.
+fn all_nvidia_gpus_suspended() -> bool {
+    let Ok(entries) = fs::read_dir("/sys/bus/pci/devices") else {
+        return false;
+    };
+    let mut found_nvidia = false;
+    for ent in entries.flatten() {
+        let p = ent.path();
+        let vendor = fs::read_to_string(p.join("vendor")).unwrap_or_default();
+        if !vendor.trim().eq_ignore_ascii_case("0x10de") {
+            continue;
+        }
+        let class = fs::read_to_string(p.join("class")).unwrap_or_default();
+        if !class.trim().to_ascii_lowercase().starts_with("0x03") {
+            continue;
+        }
+        found_nvidia = true;
+        let status = fs::read_to_string(p.join("power/runtime_status")).unwrap_or_default();
+        if status.trim() != "suspended" {
+            return false;
+        }
+    }
+    found_nvidia
 }
 
 fn parse_nvidia_smi_line(line: &str) -> Option<Value> {
@@ -302,7 +346,24 @@ fn parse_nvidia_smi_line(line: &str) -> Option<Value> {
 }
 
 async fn read_gpu_telemetry() -> Value {
-    let mut cmd = Command::new("nvidia-smi");
+    let unavailable = || {
+        json!({
+            "available": false,
+            "name": "独立显卡休眠 / 未就绪",
+            "temp_c": null,
+            "usage_pct": null,
+            "power_w": null,
+            "clock_mhz": null,
+            "vram_used_mb": null,
+            "vram_total_mb": null,
+        })
+    };
+
+    if all_nvidia_gpus_suspended() {
+        return unavailable();
+    }
+
+    let mut cmd = Command::new("/usr/bin/nvidia-smi");
     cmd.args([
         "--query-gpu=name,temperature.gpu,utilization.gpu,power.draw,clocks.current.graphics,memory.used,memory.total",
         "--format=csv,noheader,nounits",
@@ -323,16 +384,7 @@ async fn read_gpu_telemetry() -> Value {
             }
         }
     }
-    json!({
-        "available": false,
-        "name": "独立显卡休眠 / 未就绪",
-        "temp_c": null,
-        "usage_pct": null,
-        "power_w": null,
-        "clock_mhz": null,
-        "vram_used_mb": null,
-        "vram_total_mb": null,
-    })
+    unavailable()
 }
 
 fn read_ec_cooler_telemetry() -> Value {

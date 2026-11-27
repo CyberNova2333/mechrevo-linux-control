@@ -342,9 +342,16 @@ impl<D: LifecycleDeps> Lifecycle<D> {
         match step_res {
             Ok(v) => Ok(v),
             Err(err) => {
-                saved["phase"] = json!("resume_failed");
-                saved["error"] = json!(err);
-                let _ = self.marker.save(&saved);
+                // Never overwrite `pre_failed`/`preparing` into `resume_failed`,
+                // which would otherwise bypass the pre-sleep safety gate on retry.
+                if matches!(
+                    saved.get("phase").and_then(|v| v.as_str()),
+                    Some("quiesced" | "resume_queued" | "resume_failed")
+                ) {
+                    saved["phase"] = json!("resume_failed");
+                    saved["error"] = json!(err);
+                    let _ = self.marker.save(&saved);
+                }
                 Err(err)
             }
         }
