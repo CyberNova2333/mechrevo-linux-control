@@ -24,10 +24,11 @@
 - **独立后盖 Logo 灯控制**：EC 掩码安全写入，支持常亮自选色、七色呼吸、七彩渐变、25% 步进亮度与关闭（[logo.py](iteglow/src/iteglow/logo.py)），内嵌实时发光预览。
 - **自动灯光与情景联动**：支持插电 / 电池分设亮度与空闲熄灯（[lighting_policy.py](iteglow/src/iteglow/lighting_policy.py)），以及基于当前用户应用进程的 opt-in 情景预设切换（[profiles.py](iteglow/src/iteglow/profiles.py)），物理模式键 `0xB0` 切换时自动让步。
 
-### 2. 外置蓝牙水冷控制与守护 (`watercooling*`)
-- **实机验证协议**：针对 `CoolingSystem LCT22002`（固件 `2.0.0.4`）/ `LCT21001` 的非配对 BlueZ GATT 传输（[watercooling_ble.py](iteglow/src/iteglow/watercooling_ble.py)），禁用易失败的 SMP 配对、支持瞬时 `0x3e` 断链 3 次自动重试与 `>=100ms` UART 发送节流。
+### 2. 外置蓝牙水冷控制与守护 (`watercooling*` / `watercooling-daemon/`)
+- **实机验证协议**：针对 `CoolingSystem LCT22002`（固件 `2.0.0.4`）/ `LCT21001` 的非配对 BlueZ GATT 传输（[watercooling_ble.py](iteglow/src/iteglow/watercooling_ble.py) / [watercooling-daemon/src/ble.rs](watercooling-daemon/src/ble.rs)），禁用易失败的 SMP 配对、支持瞬时 `0x3e` 断链 3 次自动重试、兼容扫描 `InProgress` 与 `AlreadyConnected` 接管、`ATT 0x0e` 瞬时容错与 `>=100ms` UART 发送节流。
+- **异步 Rust 守护进程 (`watercooling-daemon/`)**：基于单线程异步 `tokio` + `zbus` 重构的 `iteglow-watercoolingd`（常驻内存约 1.5–2.6 MB，100% 兼容现有 AF_UNIX JSON IPC 与 `~/.config/iteglow/watercooling.json`），`ping`/`status` 走无阻塞快照快路径，具备结构化 `journald` 日志与唤醒/断连指数退避重连，并随附蓝牙防掉线配置（[81-bt-ax211-no-autosuspend.rules](system/81-bt-ax211-no-autosuspend.rules)、[bluez-le-timeout.conf.example](system/bluez-le-timeout.conf.example)）。
 - **泵扇驱动与双区灯效**：支持 `0x1C` 水泵供电（`0/7/8/11/12V` + 占空比）、`0x1B` 风扇占空比、`0x19 00 01` 待机（`GoToSleepLC`），并基于 `0x1E` + `0x33`（风扇锁存/同步开关）实现双区协同或分色控制（`sync` / `body_only` / `freeze` / `split`）。
-- **多重安全保护**：`FlowSafetyMonitor` 持续监控 `meter_state` 流量信号，干转或断流超时即锁定停泵；用户级守护进程（[watercooling_service.py](iteglow/src/iteglow/watercooling_service.py) / `iteglow-watercooling.service`）默认关闭自动连接（`auto_connect: False`），监听 `logind` `PrepareForSleep` / `PrepareForShutdown` 在睡眠前自动停泵并发送待机指令。
+- **多重安全保护**：`FlowSafetyMonitor` 持续监控 `meter_state` 流量信号，干转或断流超时即锁定停泵；用户级守护进程（[iteglow-watercooling.service](system/iteglow-watercooling.service)）默认关闭自动连接（`auto_connect: False`），监听 `logind` `PrepareForSleep` / `PrepareForShutdown` 在睡眠前自动停泵并发送待机指令。
 - **EC/WMI 只读协同 telemetry**：[mechrevo-profile-helper](system/mechrevo-profile-helper) 新增只读采集 `0x7A4 / 0x7C7 / 0x7C8 / 0x7E6 / 0x7E7 / 0xD48`，通过 `/run/mechrevo-watercooler-ec.json`（`0644`）发布给水冷服务（不修改 `EC 0x7C7` 或内核桥接模块）。
 
 ### 3. 固件性能档位、功耗调校与狂暴调度 (`system/`)
@@ -44,8 +45,14 @@
 ## 快速测试与 CLI 使用
 
 ```bash
-# 运行全部 368 项离线单元测试与 GTK4 界面测试
-xvfb-run -a /usr/bin/python3 -m unittest discover -s tests -v
+# 运行全部离线单元测试与 GTK4 界面测试
+PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -m unittest discover -s tests -v
+
+# 运行 Rust 异步水冷守护进程单元测试与发布构建
+(cd watercooling-daemon && cargo test && cargo build --release)
+
+# 构建 .deb / .rpm / Type-2 .AppImage 发行包（产物输出至 dist/）
+FETCH_APPIMAGE_RUNTIME=1 ./packaging/build-packages.sh
 
 # 启动桌面控制中心
 PYTHONPATH=iteglow/src /usr/bin/python3 -m iteglow.cli gui

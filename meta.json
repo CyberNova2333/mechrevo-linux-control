@@ -17,6 +17,7 @@
   "primaryLanguage": "Python",
   "techStack": [
     "Python 3",
+    "Rust (tokio / zbus)",
     "GTK4 / PyGObject",
     "BlueZ GATT / D-Bus",
     "Linux Kernel Module (C)",
@@ -55,5 +56,5 @@
   "additionalTermsConsent": {
     "CyberNova": true
   },
-  "updatedAt": "2026-11-17"
+  "updatedAt": "2026-11-27"
 }
