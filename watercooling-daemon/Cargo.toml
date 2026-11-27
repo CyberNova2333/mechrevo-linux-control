@@ -1,0 +1,25 @@
+[package]
+name = "iteglow-watercoolingd"
+version = "0.4.0"
+edition = "2021"
+description = "Unprivileged async Rust BLE water-cooling daemon for MECHREVO LCT22002/LCT21001"
+license = "AGPL-3.0-only"
+
+[[bin]]
+name = "iteglow-watercoolingd"
+path = "src/main.rs"
+
+[dependencies]
+futures-util = "0.3"
+libc = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.45", features = ["rt", "macros", "net", "time", "sync", "signal", "io-util"] }
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

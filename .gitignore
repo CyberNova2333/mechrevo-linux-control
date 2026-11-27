@@ -11,3 +11,6 @@ private/
 Module.symvers
 modules.order
 .tmp_versions/
+watercooling-daemon/target/
+dist/
+packaging/cache/
