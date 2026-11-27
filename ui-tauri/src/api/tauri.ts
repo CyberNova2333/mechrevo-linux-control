@@ -7,6 +7,7 @@ import type {
   LightingPolicyConfig,
   LightingSavedParams,
   LightingStateResponse,
+  LiveTelemetry,
   PerformanceStatus,
   ProfileBundle,
   ProfilesConfig,
@@ -19,6 +20,7 @@ import type {
 
 export const api = {
   getSystemInfo: () => invoke<SystemInfo>("get_system_info"),
+  getLiveTelemetry: () => invoke<LiveTelemetry>("get_live_telemetry"),
   allLightsOff: () => invoke<{ turned_off: string[]; errors: string[] }>("all_lights_off"),
 
   getLightingState: (device: "keyboard" | "lightbar") =>

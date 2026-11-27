@@ -4,13 +4,57 @@
 export type Rgb = [number, number, number];
 
 export type PageId =
-  | "keyboard"
-  | "lightbar"
-  | "logo"
-  | "lighting-policy"
-  | "profiles"
+  | "home"
   | "performance"
-  | "watercooling";
+  | "lighting"
+  | "watercooling"
+  | "profiles";
+
+export type LightingTabId = "keyboard" | "lightbar" | "logo" | "policy";
+
+export interface LiveTelemetry {
+  cpu: {
+    model: string;
+    usage_pct: number;
+    temp_c: number | null;
+    freq_mhz: number | null;
+    max_freq_mhz: number;
+    cores: number;
+  };
+  gpu: {
+    available: boolean;
+    name: string;
+    temp_c: number | null;
+    usage_pct: number | null;
+    power_w: number | null;
+    clock_mhz: number | null;
+    vram_used_mb: number | null;
+    vram_total_mb: number | null;
+  };
+  memory: {
+    used_gb: number;
+    total_gb: number;
+    usage_pct: number;
+  };
+  storage: {
+    used_gb: number;
+    total_gb: number;
+    usage_pct: number;
+    nvme_temp_c: number | null;
+  };
+  power: {
+    ac_online: boolean;
+    battery_pct: number | null;
+    battery_status: string;
+  };
+  ec_cooler: {
+    lc_supported?: boolean;
+    ec_pump_enabled?: boolean;
+    ec_pump_volt?: number;
+    ec_fan_enabled?: boolean;
+    ec_fan_duty?: number;
+  } | null;
+}
 
 export interface SystemInfo {
   sys_vendor: string;

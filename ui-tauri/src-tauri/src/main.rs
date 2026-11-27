@@ -4,12 +4,14 @@
 
 mod commands;
 mod hid;
+mod telemetry;
 mod zone_lock;
 
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             commands::get_system_info,
+            telemetry::get_live_telemetry,
             commands::all_lights_off,
             commands::get_lighting_state,
             commands::apply_lighting,

@@ -14,13 +14,13 @@
       {
         "label": "main",
         "title": "机械革命控制中心",
-        "width": 1240,
+        "width": 1280,
         "height": 840,
-        "minWidth": 960,
-        "minHeight": 680,
+        "minWidth": 1000,
+        "minHeight": 700,
         "resizable": true,
         "theme": "Dark",
-        "backgroundColor": "#0B0E13"
+        "backgroundColor": "#090B12"
       }
     ],
     "security": {
