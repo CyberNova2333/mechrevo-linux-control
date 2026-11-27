@@ -14,5 +14,9 @@ modules.order
 watercooling-daemon/target/
 session-daemon/target/
 system-daemon/target/
+ui-tauri/node_modules/
+ui-tauri/dist/
+ui-tauri/src-tauri/target/
+ui-tauri/src-tauri/gen/
 dist/
 packaging/cache/
