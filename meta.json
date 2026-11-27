@@ -17,7 +17,7 @@
   "primaryLanguage": "Rust",
   "techStack": [
     "Rust (Tauri 2 / tokio / zbus / native CLI & system helpers)",
-    "React 19 / TypeScript / Vite",
+    "Vue 3 / Naive UI / TypeScript / Vite",
     "BlueZ GATT / D-Bus",
     "Linux Kernel Module (C)",
     "systemd / Polkit"
@@ -26,6 +26,7 @@
     "mechrevo",
     "linux",
     "tauri",
+    "vue",
     "rust",
     "bluetooth-le",
     "watercooling",
@@ -33,17 +34,17 @@
     "nvidia"
   ],
   "summary": {
-    "zh": "面向机械革命耀世系列的 100% 原生 Rust 运行时 Linux 硬件控制中心与系统调校套件：提供 Tauri 2 + React 暗色桌面控制台、零 Python 依赖的 CLI 与 8 个系统助手/守护、外置 LCT22002/LCT21001 蓝牙水冷 Rust 守护、EC 功耗/风扇调校及 NVIDIA 休眠修复。",
-    "en": "Zero-Python runtime Linux control suite for Mechrevo YAOSHI laptops featuring a Tauri 2 + React dark anodized desktop center, native Rust CLI, full Rust user/root daemon & helper stack, unpaired BLE LCT22002/LCT21001 external water-cooler control, bounded EC/GPU power tuning, and NVIDIA hibernate fixes."
+    "zh": "面向机械革命耀世系列的 100% 原生 Rust 运行时 Linux 硬件控制中心与系统调校套件：提供 Tauri 2 + Vue 3 / Naive UI 桌面控制台（含实时遥测、系统亮暗主题跟随与后台服务管理）、零 Python 依赖的 CLI 与 8 个系统助手/守护、外置 LCT22002/LCT21001 蓝牙水冷 Rust 守护、EC 功耗/风扇调校及 NVIDIA 休眠修复。",
+    "en": "Zero-Python runtime Linux control suite for Mechrevo YAOSHI laptops featuring a Tauri 2 + Vue 3 / Naive UI desktop center (live telemetry, OS-following light/dark themes, systemd service manager), native Rust CLI, full Rust user/root daemon & helper stack, unpaired BLE LCT22002/LCT21001 external water-cooler control, bounded EC/GPU power tuning, and NVIDIA hibernate fixes."
   },
   "highlights": {
     "zh": [
-      "Tauri 2 + React 19 / TypeScript 原生桌面控制台（mechrevo-control-gui）与原生 Rust CLI（iteglow），发行包零 Python 运行时依赖",
+      "Tauri 2 + Vue 3 / Naive UI / TypeScript 原生桌面控制台（mechrevo-control-gui，含实时遥测、亮暗主题跟随与 systemd 服务/日志管理）与原生 Rust CLI（iteglow），发行包零 Python 运行时依赖",
       "全栈原生 Rust 后台守护与系统助手（水冷 BLE / 灯光会话 / 狂暴调度 / EC 安全守卫 / Polkit 助手 / 睡眠与 DKMS 钩子），常驻总内存约 6 MB",
       "通过固定 root 助手与受 SHA-256 门禁保护的内核租约模块实现安全性能调校、只读 EC 水冷遥测与 NVIDIA DKMS 休眠修复"
     ],
     "en": [
-      "Native Tauri 2 + React 19 / TypeScript desktop UI (mechrevo-control-gui) and zero-Python Rust CLI (iteglow) with self-contained .deb/.rpm/.AppImage packages",
+      "Native Tauri 2 + Vue 3 / Naive UI / TypeScript desktop UI (mechrevo-control-gui with live telemetry, OS light/dark theme sync, and systemd service/log manager) and zero-Python Rust CLI (iteglow) with self-contained .deb/.rpm/.AppImage packages",
       "100% native Rust daemon and system-helper runtime stack (BLE water-cooling, lighting/profile session, turbo lease, EC guard, Polkit helper, sleep & DKMS hooks) using ~6 MB resident RAM",
       "Privilege-separated root EC helper, SHA-gated turbo kernel lease module, read-only EC/WMI telemetry bridge, and DKMS NVIDIA hibernate fix"
     ]

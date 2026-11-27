@@ -11,8 +11,13 @@ on:
         required: false
         type: boolean
         default: false
+      skip_packaging:
+        description: '跳过 .deb / .rpm / .AppImage 发行包冒烟构建'
+        required: false
+        type: boolean
+        default: false
       test_pattern:
-        description: '可选：传给 unittest -k 的测试筛选关键字'
+        description: '可选：传给 Python unittest -k 的测试筛选关键字'
         required: false
         type: string
         default: ''
@@ -25,22 +30,137 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  checks:
-    name: 语法与单元测试
-    runs-on: ubuntu-latest
+  rust-and-ui:
+    name: Rust 全栈测试、Clippy 与 Vue 前端构建
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: 安装 Tauri 2 / WebKit2GTK 系统开发依赖与 ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libdbus-1-dev \
+            pkg-config \
+            shellcheck
+
+      - name: 安装 Rust 稳定工具链与 Clippy
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
+        with:
+          toolchain: stable
+          components: clippy
+
+      - name: 缓存 Rust 依赖与编译产物
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: |
+            watercooling-daemon
+            session-daemon
+            system-daemon
+            iteglow-cli
+            ui-tauri/src-tauri
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 12
+
+      - name: 安装 Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: ui-tauri/pnpm-lock.yaml
+
+      - name: 校验 7 份清单版本一致性、SPDX 协议头与 Shell 脚本规范
+        run: |
+          set -euo pipefail
+          EXPECTED="$(sed -n 's/^version = "\([^"]*\)"/\1/p' watercooling-daemon/Cargo.toml | head -n 1)"
+          test -n "$EXPECTED"
+          for f in watercooling-daemon/Cargo.toml session-daemon/Cargo.toml system-daemon/Cargo.toml iteglow-cli/Cargo.toml ui-tauri/src-tauri/Cargo.toml; do
+            V="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$f" | head -n 1)"
+            if [ "$V" != "$EXPECTED" ]; then
+              echo "error: version mismatch in $f ($V != $EXPECTED)" >&2
+              exit 1
+            fi
+          done
+          for f in ui-tauri/package.json ui-tauri/src-tauri/tauri.conf.json; do
+            V="$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' "$f" | head -n 1)"
+            if [ "$V" != "$EXPECTED" ]; then
+              echo "error: version mismatch in $f ($V != $EXPECTED)" >&2
+              exit 1
+            fi
+          done
+          echo "Manifest version parity verified: $EXPECTED"
+
+          MISSING=0
+          while IFS= read -r -d '' file; do
+            if ! head -n 3 "$file" | grep -q 'SPDX-License-Identifier: AGPL-3.0-only'; then
+              echo "error: missing AGPL-3.0-only SPDX header: $file" >&2
+              MISSING=1
+            fi
+          done < <(find watercooling-daemon/src session-daemon/src system-daemon/src iteglow-cli/src ui-tauri/src ui-tauri/src-tauri/src packaging \
+            -type f \( -name '*.rs' -o -name '*.ts' -o -name '*.vue' -o -name '*.css' -o -name '*.sh' \) -print0)
+          test "$MISSING" -eq 0
+
+          shellcheck packaging/build-packages.sh
+          shopt -s nullglob
+          sh_files=(system/*.sh)
+          if [ "${#sh_files[@]}" -gt 0 ]; then
+            shellcheck "${sh_files[@]}"
+          fi
+
+      - name: Vue 3 + Naive UI 前端类型检查与生产构建
+        working-directory: ui-tauri
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Rust 单元测试（全部 5 个 Crate）
+        run: |
+          set -euo pipefail
+          for crate in watercooling-daemon session-daemon system-daemon iteglow-cli ui-tauri/src-tauri; do
+            echo "==> cargo test ($crate)"
+            (cd "$crate" && cargo test --locked)
+          done
+
+      - name: Rust Clippy 严格静态检查（全部 5 个 Crate）
+        run: |
+          set -euo pipefail
+          for crate in watercooling-daemon session-daemon system-daemon iteglow-cli ui-tauri/src-tauri; do
+            echo "==> cargo clippy ($crate)"
+            (cd "$crate" && cargo clippy --locked --all-targets -- -D warnings)
+          done
+
+  python-legacy-checks:
+    name: 历史 Python 原型与兼容性单测
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: 检出仓库
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+
       - name: 安装 GTK4 与 USB Python 运行时依赖
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.compileall_only) }}
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends python3-gi gir1.2-gtk-4.0 python3-usb xvfb xauth
+
       - name: 字节码语法检查
         run: /usr/bin/python3 -B -m compileall -q iteglow/src tests
+
       - name: 运行单元测试
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.compileall_only) }}
         env:
@@ -51,3 +171,109 @@ jobs:
           else
             PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -B -m unittest discover -s tests -v
           fi
+
+  package-smoke:
+    name: 多格式发行包构建冒烟测试 (.deb / .rpm / .AppImage)
+    runs-on: ubuntu-24.04
+    needs: [rust-and-ui]
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_packaging) }}
+    timeout-minutes: 35
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: 安装 Tauri 2 与多格式打包工具链
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libdbus-1-dev \
+            pkg-config \
+            rpm \
+            squashfs-tools \
+            dpkg-dev \
+            fakeroot \
+            file
+
+      - name: 安装 Rust 稳定工具链
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
+        with:
+          toolchain: stable
+
+      - name: 缓存 Rust 依赖与编译产物
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: |
+            watercooling-daemon
+            session-daemon
+            system-daemon
+            iteglow-cli
+            ui-tauri/src-tauri
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 12
+
+      - name: 安装 Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: ui-tauri/pnpm-lock.yaml
+
+      - name: 构建 .deb / .rpm / .AppImage 与 system-daemon 伴侣归档
+        env:
+          STRICT_ALL: '1'
+          FETCH_APPIMAGE_RUNTIME: '1'
+          BUILD_SYSTEM_BUNDLE: '1'
+        run: ./packaging/build-packages.sh
+
+      - name: 校验产物校验和与零 Python 依赖约束
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum -c SHA256SUMS
+
+          DEB="$(ls iteglow-control_*_amd64.deb)"
+          RPM="$(ls iteglow-control-*-1.x86_64.rpm)"
+          APPIMG="$(ls iteglow-control-*-x86_64.AppImage)"
+          SYSTAR="$(ls mechrevo-system-daemon-*-linux-x86_64.tar.gz)"
+
+          echo "==> .deb metadata"
+          dpkg-deb -I "$DEB"
+          if dpkg-deb -f "$DEB" Depends | grep -qi python; then
+            echo "error: .deb Depends unexpectedly references python" >&2
+            exit 1
+          fi
+
+          echo "==> .rpm requirements"
+          rpm -qp --requires "$RPM"
+          if rpm -qp --requires "$RPM" | grep -qi python; then
+            echo "error: .rpm Requires unexpectedly references python" >&2
+            exit 1
+          fi
+
+          echo "==> .AppImage inspection"
+          test -x "$APPIMG"
+          file "$APPIMG"
+
+          echo "==> system-daemon archive inspection"
+          tar -tzf "$SYSTAR" | grep -q 'libexec/mechrevo-profile-helper$'
+          tar -tzf "$SYSTAR" | grep -q 'libexec/mechrevo-turbod$'
+          tar -tzf "$SYSTAR" | grep -q 'systemd/mechrevo-turbo.service$'
+          tar -tzf "$SYSTAR" | grep -q 'polkit/org.cybernova.mechrevo.profile.policy$'
+
+      - name: 上传 CI 预览构建产物
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ci-packages-linux-x86_64
+          path: dist/
+          retention-days: 7

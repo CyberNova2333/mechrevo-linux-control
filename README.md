@@ -7,7 +7,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0--only-blue.svg" alt="License: AGPL-3.0-only" /></a>
   <a href="#核心功能模块"><img src="https://img.shields.io/badge/Runtime-100%25%20Rust%20%2B%20Tauri%202-DE542C.svg" alt="100% Rust + Tauri 2" /></a>
-  <a href="#核心功能模块"><img src="https://img.shields.io/badge/UI-React%2019%20%2B%20TypeScript-38BDF8.svg" alt="React 19 + TypeScript" /></a>
+  <a href="#核心功能模块"><img src="https://img.shields.io/badge/UI-Vue%203%20%2B%20Naive%20UI%20%2B%20TS-42B883.svg" alt="Vue 3 + Naive UI + TypeScript" /></a>
   <a href="#核心功能模块"><img src="https://img.shields.io/badge/Kernel-C%20Module%20(GPL)-4A86CF.svg" alt="C Kernel Module" /></a>
 </p>
 
@@ -20,7 +20,7 @@
 ## 核心功能模块
 
 ### 1. Tauri 2 桌面控制中心与原生 Rust CLI (`ui-tauri/` + `iteglow-cli/`)
-- **Tauri 2 + React 19 / TypeScript 原生桌面界面 (`ui-tauri/` → `mechrevo-control-gui`)**：CNC 暗色钛合金工程视觉主题，零 Python 依赖直连 ITE 8291/8233 USB HID、水冷 Rust 守护 AF_UNIX Socket 与 Polkit 授权硬件边界，完整覆盖键盘背光、机身灯带、后盖 Logo、自动灯光策略、情景预设联动、性能模式与水冷控制七大页面。
+- **Tauri 2 + Vue 3 / Naive UI / TypeScript 原生桌面界面 (`ui-tauri/` → `mechrevo-control-gui`)**：复刻官方机械革命控制中心信息架构，支持跟随系统 / 浅色 / 深色三态主题切换（基于 XDG Desktop Portal / gsettings / KDE 探测并同步原生窗口标题栏），零 Python 依赖直连 ITE 8291/8233 USB HID、水冷 Rust 守护 AF_UNIX Socket 与 Polkit 授权硬件边界，完整覆盖**控制台主页实时硬件遥测、性能与散热调校、RGB 灯光控制（101 键单键矩阵 / 海岸灯带 / 后盖 Logo / 睡眠供电策略）、冰河分体水冷、情景预设与联动、后台服务管理与 journald 实时日志**六大页面。
 - **原生 Rust 命令行工具 (`iteglow-cli/` → `iteglow`)**：零 Python 依赖实现全部 `doctor / list / set / off / restore / pin / profile / cooler / gui` 子命令，`.deb` / `.rpm` / `.AppImage` 发行包无需 Python 运行时（仓库仍保留 `iteglow/` 原型源码及 371 项历史兼容性测试）。
 - **键盘背光 & 机身灯带（ITE 8291 / 8233 USB HID）**：支持 101 键单键自定义矩阵（[keymap.py](iteglow/src/iteglow/keymap.py)）、全区灯效与自动播放/按键触发状态同步，使用桌面对等 udev 规则与 `ZoneTransaction` 分区锁（[zone_lock.py](iteglow/src/iteglow/zone_lock.py)）。
 - **独立后盖 Logo 灯控制**：EC 掩码安全写入，支持常亮自选色、七色呼吸、七彩渐变、25% 步进亮度与关闭（[logo.py](iteglow/src/iteglow/logo.py)），内嵌实时发光预览。
@@ -58,7 +58,9 @@ PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -m unitte
 (cd ui-tauri && pnpm install --frozen-lockfile && pnpm build && cargo test --manifest-path src-tauri/Cargo.toml && cargo build --release --manifest-path src-tauri/Cargo.toml)
 
 # 构建零 Python 依赖的 .deb / .rpm / Type-2 .AppImage 发行包（产物输出至 dist/）
-FETCH_APPIMAGE_RUNTIME=1 ./packaging/build-packages.sh
+# Ubuntu/Debian 构建前置依赖：libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev pkg-config rpm squashfs-tools dpkg-dev
+# 如需同时打包 root 系统守护伴侣归档 (mechrevo-system-daemon-*.tar.gz)，附加 BUILD_SYSTEM_BUNDLE=1
+FETCH_APPIMAGE_RUNTIME=1 STRICT_ALL=1 ./packaging/build-packages.sh
 
 # 启动桌面控制中心与原生 Rust CLI
 mechrevo-control-gui
