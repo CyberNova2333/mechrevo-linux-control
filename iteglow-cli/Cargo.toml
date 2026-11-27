@@ -1,0 +1,21 @@
+[package]
+name = "iteglow-cli"
+version = "0.4.0"
+edition = "2021"
+description = "Zero-Python native Rust CLI for MECHREVO Linux Control (RGB, profiles, external BLE water cooler)"
+license = "AGPL-3.0-only"
+
+[[bin]]
+name = "iteglow"
+path = "src/main.rs"
+
+[dependencies]
+libc = "0.2"
+serde_json = "1.0"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
