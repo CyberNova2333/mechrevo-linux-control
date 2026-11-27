@@ -7,6 +7,7 @@ Listens to logind PrepareForSleep / PrepareForShutdown to safely sleep and disco
 """
 from __future__ import annotations
 
+from collections import deque
 import errno
 import fcntl
 import json
@@ -23,6 +24,11 @@ from typing import Callable, Optional
 
 from . import watercooling as wc
 from .watercooling_ble import CoolerBleClient
+
+RECONNECT_BACKOFF_S = (3.0, 5.0, 8.0, 15.0)
+LINK_DROP_RECONNECT_DELAY_S = 2.0
+WAKE_RECONNECT_DELAY_S = 2.5
+MAX_CONSECUTIVE_METER_ERRORS = 2
 
 
 def runtime_dir() -> Path:
@@ -50,6 +56,7 @@ class CoolerCoordinator:
         ec_reader: Callable[[], dict] = wc.read_ec_watercooler_state,
         clock: Callable[[], float] = time.monotonic,
         flow_monitor: Optional[wc.FlowSafetyMonitor] = None,
+        event_logger: Optional[Callable[[dict], None]] = None,
     ):
         self.client = client or CoolerBleClient(clock=clock)
         self.config = wc.validate_config(config) if config is not None else wc.load_config()
@@ -58,6 +65,7 @@ class CoolerCoordinator:
         self._ec_reader = ec_reader
         self._clock = clock
         self.flow_monitor = flow_monitor or wc.FlowSafetyMonitor()
+        self._event_logger = event_logger
         self.client.on_disconnect_event = self._on_ble_disconnected
 
         self.sleeping = False
@@ -75,6 +83,18 @@ class CoolerCoordinator:
         self._last_meter_poll = 0.0
         self._last_c1_seq: Optional[int] = None
         self._last_connect_attempt = 0.0
+        self._next_connect_at = 0.0
+        self._reconnect_failures = 0
+        self._consecutive_meter_errors = 0
+
+    def _emit(self, event: str, **fields) -> None:
+        if self._event_logger is None:
+            return
+        payload = {"event": event, **fields}
+        try:
+            self._event_logger(payload)
+        except Exception:
+            pass
 
     def _on_ble_disconnected(self, reason: str) -> None:
         self.flow_monitor.on_disconnect()
@@ -82,7 +102,17 @@ class CoolerCoordinator:
         self.applied_pump_duty = 0
         self.applied_fan_duty = 0
         self.applied_led = None
+        self._consecutive_meter_errors = 0
         self.last_reason = f"disconnected:{reason}"
+        if reason not in ("manual_disconnect", "prepare_for_sleep"):
+            self._reconnect_failures = 0
+            self._next_connect_at = self._clock() + LINK_DROP_RECONNECT_DELAY_S
+        self._emit(
+            "cooler_disconnected",
+            reason=reason,
+            device_mac=self.client.device_mac,
+            device_name=self.client.device_name,
+        )
 
     def _safe_sample_inputs(self) -> None:
         try:
@@ -101,8 +131,7 @@ class CoolerCoordinator:
         except Exception:
             pass
 
-    def status(self) -> dict:
-        self._safe_sample_inputs()
+    def status_snapshot(self) -> dict:
         return {
             "service_running": True,
             "connected": self.client.connected,
@@ -126,6 +155,10 @@ class CoolerCoordinator:
             "config": self.config,
         }
 
+    def status(self) -> dict:
+        self._safe_sample_inputs()
+        return self.status_snapshot()
+
     def scan(self, timeout_s: float = 5.0) -> list:
         return self.client.scan(timeout_s=timeout_s, target_mac=self.config.get("mac", ""))
 
@@ -136,10 +169,20 @@ class CoolerCoordinator:
         self.last_error = ""
         info = self.client.connect(target_mac=target)
         self.flow_monitor.on_disconnect()
+        self._reconnect_failures = 0
+        self._next_connect_at = 0.0
+        self._consecutive_meter_errors = 0
         self.actuators_dirty = True
         self.led_dirty = True
         self._last_meter_poll = self._clock()
         self.apply_targets(force=True)
+        self._emit(
+            "cooler_connected",
+            device_name=self.client.device_name,
+            device_mac=self.client.device_mac,
+            fw_version=self.client.fw_version,
+            meter_state=self.client.meter_state,
+        )
         return {**self.status(), "connect_info": info}
 
     def disconnect(self, *, send_sleep: Optional[bool] = None) -> dict:
@@ -163,6 +206,7 @@ class CoolerCoordinator:
         self.actuators_dirty = True
         self.last_error = ""
         self.last_reason = "fault_reset"
+        self._emit("flow_fault_reset")
         if self.client.connected and not self.sleeping:
             self.apply_targets(force=True)
         return self.status()
@@ -196,6 +240,8 @@ class CoolerCoordinator:
             self.last_reason = "sleeping"
         else:
             self.sleeping = False
+            self._reconnect_failures = 0
+            self._next_connect_at = self._clock() + WAKE_RECONNECT_DELAY_S
             self.last_reason = "resumed"
         return self.status()
 
@@ -211,6 +257,7 @@ class CoolerCoordinator:
             meter_state=self.client.meter_state,
             flow_protection=self.config["flow_protection"],
         ):
+            was_tripped = self.last_reason == "flow_fault_locked"
             self.last_error = self.flow_monitor.trip_reason
             if (self.applied_pump_volt, self.applied_pump_duty, self.applied_fan_duty) != (0, 0, 0):
                 try:
@@ -222,6 +269,12 @@ class CoolerCoordinator:
                 self.applied_fan_duty = 0
             self.last_reason = "flow_fault_locked"
             self.actuators_dirty = False
+            if not was_tripped:
+                self._emit(
+                    "flow_fault_tripped",
+                    reason=self.flow_monitor.trip_reason,
+                    meter_state=self.client.meter_state,
+                )
             return
 
         pv, pd, fd, new_tier, reason = wc.evaluate_cooling_target(
@@ -259,12 +312,21 @@ class CoolerCoordinator:
         if self.sleeping:
             return
         if not self.client.connected:
-            if self.config["auto_connect"] and not self.flow_monitor.tripped and now - self._last_connect_attempt >= 15.0:
+            if self.config["auto_connect"] and not self.flow_monitor.tripped and now >= self._next_connect_at:
                 self._last_connect_attempt = now
                 try:
                     self.connect()
                 except Exception as exc:
+                    delay = RECONNECT_BACKOFF_S[min(self._reconnect_failures, len(RECONNECT_BACKOFF_S) - 1)]
+                    self._reconnect_failures += 1
+                    self._next_connect_at = self._clock() + delay
                     self.last_error = str(exc)
+                    self._emit(
+                        "cooler_connect_failed",
+                        attempt=self._reconnect_failures,
+                        next_retry_s=delay,
+                        error=str(exc),
+                    )
             return
 
         poll_interval = 2.0 if self.applied_pump_volt > 0 else 6.0
@@ -272,12 +334,27 @@ class CoolerCoordinator:
             self._last_meter_poll = now
             try:
                 self.client.query_meter()
+                self._consecutive_meter_errors = 0
             except Exception as exc:
                 self.last_error = f"流量轮询异常: {exc}"
+                self._consecutive_meter_errors += 1
+                self._emit(
+                    "meter_poll_error",
+                    consecutive=self._consecutive_meter_errors,
+                    connected=self.client.connected,
+                    error=str(exc),
+                )
+                if not self.client.connected:
+                    return
+                if self._consecutive_meter_errors >= MAX_CONSECUTIVE_METER_ERRORS:
+                    self.client.disconnect(send_sleep=False, stop_actuators=False)
+                    self._on_ble_disconnected("meter_poll_failed")
+                    return
         try:
             self.apply_targets(force=False)
         except Exception as exc:
             self.last_error = str(exc)
+            self._emit("apply_targets_error", connected=self.client.connected, error=str(exc))
 
 
 def dispatch_command(coordinator: CoolerCoordinator, req: dict) -> dict:
@@ -378,22 +455,69 @@ def run_daemon() -> int:
         srv.listen(8)
         srv.settimeout(0.5)
 
-        coordinator = CoolerCoordinator()
+        def log_event(payload: dict) -> None:
+            print(json.dumps(payload, ensure_ascii=False), flush=True)
+
+        coordinator = CoolerCoordinator(event_logger=log_event)
         loop = GLib.MainLoop()
         system_bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
         stop_flag = [False]
+        in_ble_op = [False]
+        pending_ops: deque = deque()
+
+        def drain_pending() -> None:
+            while pending_ops and not in_ble_op[0]:
+                req, res_q = pending_ops.popleft()
+                execute_req(req, res_q)
+
+        def execute_req(req: dict, res_q: queue.Queue) -> None:
+            op = req.get("op") if isinstance(req, dict) else None
+            if in_ble_op[0]:
+                if op == "ping":
+                    res_q.put({"ok": True, "result": {"pong": True, "connected": coordinator.client.connected}})
+                    return
+                if op == "status":
+                    res_q.put({"ok": True, "result": coordinator.status_snapshot()})
+                    return
+                pending_ops.append((req, res_q))
+                return
+            in_ble_op[0] = True
+            try:
+                res_q.put({"ok": True, "result": dispatch_command(coordinator, req)})
+            except Exception as exc:
+                res_q.put({"ok": False, "error": str(exc)})
+            finally:
+                in_ble_op[0] = False
+            drain_pending()
 
         def on_manager_signal(_conn, _sender, _path, _iface, member, params, *_user_data):
             values = params.unpack()
             if member == "PrepareForSleep":
-                coordinator.prepare_for_sleep(bool(values[0]))
-                print(json.dumps({"event": "prepare_for_sleep", "entering": bool(values[0])}, ensure_ascii=False), flush=True)
+                entering = bool(values[0])
+                log_event({"event": "prepare_for_sleep", "entering": entering})
+                if in_ble_op[0]:
+                    pending_ops.append(({"op": "prepare_sleep", "entering": entering}, queue.Queue(1)))
+                else:
+                    in_ble_op[0] = True
+                    try:
+                        coordinator.prepare_for_sleep(entering)
+                    finally:
+                        in_ble_op[0] = False
+                    drain_pending()
             elif member == "PrepareForShutdown" and values[0]:
+                log_event({"event": "prepare_for_shutdown"})
                 coordinator.prepare_for_sleep(True)
                 stop_daemon()
 
         def on_tick():
-            coordinator.tick()
+            if in_ble_op[0]:
+                return True
+            in_ble_op[0] = True
+            try:
+                coordinator.tick()
+            finally:
+                in_ble_op[0] = False
+            drain_pending()
             return True
 
         def stop_daemon(*_):
@@ -440,10 +564,7 @@ def run_daemon() -> int:
                         res_q: queue.Queue = queue.Queue(1)
 
                         def run_main():
-                            try:
-                                res_q.put({"ok": True, "result": dispatch_command(coordinator, req)})
-                            except Exception as exc:
-                                res_q.put({"ok": False, "error": str(exc)})
+                            execute_req(req, res_q)
                             return False
 
                         GLib.idle_add(run_main)

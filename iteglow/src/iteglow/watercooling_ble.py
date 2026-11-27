@@ -20,6 +20,46 @@ BLUEZ_SERVICE = "org.bluez"
 ADAPTER_PATH = "/org/bluez/hci0"
 
 
+def _err_text(exc: BaseException) -> str:
+    return str(exc).lower()
+
+
+def _is_in_progress(exc: BaseException) -> bool:
+    msg = _err_text(exc)
+    return "inprogress" in msg or "already in progress" in msg or "alreadystarted" in msg
+
+
+def _is_already_connected(exc: BaseException) -> bool:
+    msg = _err_text(exc)
+    return "alreadyconnected" in msg or "already connected" in msg
+
+
+def _is_already_notifying(exc: BaseException) -> bool:
+    msg = _err_text(exc)
+    return "alreadynotifying" in msg or "already notifying" in msg
+
+
+def _is_disconnect_error(exc: BaseException) -> bool:
+    msg = _err_text(exc)
+    return any(
+        token in msg
+        for token in (
+            "org.bluez.error.notconnected",
+            "notconnected",
+            "not connected",
+            "disconnected",
+            "software caused connection abort",
+            "connection reset",
+            "transport endpoint is not connected",
+            "does not exist",
+            "unknownobject",
+            "no such object",
+            "le-connection-abort",
+            "br-connection-",
+        )
+    )
+
+
 class BleTransport(Protocol):
     def scan(self, timeout_s: float = 5.0, target_mac: str = "") -> List[dict]: ...
     def connect(
@@ -108,10 +148,14 @@ class BluezBleTransport:
     @staticmethod
     def _matches(dev_props: dict, target_mac: str) -> bool:
         addr = str(dev_props.get("Address", "")).upper()
-        name = str(dev_props.get("Name", ""))
         if target_mac:
             return addr == target_mac.upper()
-        return any(name.startswith(prefix) or prefix.upper() in name.upper() for prefix in wc.DEVICE_NAME_PREFIXES)
+        names = (str(dev_props.get("Name", "")), str(dev_props.get("Alias", "")))
+        return any(
+            nm and (nm.startswith(prefix) or prefix.upper() in nm.upper())
+            for nm in names
+            for prefix in wc.DEVICE_NAME_PREFIXES
+        )
 
     def _find_matching_devices(self, objs: dict, target_mac: str = "") -> List[dict]:
         found = []
@@ -121,7 +165,7 @@ class BluezBleTransport:
                 continue
             found.append({
                 "path": path,
-                "name": str(dev.get("Name", "")),
+                "name": str(dev.get("Name") or dev.get("Alias") or ""),
                 "address": str(dev.get("Address", "")).upper(),
                 "rssi": dev.get("RSSI"),
                 "connected": bool(dev.get("Connected", False)),
@@ -150,14 +194,22 @@ class BluezBleTransport:
         filt = self._GLib.Variant("(a{sv})", ({"Transport": self._GLib.Variant("s", "le")},))
         started = False
         try:
-            self._call(self._adapter_path, "org.bluez.Adapter1", "SetDiscoveryFilter", filt)
-            self._call(self._adapter_path, "org.bluez.Adapter1", "StartDiscovery")
-            started = True
+            try:
+                self._call(self._adapter_path, "org.bluez.Adapter1", "SetDiscoveryFilter", filt)
+            except Exception as exc:
+                if not _is_in_progress(exc):
+                    raise
+            try:
+                self._call(self._adapter_path, "org.bluez.Adapter1", "StartDiscovery")
+                started = True
+            except Exception as exc:
+                if not _is_in_progress(exc):
+                    raise
             deadline = time.monotonic() + timeout_s
             while time.monotonic() < deadline:
                 self.pump(0.25)
                 matches = self._find_matching_devices(self._managed_objects(), target_mac)
-                if matches and any(m.get("rssi") is not None for m in matches):
+                if matches and any(m.get("rssi") is not None or m.get("connected") for m in matches):
                     break
             return self._find_matching_devices(self._managed_objects(), target_mac)
         finally:
@@ -216,11 +268,14 @@ class BluezBleTransport:
         self._on_disconnect = on_disconnect
 
         objs = self._managed_objects()
-        matches = self._find_matching_devices(objs, target_mac)
+        cached_matches = self._find_matching_devices(objs, target_mac)
+        matches = cached_matches
         if not matches or all(m.get("rssi") is None and not m.get("connected") for m in matches):
             scanned = self.scan(timeout_s=scan_timeout_s, target_mac=target_mac)
             if scanned:
                 matches = scanned
+            elif cached_matches and target_mac:
+                matches = cached_matches
         if not matches:
             raise RuntimeError("未扫描到机械革命蓝牙水冷设备（请确认水冷开机且未处于离线模式）")
 
@@ -230,12 +285,18 @@ class BluezBleTransport:
         self._rx_path = None
         self._hook_signals()
 
-        try:
-            self._call(self._dev_path, "org.bluez.Device1", "Connect", timeout_ms=12000)
+        if target.get("connected"):
             self._connected = True
-        except Exception as exc:
-            self._unhook_signals()
-            raise RuntimeError(f"BLE 连接水冷失败：{exc}") from exc
+        else:
+            try:
+                self._call(self._dev_path, "org.bluez.Device1", "Connect", timeout_ms=12000)
+                self._connected = True
+            except Exception as exc:
+                if _is_already_connected(exc):
+                    self._connected = True
+                else:
+                    self._unhook_signals()
+                    raise RuntimeError(f"BLE 连接水冷失败：{exc}") from exc
 
         deadline = time.monotonic() + 6.0
         resolved = False
@@ -245,7 +306,7 @@ class BluezBleTransport:
             dev_ifaces = objs.get(self._dev_path, {}).get("org.bluez.Device1", {})
             if dev_ifaces.get("ServicesResolved"):
                 resolved = True
-                target["name"] = str(dev_ifaces.get("Name", target["name"]))
+                target["name"] = str(dev_ifaces.get("Name") or dev_ifaces.get("Alias") or target["name"])
                 target["address"] = str(dev_ifaces.get("Address", target["address"])).upper()
                 break
         if not resolved:
@@ -259,7 +320,12 @@ class BluezBleTransport:
         self._tx_path = tx_path
         self._rx_path = rx_path
 
-        self._call(self._rx_path, "org.bluez.GattCharacteristic1", "StartNotify", timeout_ms=5000)
+        try:
+            self._call(self._rx_path, "org.bluez.GattCharacteristic1", "StartNotify", timeout_ms=5000)
+        except Exception as exc:
+            if not _is_already_notifying(exc):
+                self.disconnect()
+                raise RuntimeError(f"启用水冷 BLE 通知失败：{exc}") from exc
         self._notifying = True
         self.pump(0.25)
         return {"name": target["name"], "address": target["address"], "path": self._dev_path}
@@ -330,6 +396,16 @@ class CoolerBleClient:
     def scan(self, timeout_s: float = 5.0, target_mac: str = "") -> List[dict]:
         return self.transport.scan(timeout_s=timeout_s, target_mac=target_mac)
 
+    def _handle_link_drop(self, reason: str) -> None:
+        was_connected = self.connected
+        self.connected = False
+        try:
+            self.transport.disconnect()
+        except Exception:
+            pass
+        if was_connected and self.on_disconnect_event is not None:
+            self.on_disconnect_event(reason)
+
     def send_paced(self, data: bytes, *, force_type: Optional[str] = None) -> None:
         if not self.connected:
             raise RuntimeError("水冷蓝牙未连接")
@@ -339,10 +415,20 @@ class CoolerBleClient:
         wtype = force_type or self.preferred_write_type
         try:
             self.transport.write_frame(data, write_type=wtype)
-        except Exception:
+        except Exception as exc:
+            if _is_disconnect_error(exc):
+                self._handle_link_drop("write_link_lost")
+                raise
+            if "att error: 0x0e" in _err_text(exc) or "unlikely" in _err_text(exc):
+                raise
             if force_type is None and wtype == "request":
                 self.preferred_write_type = "command"
-                self.transport.write_frame(data, write_type="command")
+                try:
+                    self.transport.write_frame(data, write_type="command")
+                except Exception as exc2:
+                    if _is_disconnect_error(exc2):
+                        self._handle_link_drop("write_link_lost")
+                    raise
             else:
                 raise
         self._last_tx_at = self._clock()
@@ -367,7 +453,20 @@ class CoolerBleClient:
             except Exception as exc:
                 last_err = exc
                 msg = str(exc).lower()
-                if attempt < 3 and ("le-connection-abort-by-local" in msg or "inprogress" in msg or "timeout" in msg):
+                if attempt < 3 and any(
+                    tok in msg
+                    for tok in (
+                        "le-connection-abort-by-local",
+                        "inprogress",
+                        "timeout",
+                        "page-timeout",
+                        "br-connection-canceled",
+                    )
+                ):
+                    try:
+                        self.transport.disconnect()
+                    except Exception:
+                        pass
                     self.transport.pump(0.9)
                     continue
                 raise

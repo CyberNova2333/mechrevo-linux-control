@@ -460,3 +460,150 @@ class BleClientCoordinatorAndCliTests(unittest.TestCase):
             finally:
                 os.umask(old_umask)
             self.assertEqual(lc_file.stat().st_mode & 0o777, 0o644)
+
+    def test_write_disconnect_error_preserves_request_mode_and_schedules_fast_reconnect(self):
+        from iteglow.watercooling_service import LINK_DROP_RECONNECT_DELAY_S
+
+        clock = FakeClock(300.0)
+        tr = FakeBleTransport(clock)
+        client = CoolerBleClient(tr, min_gap_s=0.1, clock=clock)
+        events = []
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg_path = Path(tmp) / "wc.json"
+            cfg = wc.validate_config({"auto_connect": True, "mac": "E2:90:B5:F8:43:2E", "preset": "balanced"})
+            coord = CoolerCoordinator(
+                client=client,
+                config=cfg,
+                config_saver=lambda c: wc.save_config(c, cfg_path),
+                temp_reader=lambda: 65.0,
+                ec_reader=lambda: {},
+                clock=clock,
+                event_logger=events.append,
+            )
+            coord.tick()
+            self.assertTrue(client.connected)
+            self.assertEqual(client.preferred_write_type, "request")
+
+            # Simulate sudden BLE link drop during meter poll write
+            orig_write = tr.write_frame
+
+            def failing_write(data: bytes, write_type: str = "request") -> None:
+                raise RuntimeError("GDBus.Error:org.bluez.Error.NotConnected: Not Connected")
+
+            tr.write_frame = failing_write
+            clock.advance(2.1)
+            coord.tick()
+            self.assertFalse(client.connected)
+            self.assertEqual(client.preferred_write_type, "request")
+            self.assertTrue(any(e["event"] == "cooler_disconnected" and e["reason"] == "write_link_lost" for e in events))
+
+            # Restore transport: must NOT reconnect immediately before LINK_DROP_RECONNECT_DELAY_S, then succeeds
+            tr.write_frame = orig_write
+            prev_calls = tr.connect_calls
+            clock.advance(LINK_DROP_RECONNECT_DELAY_S - 0.5)
+            coord.tick()
+            self.assertFalse(client.connected)
+            self.assertEqual(tr.connect_calls, prev_calls)
+
+            clock.advance(0.6)
+            coord.tick()
+            self.assertTrue(client.connected)
+            self.assertEqual(tr.connect_calls, prev_calls + 1)
+
+    def test_auto_reconnect_backoff_wake_delay_and_consecutive_meter_errors(self):
+        from iteglow.watercooling_service import RECONNECT_BACKOFF_S, WAKE_RECONNECT_DELAY_S
+
+        clock = FakeClock(500.0)
+        tr = FakeBleTransport(clock)
+        client = CoolerBleClient(tr, min_gap_s=0.1, clock=clock)
+        events = []
+
+        # Force connect failures to verify backoff progression (3 -> 5 -> 8 -> 15)
+        real_connect = tr.connect
+        tr.connect = lambda **_kw: (_ for _ in ()).throw(RuntimeError("未扫描到机械革命蓝牙水冷设备"))
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg_path = Path(tmp) / "wc.json"
+            cfg = wc.validate_config({"auto_connect": True, "preset": "balanced"})
+            coord = CoolerCoordinator(
+                client=client,
+                config=cfg,
+                config_saver=lambda c: wc.save_config(c, cfg_path),
+                temp_reader=lambda: 60.0,
+                ec_reader=lambda: {},
+                clock=clock,
+                event_logger=events.append,
+            )
+            for expected_delay in RECONNECT_BACKOFF_S:
+                coord.tick()
+                self.assertEqual(events[-1]["event"], "cooler_connect_failed")
+                self.assertEqual(events[-1]["next_retry_s"], expected_delay)
+                clock.advance(expected_delay - 0.5)
+                before = len(events)
+                coord.tick()
+                self.assertEqual(len(events), before)
+                clock.advance(0.6)
+
+            # Wake from sleep waits WAKE_RECONNECT_DELAY_S before reconnecting
+            tr.connect = real_connect
+            coord.prepare_for_sleep(True)
+            coord.prepare_for_sleep(False)
+            clock.advance(WAKE_RECONNECT_DELAY_S - 0.5)
+            coord.tick()
+            self.assertFalse(client.connected)
+            clock.advance(0.6)
+            coord.tick()
+            self.assertTrue(client.connected)
+
+            # Two consecutive non-disconnect meter errors force a clean disconnect so auto-reconnect can recover
+            def transient_err(_data: bytes, write_type: str = "request") -> None:
+                raise RuntimeError("transient gatt timeout")
+
+            tr.write_frame = transient_err
+            clock.advance(2.1)
+            coord.tick()
+            self.assertTrue(client.connected)
+            clock.advance(2.1)
+            coord.tick()
+            self.assertFalse(client.connected)
+            self.assertEqual(coord.last_reason, "disconnected:meter_poll_failed")
+
+    def test_bluez_scan_tolerates_in_progress_and_matches_alias(self):
+        from iteglow.watercooling_ble import BluezBleTransport
+
+        tr = BluezBleTransport()
+        calls = []
+
+        class FakeVariant:
+            def __init__(self, *_a):
+                pass
+
+        class FakeGLib:
+            Variant = FakeVariant
+
+        tr._bus = object()
+        tr._GLib = FakeGLib
+        tr.pump = lambda _s: None
+
+        def fake_call(path, iface, method, params=None, timeout_ms=12000):
+            calls.append(method)
+            if method in ("SetDiscoveryFilter", "StartDiscovery"):
+                raise RuntimeError("GDBus.Error:org.bluez.Error.InProgress: Operation already in progress")
+            return None
+
+        tr._call = fake_call
+        tr._managed_objects = lambda: {
+            "/org/bluez/hci0/dev_E2_90_B5_F8_43_2E": {
+                "org.bluez.Device1": {
+                    "Address": "E2:90:B5:F8:43:2E",
+                    "Name": "",
+                    "Alias": "CoolingSystem LCT22002",
+                    "RSSI": -61,
+                    "Connected": False,
+                    "Paired": False,
+                }
+            }
+        }
+        found = tr.scan(timeout_s=0.1, target_mac="")
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]["address"], "E2:90:B5:F8:43:2E")
+        self.assertNotIn("StopDiscovery", calls)
