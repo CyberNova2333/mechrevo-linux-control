@@ -7,6 +7,7 @@ umask 022
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 CRATE_DIR="$REPO_DIR/watercooling-daemon"
+SESSION_CRATE_DIR="$REPO_DIR/session-daemon"
 ITEGLOW_SRC="${ITEGLOW_SRC:-$REPO_DIR/iteglow/src/iteglow}"
 ICON_SVG="${ICON_SVG:-$REPO_DIR/iteglow/data/mechrevo-control.svg}"
 RUNTIME_BIN="${RUNTIME_BIN:-$SCRIPT_DIR/cache/runtime-x86_64}"
@@ -31,9 +32,11 @@ if [[ ! -f "$ICON_SVG" ]]; then
   exit 1
 fi
 
-echo "==> Building Rust release binary ($PKG_NAME $VERSION)"
+echo "==> Building Rust release binaries ($PKG_NAME $VERSION)"
 (cd "$CRATE_DIR" && cargo build --release)
+(cd "$SESSION_CRATE_DIR" && cargo build --release)
 BIN_PATH="$CARGO_TARGET_DIR/release/iteglow-watercoolingd"
+SESSION_BIN_PATH="$CARGO_TARGET_DIR/release/iteglow-sessiond"
 
 mkdir -p "$DIST_DIR"
 
@@ -52,6 +55,8 @@ populate_root() {
 
   install -m 0755 "$BIN_PATH" "$root/usr/libexec/iteglow-watercoolingd"
   ln -sf ../libexec/iteglow-watercoolingd "$root/usr/bin/iteglow-watercoolingd"
+  install -m 0755 "$SESSION_BIN_PATH" "$root/usr/libexec/iteglow-sessiond"
+  ln -sf ../libexec/iteglow-sessiond "$root/usr/bin/iteglow-sessiond"
 
   cp -r "$ITEGLOW_SRC" "$root/usr/lib/$PKG_NAME/iteglow"
   find "$root/usr/lib/$PKG_NAME/iteglow" -type d -name '__pycache__' -exec rm -rf {} +
@@ -87,21 +92,21 @@ WantedBy=graphical-session.target
 EOF
   chmod 0644 "$root/usr/lib/systemd/user/iteglow-watercooling.service"
 
-  cat > "$root/usr/lib/systemd/user/iteglow-session-restore.service" <<EOF
-# Restores only the active graphical user session's last successfully applied lights.
+  cat > "$root/usr/lib/systemd/user/iteglow-session-restore.service" <<'EOF'
+# Restores only the active graphical user session's last successfully applied lights (async Rust daemon).
 [Unit]
-Description=Restore saved lighting in the active graphical session
+Description=Restore saved lighting in the active graphical session (Rust)
 PartOf=graphical-session.target
 After=graphical-session.target
 
 [Service]
 Type=simple
 WorkingDirectory=/
-Environment=PYTHONPATH=/usr/lib/$PKG_NAME
-ExecStart=/usr/bin/python3 -m iteglow.lighting_session --apply
+ExecStart=/usr/libexec/iteglow-sessiond --apply
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=7
+MemoryLow=8M
 
 [Install]
 WantedBy=graphical-session.target
@@ -224,7 +229,9 @@ fi
 %defattr(-,root,root,-)
 /usr/bin/iteglow
 /usr/bin/iteglow-watercoolingd
+/usr/bin/iteglow-sessiond
 /usr/libexec/iteglow-watercoolingd
+/usr/libexec/iteglow-sessiond
 /usr/lib/$PKG_NAME
 /usr/lib/systemd/user/iteglow-watercooling.service
 /usr/lib/systemd/user/iteglow-session-restore.service
@@ -272,6 +279,10 @@ case "\${1:-}" in
   daemon|--daemon|--cooler-daemon)
     shift || true
     exec "\$HERE/usr/libexec/iteglow-watercoolingd" "\$@"
+    ;;
+  session|--session|--session-daemon)
+    shift || true
+    exec "\$HERE/usr/libexec/iteglow-sessiond" "\$@"
     ;;
   "")
     exec /usr/bin/python3 -m iteglow.cli gui

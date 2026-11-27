@@ -1,17 +1,17 @@
-# Restores only the active graphical user session's last successfully applied lights.
+# Restores only the active graphical user session's last successfully applied lights (async Rust daemon).
 [Unit]
-Description=Restore saved lighting in the active graphical session
+Description=Restore saved lighting in the active graphical session (Rust)
 PartOf=graphical-session.target
 After=graphical-session.target
 
 [Service]
 Type=simple
 WorkingDirectory=/
-Environment=PYTHONPATH=%h/.local/share/desktop-maintenance/sources/iteglow-0.3.2/src
-ExecStart=/usr/bin/python3 -m iteglow.lighting_session --apply
+ExecStart=%h/.local/libexec/iteglow-sessiond --apply
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=7
+MemoryLow=8M
 
 [Install]
 WantedBy=graphical-session.target

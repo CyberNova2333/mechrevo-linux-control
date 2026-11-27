@@ -22,7 +22,7 @@
 - **暗色钛合金视觉控制台**：统一深色主题（`control.css` / `gui.py`），涵盖键盘背光、机身灯带、后盖 Logo、自动灯光策略、情景预设联动、性能模式与水冷控制七大模块。
 - **键盘背光 & 机身灯带（ITE 8291 / 8233 USB HID）**：支持 101 键单键自定义矩阵（[keymap.py](iteglow/src/iteglow/keymap.py)）、全区灯效与自动播放/按键触发状态同步，使用桌面对等 udev 规则与 `ZoneTransaction` 分区锁（[zone_lock.py](iteglow/src/iteglow/zone_lock.py)）。
 - **独立后盖 Logo 灯控制**：EC 掩码安全写入，支持常亮自选色、七色呼吸、七彩渐变、25% 步进亮度与关闭（[logo.py](iteglow/src/iteglow/logo.py)），内嵌实时发光预览。
-- **自动灯光与情景联动**：支持插电 / 电池分设亮度与空闲熄灯（[lighting_policy.py](iteglow/src/iteglow/lighting_policy.py)），以及基于当前用户应用进程的 opt-in 情景预设切换（[profiles.py](iteglow/src/iteglow/profiles.py)），物理模式键 `0xB0` 切换时自动让步。
+- **自动灯光、热键同步与情景联动（`session-daemon/` 异步 Rust 守护进程）**：支持插电 / 电池分设亮度与空闲熄灯（[lighting_policy.py](iteglow/src/iteglow/lighting_policy.py) / [session-daemon/src/policy.rs](session-daemon/src/policy.rs)）、`Fn+F6`/`Fn+F7`（WMI `0xC1`）亮度状态同步（[session-daemon/src/hotkey.rs](session-daemon/src/hotkey.rs)），以及基于当前用户应用进程的 opt-in 情景预设切换（[profiles.py](iteglow/src/iteglow/profiles.py) / [session-daemon/src/profiles.rs](session-daemon/src/profiles.rs)），物理模式键 `0xB0` 切换时自动让步；用户级服务 [iteglow-session-restore.service](system/iteglow-session-restore.service) 由单线程异步 `tokio` + `zbus` 原生二进制 `iteglow-sessiond` 承载（常驻内存约 1.5–2.2 MB，与现有分区锁 `ZoneTransaction` 与状态文件完全兼容）。
 
 ### 2. 外置蓝牙水冷控制与守护 (`watercooling*` / `watercooling-daemon/`)
 - **实机验证协议**：针对 `CoolingSystem LCT22002`（固件 `2.0.0.4`）/ `LCT21001` 的非配对 BlueZ GATT 传输（[watercooling_ble.py](iteglow/src/iteglow/watercooling_ble.py) / [watercooling-daemon/src/ble.rs](watercooling-daemon/src/ble.rs)），禁用易失败的 SMP 配对、支持瞬时 `0x3e` 断链 3 次自动重试、兼容扫描 `InProgress` 与 `AlreadyConnected` 接管、`ATT 0x0e` 瞬时容错与 `>=100ms` UART 发送节流。
@@ -48,8 +48,9 @@
 # 运行全部离线单元测试与 GTK4 界面测试
 PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -m unittest discover -s tests -v
 
-# 运行 Rust 异步水冷守护进程单元测试与发布构建
+# 运行 Rust 异步水冷 & 会话灯光守护进程单元测试与发布构建
 (cd watercooling-daemon && cargo test && cargo build --release)
+(cd session-daemon && cargo test && cargo build --release)
 
 # 构建 .deb / .rpm / Type-2 .AppImage 发行包（产物输出至 dist/）
 FETCH_APPIMAGE_RUNTIME=1 ./packaging/build-packages.sh
