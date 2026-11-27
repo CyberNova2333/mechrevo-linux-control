@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
 Name=机械革命控制中心
-Comment=调节键盘灯、机身灯带及已验证的固件性能档位
-Exec=/home/cybernova/.local/bin/iteglow gui
+Comment=调节键盘灯、机身灯带、后盖 Logo、蓝牙水冷及固件性能档位
+Exec=mechrevo-control-gui
 Icon=mechrevo-control
 Terminal=false
 Categories=Settings;HardwareSettings;
-Keywords=MECHREVO;RGB;键盘;灯带;性能;风扇;
-StartupWMClass=mechrevo-control
+Keywords=MECHREVO;RGB;水冷;键盘;灯带;性能;风扇;
+StartupWMClass=mechrevo-control-gui

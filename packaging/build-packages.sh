@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 CRATE_DIR="$REPO_DIR/watercooling-daemon"
 SESSION_CRATE_DIR="$REPO_DIR/session-daemon"
+UI_DIR="$REPO_DIR/ui-tauri"
 ITEGLOW_SRC="${ITEGLOW_SRC:-$REPO_DIR/iteglow/src/iteglow}"
 ICON_SVG="${ICON_SVG:-$REPO_DIR/iteglow/data/mechrevo-control.svg}"
 RUNTIME_BIN="${RUNTIME_BIN:-$SCRIPT_DIR/cache/runtime-x86_64}"
@@ -18,6 +19,7 @@ ARCH_DEB="amd64"
 ARCH_RPM="x86_64"
 DIST_DIR="${DIST_DIR:-$REPO_DIR/dist}"
 CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/iteglow-watercoolingd-target}"
+UI_CARGO_TARGET_DIR="${UI_CARGO_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/mechrevo-tauri-target}"
 export CARGO_TARGET_DIR
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/iteglow-pkg.XXXXXX")"
@@ -35,8 +37,12 @@ fi
 echo "==> Building Rust release binaries ($PKG_NAME $VERSION)"
 (cd "$CRATE_DIR" && cargo build --release)
 (cd "$SESSION_CRATE_DIR" && cargo build --release)
+echo "==> Building Tauri 2 desktop GUI (mechrevo-control-gui)"
+(cd "$UI_DIR" && pnpm install --frozen-lockfile && pnpm build)
+(cd "$UI_DIR/src-tauri" && CARGO_TARGET_DIR="$UI_CARGO_TARGET_DIR" cargo build --release)
 BIN_PATH="$CARGO_TARGET_DIR/release/iteglow-watercoolingd"
 SESSION_BIN_PATH="$CARGO_TARGET_DIR/release/iteglow-sessiond"
+UI_BIN_PATH="$UI_CARGO_TARGET_DIR/release/mechrevo-control-gui"
 
 mkdir -p "$DIST_DIR"
 
@@ -57,6 +63,7 @@ populate_root() {
   ln -sf ../libexec/iteglow-watercoolingd "$root/usr/bin/iteglow-watercoolingd"
   install -m 0755 "$SESSION_BIN_PATH" "$root/usr/libexec/iteglow-sessiond"
   ln -sf ../libexec/iteglow-sessiond "$root/usr/bin/iteglow-sessiond"
+  install -m 0755 "$UI_BIN_PATH" "$root/usr/bin/mechrevo-control-gui"
 
   cp -r "$ITEGLOW_SRC" "$root/usr/lib/$PKG_NAME/iteglow"
   find "$root/usr/lib/$PKG_NAME/iteglow" -type d -name '__pycache__' -exec rm -rf {} +
@@ -127,13 +134,13 @@ EOF
 [Desktop Entry]
 Type=Application
 Name=机械革命控制中心
-Comment=调节键盘灯、机身灯带、蓝牙水冷与性能档位
-Exec=/usr/bin/iteglow gui
+Comment=调节键盘灯、机身灯带、后盖 Logo、蓝牙水冷与性能档位
+Exec=/usr/bin/mechrevo-control-gui
 Icon=mechrevo-control
 Terminal=false
 Categories=Settings;HardwareSettings;
 Keywords=MECHREVO;RGB;水冷;键盘;灯带;性能;风扇;
-StartupWMClass=mechrevo-control
+StartupWMClass=mechrevo-control-gui
 EOF
   chmod 0644 "$root/usr/share/applications/iteglow.desktop"
 
@@ -166,12 +173,12 @@ Installed-Size: $INSTALLED_KB
 Maintainer: CyberNova <295488275+CyberNova2333@users.noreply.github.com>
 Homepage: https://github.com/CyberNova2333/mechrevo-linux-control
 Depends: libc6, python3 (>= 3.10), bluez
-Recommends: python3-gi, gir1.2-gtk-4.0
-Description: MECHREVO Linux Control Center and async Rust BLE water-cooling daemon
- Desktop control center (CLI + GTK4 GUI) and lightweight async Rust
- BLE water-cooling coordinator (iteglow-watercoolingd) for MECHREVO /
- Tongfang laptops with ITE 8291/8233 RGB and LCT22002/LCT21001 external
- Bluetooth liquid coolers.
+Recommends: libwebkit2gtk-4.1-0 | libwebkit2gtk-4.0-37, libgtk-3-0t64 | libgtk-3-0, python3-gi, gir1.2-gtk-4.0
+Description: MECHREVO Linux Control Center (Tauri 2) and async Rust daemons
+ Native Tauri 2 desktop control center (mechrevo-control-gui), CLI
+ (iteglow), and lightweight async Rust daemons (iteglow-watercoolingd,
+ iteglow-sessiond) for MECHREVO / Tongfang laptops with ITE 8291/8233
+ RGB and LCT22002/LCT21001 external Bluetooth liquid coolers.
 EOF
 
   cat > "$DEB_ROOT/DEBIAN/postinst" <<'EOF'
@@ -208,12 +215,13 @@ Summary:        MECHREVO Linux Control Center and async Rust BLE water-cooling d
 License:        AGPL-3.0-only
 URL:            https://github.com/CyberNova2333/mechrevo-linux-control
 Requires:       python3 >= 3.10, bluez
-Recommends:     python3-gobject, gtk4
+Recommends:     webkit2gtk4.1, gtk3, python3-gobject, gtk4
 
 %description
-Desktop control center (CLI + GTK4 GUI) and lightweight async Rust BLE
-water-cooling daemon (iteglow-watercoolingd) for MECHREVO / Tongfang laptops
-with ITE 8291/8233 RGB and LCT22002/LCT21001 Bluetooth liquid coolers.
+Native Tauri 2 desktop control center (mechrevo-control-gui), CLI
+(iteglow), and lightweight async Rust daemons (iteglow-watercoolingd,
+iteglow-sessiond) for MECHREVO / Tongfang laptops with ITE 8291/8233
+RGB and LCT22002/LCT21001 Bluetooth liquid coolers.
 
 %install
 rm -rf %{buildroot}
@@ -228,6 +236,7 @@ fi
 %files
 %defattr(-,root,root,-)
 /usr/bin/iteglow
+/usr/bin/mechrevo-control-gui
 /usr/bin/iteglow-watercoolingd
 /usr/bin/iteglow-sessiond
 /usr/libexec/iteglow-watercoolingd
@@ -264,7 +273,7 @@ if [[ -x "$RUNTIME_BIN" ]] && command -v mksquashfs >/dev/null 2>&1; then
   populate_root "$APPDIR"
 
   cp "$APPDIR/usr/share/applications/iteglow.desktop" "$APPDIR/iteglow.desktop"
-  sed -i 's|^Exec=.*|Exec=iteglow gui|' "$APPDIR/iteglow.desktop"
+  sed -i 's|^Exec=.*|Exec=mechrevo-control-gui|' "$APPDIR/iteglow.desktop"
   cp "$ICON_SVG" "$APPDIR/mechrevo-control.svg"
   ln -sf mechrevo-control.svg "$APPDIR/.DirIcon"
 
@@ -284,8 +293,12 @@ case "\${1:-}" in
     shift || true
     exec "\$HERE/usr/libexec/iteglow-sessiond" "\$@"
     ;;
-  "")
-    exec /usr/bin/python3 -m iteglow.cli gui
+  gtk-gui|--gtk-gui)
+    shift || true
+    exec /usr/bin/python3 -m iteglow.cli gui "\$@"
+    ;;
+  ""|gui)
+    exec "\$HERE/usr/bin/mechrevo-control-gui"
     ;;
   *)
     exec /usr/bin/python3 -m iteglow.cli "\$@"

@@ -14,11 +14,11 @@
   "order": 15,
   "repository": "https://github.com/CyberNova2333/mechrevo-linux-control",
   "license": "AGPL-3.0-only",
-  "primaryLanguage": "Python",
+  "primaryLanguage": "Rust",
   "techStack": [
-    "Python 3",
-    "Rust (tokio / zbus)",
-    "GTK4 / PyGObject",
+    "Rust (Tauri 2 / tokio / zbus)",
+    "React 19 / TypeScript / Vite",
+    "Python 3 (CLI / GTK4 fallback)",
     "BlueZ GATT / D-Bus",
     "Linux Kernel Module (C)",
     "systemd / Polkit"
@@ -26,31 +26,33 @@
   "tags": [
     "mechrevo",
     "linux",
-    "gtk4",
+    "tauri",
+    "rust",
     "bluetooth-le",
     "watercooling",
     "ec-tuning",
     "nvidia"
   ],
   "summary": {
-    "zh": "面向机械革命耀世系列的 Linux 硬件控制中心与系统调校套件：提供暗色 GTK4 控制面板、101 键单键 RGB 与自动灯光联动、外置 LCT22002/LCT21001 蓝牙水冷驱动与防干转保护、EC 功耗/风扇调校及 NVIDIA 休眠挂起修复。",
-    "en": "Unified Linux control suite for Mechrevo YAOSHI laptops featuring a dark anodized GTK4 desktop center, per-key RGB & profile automation, unpaired BLE LCT22002/LCT21001 external water-cooler control with flow protection, bounded EC/GPU power tuning, and NVIDIA hibernate fixes."
+    "zh": "面向机械革命耀世系列的 Linux 硬件控制中心与全栈 Rust 系统调校套件：提供 Tauri 2 + React 暗色桌面控制台、101 键单键 RGB 与自动灯光联动、外置 LCT22002/LCT21001 蓝牙水冷 Rust 守护与防干转保护、EC 功耗/风扇调校及 NVIDIA 休眠挂起修复。",
+    "en": "Unified Linux control suite for Mechrevo YAOSHI laptops featuring a Tauri 2 + React dark anodized desktop center, full Rust background daemons, per-key 101-key RGB & profile automation, unpaired BLE LCT22002/LCT21001 external water-cooler control with flow protection, bounded EC/GPU power tuning, and NVIDIA hibernate fixes."
   },
   "highlights": {
     "zh": [
-      "重构暗色 GTK4 控制台：支持 101 键单键矩阵编辑、三区灯光联动、性能模式实时监控与 LCT22002 双区灯光/曲线可视化",
-      "逆向并落地非配对 BlueZ GATT 蓝牙水冷控制栈，提供多档泵压调速、温度滞回曲线、断流急停保护及休眠自动待机",
+      "Tauri 2 + React 19 / TypeScript 原生桌面控制台（mechrevo-control-gui）：支持 101 键单键矩阵编辑、三区灯光联动、性能模式/风扇曲线实时监控与 LCT22002 双区灯光/曲线可视化",
+      "全栈原生 Rust 常驻守护进程（水冷 BLE / 会话灯光策略 / 狂暴调度与 EC 安全守卫），总常驻内存约 6 MB，具备断流急停、休眠自动待机与防掉线机制",
       "通过固定 root 助手与受 SHA-256 门禁保护的内核租约模块实现安全性能调校、只读 EC 水冷遥测与 NVIDIA DKMS 休眠修复"
     ],
     "en": [
-      "Dark anodized GTK4 studio UI covering per-key 101-key RGB matrices, lid logo glow preview, profile rules, performance tuning, and LCT22002 visualizer",
-      "Unpaired BlueZ GATT stack for external LCT22002/LCT21001 coolers with flow-stall pump shutoff, thermal hysteresis curves, and logind sleep teardown",
+      "Native Tauri 2 + React 19 / TypeScript desktop studio UI (mechrevo-control-gui) covering per-key 101-key RGB matrices, lid logo glow preview, profile rules, performance tuning, and LCT22002 visualizer",
+      "Full native Rust resident daemon stack (BLE water-cooling, lighting/profile session, turbo lease & EC guard) using ~6 MB total RAM with flow-stall shutoff and logind sleep teardown",
       "Privilege-separated root EC helper, SHA-gated turbo kernel lease module, read-only EC/WMI telemetry bridge, and DKMS NVIDIA hibernate fix"
     ]
   },
   "quickStart": [
     "xvfb-run -a /usr/bin/python3 -m unittest discover -s tests -v",
-    "PYTHONPATH=iteglow/src /usr/bin/python3 -m iteglow.cli gui",
+    "FETCH_APPIMAGE_RUNTIME=1 ./packaging/build-packages.sh",
+    "mechrevo-control-gui",
     "PYTHONPATH=iteglow/src /usr/bin/python3 -m iteglow.cli cooler status"
   ],
   "additionalTermsConsent": {

@@ -6,8 +6,9 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0--only-blue.svg" alt="License: AGPL-3.0-only" /></a>
-  <a href="#快速测试与-cli-使用"><img src="https://img.shields.io/badge/Python-3.12-3776AB.svg" alt="Python 3.12" /></a>
-  <a href="#核心功能模块"><img src="https://img.shields.io/badge/UI-GTK4-4A86CF.svg" alt="GTK4" /></a>
+  <a href="#核心功能模块"><img src="https://img.shields.io/badge/Rust-Tauri%202%20%2B%20Daemons-DE542C.svg" alt="Rust + Tauri 2" /></a>
+  <a href="#核心功能模块"><img src="https://img.shields.io/badge/UI-React%2019%20%2B%20TypeScript-38BDF8.svg" alt="React 19 + TypeScript" /></a>
+  <a href="#快速测试与-cli-使用"><img src="https://img.shields.io/badge/Python-3.12%20CLI-3776AB.svg" alt="Python 3.12 CLI" /></a>
 </p>
 
 <p align="center">
@@ -18,8 +19,8 @@
 
 ## 核心功能模块
 
-### 1. GTK4 硬件控制中心 (`iteglow`)
-- **暗色钛合金视觉控制台**：统一深色主题（`control.css` / `gui.py`），涵盖键盘背光、机身灯带、后盖 Logo、自动灯光策略、情景预设联动、性能模式与水冷控制七大模块。
+### 1. Tauri 2 硬件控制中心 (`ui-tauri/` + `iteglow` CLI / GTK4 备用)
+- **Tauri 2 + React 19 / TypeScript 原生桌面界面 (`ui-tauri/` → `mechrevo-control-gui`)**：CNC 暗色钛合金工程视觉主题，零 Python 依赖直连 ITE 8291/8233 USB HID、水冷 Rust 守护 AF_UNIX Socket 与 Polkit 授权硬件边界，完整覆盖键盘背光、机身灯带、后盖 Logo、自动灯光策略、情景预设联动、性能模式与水冷控制七大页面；同时保留 `iteglow` CLI 与 Python GTK4 界面（`iteglow gui`）作为兼容与离线测试基线。
 - **键盘背光 & 机身灯带（ITE 8291 / 8233 USB HID）**：支持 101 键单键自定义矩阵（[keymap.py](iteglow/src/iteglow/keymap.py)）、全区灯效与自动播放/按键触发状态同步，使用桌面对等 udev 规则与 `ZoneTransaction` 分区锁（[zone_lock.py](iteglow/src/iteglow/zone_lock.py)）。
 - **独立后盖 Logo 灯控制**：EC 掩码安全写入，支持常亮自选色、七色呼吸、七彩渐变、25% 步进亮度与关闭（[logo.py](iteglow/src/iteglow/logo.py)），内嵌实时发光预览。
 - **自动灯光、热键同步与情景联动（`session-daemon/` 异步 Rust 守护进程）**：支持插电 / 电池分设亮度与空闲熄灯（[lighting_policy.py](iteglow/src/iteglow/lighting_policy.py) / [session-daemon/src/policy.rs](session-daemon/src/policy.rs)）、`Fn+F6`/`Fn+F7`（WMI `0xC1`）亮度状态同步（[session-daemon/src/hotkey.rs](session-daemon/src/hotkey.rs)），以及基于当前用户应用进程的 opt-in 情景预设切换（[profiles.py](iteglow/src/iteglow/profiles.py) / [session-daemon/src/profiles.rs](session-daemon/src/profiles.rs)），物理模式键 `0xB0` 切换时自动让步；用户级服务 [iteglow-session-restore.service](system/iteglow-session-restore.service) 由单线程异步 `tokio` + `zbus` 原生二进制 `iteglow-sessiond` 承载（常驻内存约 1.5–2.2 MB，与现有分区锁 `ZoneTransaction` 与状态文件完全兼容）。
@@ -48,15 +49,17 @@
 # 运行全部离线单元测试与 GTK4 界面测试
 PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -m unittest discover -s tests -v
 
-# 运行全部 Rust 守护进程单元测试与发布构建（水冷 / 灯光会话 / 系统狂暴与 EC 恢复）
+# 运行全部 Rust 守护进程与 Tauri 2 桌面界面构建测试
 (cd watercooling-daemon && cargo test && cargo build --release)
 (cd session-daemon && cargo test && cargo build --release)
 (cd system-daemon && cargo test && cargo build --release)
+(cd ui-tauri && pnpm install --frozen-lockfile && pnpm build && cargo test --manifest-path src-tauri/Cargo.toml && cargo build --release --manifest-path src-tauri/Cargo.toml)
 
 # 构建 .deb / .rpm / Type-2 .AppImage 发行包（产物输出至 dist/）
 FETCH_APPIMAGE_RUNTIME=1 ./packaging/build-packages.sh
 
-# 启动桌面控制中心
+# 启动桌面控制中心（原生 Tauri 2 界面 / Python GTK4 备用）
+mechrevo-control-gui
 PYTHONPATH=iteglow/src /usr/bin/python3 -m iteglow.cli gui
 
 # 外置蓝牙水冷 CLI（普通桌面用户运行，无需 sudo）
