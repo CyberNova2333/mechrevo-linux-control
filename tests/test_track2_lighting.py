@@ -179,6 +179,16 @@ class MatrixCliAndSessionTest(unittest.TestCase):
             self.assertIsNone(sync.sync_if_needed(force_query=True))
             self.assertEqual(json.loads((d / "state.json").read_text())["keyboard"]["brightness"], 36)
 
+            # Hardware mode hotkey switches from rainbow to wave -> updates saved mode instead of snapping back
+            hw.update({"mode": 3, "direction": 2, "speed": 4, "brightness": 36})
+            wmi.write_text(json.dumps({"wmi_seq": 3, "wmi_last_code": 193, "wmi_events": [{"seq": 3, "code": 193}]}))
+            ev_mode = sync.sync_if_needed(force_query=False)
+            self.assertEqual(ev_mode, {"hotkey_sync": "keyboard", "mode": "wave", "brightness": 36})
+            saved_kbd = json.loads((d / "state.json").read_text())["keyboard"]
+            self.assertEqual(saved_kbd["mode"], "wave")
+            self.assertEqual(saved_kbd["direction"], 2)
+            self.assertEqual(saved_kbd["speed"], 4)
+
 
 class Track2GuiTest(unittest.TestCase):
     @patch.object(gui.devices, "HidLed", lambda *_: FakeLed(bytes([0x88, 2, 3, 4, 35, 8, 17, 0])))

@@ -216,10 +216,17 @@ impl KeyboardHotkeySync {
                 .get("mode")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
-            if saved_mode.as_deref() == Some("off") && new_bright > 0 {
+            if new_bright > 0 {
                 let (mode_name, ui_dir) = decode_keyboard_state(actual, saved_mode.as_deref());
-                updated.insert("mode".to_string(), json!(mode_name));
-                updated.insert("direction".to_string(), json!(ui_dir));
+                if saved_mode.as_deref() == Some("off")
+                    || saved_mode.as_deref() != Some(mode_name)
+                {
+                    updated.insert("mode".to_string(), json!(mode_name));
+                    updated.insert("direction".to_string(), json!(ui_dir));
+                    if (1..=10).contains(&actual.speed) {
+                        updated.insert("speed".to_string(), json!(actual.speed));
+                    }
+                }
             }
             updated.insert("brightness".to_string(), json!(new_bright));
             Value::Object(updated)
@@ -353,6 +360,26 @@ mod tests {
             .unwrap();
         assert_eq!(updated["keyboard"]["brightness"], 50);
         assert_eq!(updated["keyboard"]["mode"], "matrix");
+
+        // Hardware mode hotkey switches from matrix (0x33) to wave (0x03)
+        hw.mode = 0x03;
+        hw.direction = 2;
+        hw.speed = 4;
+        hw.brightness = 36;
+        fs::write(
+            &wmi_path,
+            r#"{"wmi_seq": 12, "wmi_last_code": 193, "wmi_events": [{"seq": 12, "code": 193}]}"#,
+        )
+        .unwrap();
+        let ev2 = sync.sync_if_needed(false, false, || Some(hw)).unwrap();
+        assert_eq!(ev2["mode"], "wave");
+        assert_eq!(ev2["brightness"], 36);
+        let updated2 = read_saved_json(&dir.join("state.json"), uid, MAX_STATE_BYTES)
+            .unwrap()
+            .unwrap();
+        assert_eq!(updated2["keyboard"]["mode"], "wave");
+        assert_eq!(updated2["keyboard"]["direction"], 2);
+        assert_eq!(updated2["keyboard"]["speed"], 4);
 
         let _ = fs::remove_dir_all(&dir);
     }

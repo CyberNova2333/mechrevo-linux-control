@@ -333,10 +333,13 @@ class KeyboardHotkeySync:
                 0, min(protocol.KBD_BRIGHTNESS_MAX, int(actual["brightness"])))
             if isinstance(current_manual, dict):
                 updated = dict(current_manual)
-                if updated.get("mode") == "off" and new_bright > 0:
+                if new_bright > 0:
                     mode_name, ui_dir = effects.decode_keyboard_state(actual, saved_mode=updated.get("mode"))
-                    updated["mode"] = mode_name
-                    updated["direction"] = ui_dir
+                    if updated.get("mode") == "off" or updated.get("mode") != mode_name:
+                        updated["mode"] = mode_name
+                        updated["direction"] = ui_dir
+                        if 1 <= int(actual.get("speed", 0)) <= 10:
+                            updated["speed"] = int(actual["speed"])
                 updated["brightness"] = new_bright
             else:
                 mode_name, ui_dir = effects.decode_keyboard_state(actual)
