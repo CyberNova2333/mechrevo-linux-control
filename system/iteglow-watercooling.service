@@ -1,17 +1,17 @@
-# User-session BLE water-cooling coordinator daemon (no sudo / no arbitrary EC writes).
+# User-session async Rust BLE water-cooling coordinator daemon (no sudo / no arbitrary EC writes).
 [Unit]
-Description=iteglow BLE water-cooling daemon
+Description=iteglow BLE water-cooling daemon (Rust)
 PartOf=graphical-session.target
 After=graphical-session.target
 
 [Service]
 Type=simple
 WorkingDirectory=/
-Environment=PYTHONPATH=%h/.local/share/desktop-maintenance/sources/iteglow-0.3.2/src
-ExecStart=/usr/bin/python3 -m iteglow.cli cooler daemon
+ExecStart=%h/.local/libexec/iteglow-watercoolingd
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=10
+MemoryLow=16M
 
 [Install]
 WantedBy=graphical-session.target

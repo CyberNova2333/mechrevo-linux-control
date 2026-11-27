@@ -1,0 +1,2 @@
+# Prevent Intel AX211 Bluetooth USB autosuspend from causing BLE water-cooler dropouts
+ACTION=="add|change", SUBSYSTEM=="usb", ATTR{idVendor}=="8087", ATTR{idProduct}=="0033", ATTR{power/control}="on"

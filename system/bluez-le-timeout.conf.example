@@ -1,0 +1,4 @@
+# Recommended /etc/bluetooth/main.conf snippet for stable LCT22002 / LCT21001 BLE water-cooler links
+# Raises BlueZ kernel LE supervision timeout from default 42 (420 ms) to 400 (4000 ms).
+[LE]
+ConnectionSupervisionTimeout=400
