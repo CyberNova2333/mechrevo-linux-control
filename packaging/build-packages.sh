@@ -23,6 +23,8 @@ BUILD_SYSTEM_BUNDLE="${BUILD_SYSTEM_BUNDLE:-0}"
 
 PKG_NAME="iteglow-control"
 VERSION="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$CRATE_DIR/Cargo.toml" | head -n 1)"
+# Package managers sort prereleases before the final version using "~".
+NATIVE_VERSION="$(sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+)-/\1~/; s/-/./g' <<< "$VERSION")"
 ARCH_DEB="amd64"
 ARCH_RPM="x86_64"
 DIST_DIR="${DIST_DIR:-$REPO_DIR/dist}"
@@ -203,7 +205,7 @@ if command -v dpkg-deb >/dev/null 2>&1; then
 
   cat > "$DEB_ROOT/DEBIAN/control" <<EOF
 Package: $PKG_NAME
-Version: $VERSION
+Version: $NATIVE_VERSION
 Section: utils
 Priority: optional
 Architecture: $ARCH_DEB
@@ -250,7 +252,7 @@ if command -v rpmbuild >/dev/null 2>&1; then
 %define _build_id_links none
 
 Name:           $PKG_NAME
-Version:        $VERSION
+Version:        $NATIVE_VERSION
 Release:        1
 Summary:        MECHREVO Linux Control Center and async Rust BLE water-cooling daemon
 License:        AGPL-3.0-only

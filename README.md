@@ -70,6 +70,8 @@ iteglow cooler ec-status
 iteglow cooler scan
 ```
 
+在 GitHub Actions 的「构建与发版」中，`tag` 可填写本次要发布的版本，例如 `1.0.0` 或 `v1.0.0`。正式发布时，两种写法都会生成 `v1.0.0` 标签和 `1.0.0` 发行包。留空时优先使用所选 Git 标签，在分支上则使用清单版本。默认勾选的 `dry_run` 用于构建演练，正式发布时取消勾选。
+
 > 安全约束与架构细节详见仓库内 [docs/lighting-policy.md](docs/lighting-policy.md)、[system/mechrevo-turbo-backend.md](system/mechrevo-turbo-backend.md) 与 [system/mechrevo-custom-gpu-backend.md](system/mechrevo-custom-gpu-backend.md)；历史实验与协议抓包取证保留在 [research/](research/) 目录下供溯源查阅。
 
 ---

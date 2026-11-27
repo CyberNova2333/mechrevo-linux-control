@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
-# Run from dist/ with the verified manifest version.
+# Run from dist/ with the expected release version.
 set -euo pipefail
 
 version="${1:?missing package version}"
@@ -10,6 +10,14 @@ appimage="iteglow-control-${version}-x86_64.AppImage"
 bundle="mechrevo-system-daemon-${version}-linux-x86_64"
 
 sha256sum -c SHA256SUMS
+
+native_version="$(sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+)-/\1~/; s/-/./g' <<< "$version")"
+deb_version="$(dpkg-deb -f "$deb" Version)"
+rpm_version="$(rpm -qp --queryformat '%{VERSION}' "$rpm_package")"
+if [[ "$deb_version" != "$native_version" || "$rpm_version" != "$native_version" ]]; then
+  echo "error: expected $native_version in package metadata (deb=$deb_version, rpm=$rpm_version)" >&2
+  exit 1
+fi
 
 dpkg-deb -I "$deb"
 deb_depends="$(dpkg-deb -f "$deb" Depends)"

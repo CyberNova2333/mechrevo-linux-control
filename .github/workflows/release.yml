@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: '留空自动使用当前清单版本；手动填写时须与清单一致，可带 v 前缀'
+        description: '本次发布版本，例如 1.0.0 或 v1.0.0；留空使用所选 Git 标签或清单版本'
         required: false
         type: string
         default: ''
@@ -52,62 +52,26 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: 核对 7 份清单版本与发版标签一致性
+      - name: 确定本次发布版本并写入测试工作区
         id: meta
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          REF_NAME: ${{ github.ref_name }}
-          INPUT_TAG: ${{ inputs.tag }}
+          RELEASE_TAG: ${{ inputs.tag || (github.ref_type == 'tag' && github.ref_name) || '' }}
           INPUT_PRERELEASE: ${{ inputs.prerelease }}
-          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
         run: |
           set -euo pipefail
-          VERSION="$(sed -n 's/^version = "\([^"]*\)"/\1/p' watercooling-daemon/Cargo.toml | head -n 1)"
-          if [ -z "$VERSION" ]; then
-            echo "error: unable to read version from watercooling-daemon/Cargo.toml" >&2
-            exit 1
+          version="$(python3 .github/scripts/prepare-release.py "$RELEASE_TAG")"
+          prerelease=false
+          if [[ "$INPUT_PRERELEASE" == true || "${version%%+*}" == *-* ]]; then
+            prerelease=true
           fi
-
-          for f in watercooling-daemon/Cargo.toml session-daemon/Cargo.toml system-daemon/Cargo.toml iteglow-cli/Cargo.toml ui-tauri/src-tauri/Cargo.toml; do
-            V="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$f" | head -n 1)"
-            if [ "$V" != "$VERSION" ]; then
-              echo "error: version mismatch in $f ($V != $VERSION)" >&2
-              exit 1
-            fi
-          done
-          for f in ui-tauri/package.json ui-tauri/src-tauri/tauri.conf.json; do
-            V="$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' "$f" | head -n 1)"
-            if [ "$V" != "$VERSION" ]; then
-              echo "error: version mismatch in $f ($V != $VERSION)" >&2
-              exit 1
-            fi
-          done
-
-          if [ "$EVENT_NAME" = "push" ]; then
-            TAG="$REF_NAME"
-            DRY_RUN="false"
-          else
-            TAG="${INPUT_TAG:-$VERSION}"
-            TAG="v${TAG#v}"
-            DRY_RUN="${INPUT_DRY_RUN:-true}"
-          fi
-
-          EXPECTED_TAG="v${VERSION}"
-          if [ "$TAG" != "$EXPECTED_TAG" ]; then
-            echo "error: release tag '$TAG' does not match '$EXPECTED_TAG'. For a manual run, leave the tag blank to use the manifest version." >&2
-            exit 1
-          fi
-
-          IS_PRE="false"
-          if [ "${INPUT_PRERELEASE:-false}" = "true" ] || [[ "$TAG" == *-* ]]; then
-            IS_PRE="true"
-          fi
-
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "is_prerelease=$IS_PRE" >> "$GITHUB_OUTPUT"
-          echo "dry_run=$DRY_RUN" >> "$GITHUB_OUTPUT"
-          echo "Verified release tag=$TAG version=$VERSION prerelease=$IS_PRE dry_run=$DRY_RUN"
+          {
+            echo "version=$version"
+            echo "tag=v$version"
+            echo "is_prerelease=$prerelease"
+            echo "dry_run=$DRY_RUN"
+          } >> "$GITHUB_OUTPUT"
+          echo "Release v$version (prerelease=$prerelease, dry_run=$DRY_RUN)"
 
       - name: 安装系统开发依赖、ShellCheck 与历史单测运行环境
         run: |
@@ -199,6 +163,11 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+
+      - name: 将已校验的发布版本写入打包工作区
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: python3 .github/scripts/prepare-release.py "$VERSION"
 
       - name: 安装 Tauri 2 与多格式打包工具链
         run: |
