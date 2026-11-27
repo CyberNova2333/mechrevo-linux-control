@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: '发版标签（例如 v0.4.0；留空时自动取 v<Cargo.toml version>）'
+        description: '留空自动使用当前清单版本；手动填写时须与清单一致，可带 v 前缀'
         required: false
         type: string
         default: ''
@@ -87,13 +87,14 @@ jobs:
             TAG="$REF_NAME"
             DRY_RUN="false"
           else
-            TAG="${INPUT_TAG:-v${VERSION}}"
+            TAG="${INPUT_TAG:-$VERSION}"
+            TAG="v${TAG#v}"
             DRY_RUN="${INPUT_DRY_RUN:-true}"
           fi
 
           EXPECTED_TAG="v${VERSION}"
           if [ "$TAG" != "$EXPECTED_TAG" ]; then
-            echo "error: release tag '$TAG' does not match manifest version '$EXPECTED_TAG'" >&2
+            echo "error: release tag '$TAG' does not match '$EXPECTED_TAG'. For a manual run, leave the tag blank to use the manifest version." >&2
             exit 1
           fi
 
@@ -165,7 +166,7 @@ jobs:
           done < <(find watercooling-daemon/src session-daemon/src system-daemon/src iteglow-cli/src ui-tauri/src ui-tauri/src-tauri/src packaging \
             -type f \( -name '*.rs' -o -name '*.ts' -o -name '*.vue' -o -name '*.css' -o -name '*.sh' \) -print0)
           test "$MISSING" -eq 0
-          shellcheck packaging/build-packages.sh
+          shellcheck packaging/build-packages.sh .github/scripts/verify-packages.sh
 
       - name: Vue 3 + Naive UI 前端构建校验
         working-directory: ui-tauri
@@ -250,21 +251,10 @@ jobs:
         run: ./packaging/build-packages.sh
 
       - name: 核对产物完整性与零 Python 依赖
-        run: |
-          set -euo pipefail
-          cd dist
-          sha256sum -c SHA256SUMS
-          DEB="$(ls iteglow-control_*_amd64.deb)"
-          RPM="$(ls iteglow-control-*-1.x86_64.rpm)"
-          if dpkg-deb -f "$DEB" Depends | grep -qi python; then
-            echo "error: .deb unexpectedly depends on python" >&2
-            exit 1
-          fi
-          if rpm -qp --requires "$RPM" | grep -qi python; then
-            echo "error: .rpm unexpectedly requires python" >&2
-            exit 1
-          fi
-          ls -lh
+        working-directory: dist
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: bash ../.github/scripts/verify-packages.sh "$VERSION"
 
       - name: 上传构建产物
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -373,6 +363,12 @@ jobs:
             EXTRA_FLAGS+=(--draft)
           fi
 
+          BUILD_COMMIT="$(git rev-parse HEAD)"
+          if TAG_COMMIT="$(git rev-parse --verify --quiet "refs/tags/${TAG}^{commit}")" && [ "$TAG_COMMIT" != "$BUILD_COMMIT" ]; then
+            echo "error: $TAG points to $TAG_COMMIT, but the packages were built from $BUILD_COMMIT" >&2
+            exit 1
+          fi
+
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "==> Updating existing GitHub Release $TAG"
             gh release edit "$TAG" --title "MECHREVO Linux Control ${TAG}" --notes-file release-notes.md "${EXTRA_FLAGS[@]}"
@@ -380,6 +376,7 @@ jobs:
           else
             echo "==> Creating GitHub Release $TAG"
             gh release create "$TAG" dist/* \
+              --target "$BUILD_COMMIT" \
               --title "MECHREVO Linux Control ${TAG}" \
               --notes-file release-notes.md \
               "${EXTRA_FLAGS[@]}"

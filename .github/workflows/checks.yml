@@ -34,6 +34,8 @@ jobs:
     name: Rust 全栈测试、Clippy 与 Vue 前端构建
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    outputs:
+      version: ${{ steps.manifests.outputs.version }}
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -83,6 +85,7 @@ jobs:
           cache-dependency-path: ui-tauri/pnpm-lock.yaml
 
       - name: 校验 7 份清单版本一致性、SPDX 协议头与 Shell 脚本规范
+        id: manifests
         run: |
           set -euo pipefail
           EXPECTED="$(sed -n 's/^version = "\([^"]*\)"/\1/p' watercooling-daemon/Cargo.toml | head -n 1)"
@@ -101,6 +104,7 @@ jobs:
               exit 1
             fi
           done
+          echo "version=$EXPECTED" >> "$GITHUB_OUTPUT"
           echo "Manifest version parity verified: $EXPECTED"
 
           MISSING=0
@@ -113,7 +117,7 @@ jobs:
             -type f \( -name '*.rs' -o -name '*.ts' -o -name '*.vue' -o -name '*.css' -o -name '*.sh' \) -print0)
           test "$MISSING" -eq 0
 
-          shellcheck packaging/build-packages.sh
+          shellcheck packaging/build-packages.sh .github/scripts/verify-packages.sh
           shopt -s nullglob
           sh_files=(system/*.sh)
           if [ "${#sh_files[@]}" -gt 0 ]; then
@@ -237,39 +241,10 @@ jobs:
         run: ./packaging/build-packages.sh
 
       - name: 校验产物校验和与零 Python 依赖约束
-        run: |
-          set -euo pipefail
-          cd dist
-          sha256sum -c SHA256SUMS
-
-          DEB="$(ls iteglow-control_*_amd64.deb)"
-          RPM="$(ls iteglow-control-*-1.x86_64.rpm)"
-          APPIMG="$(ls iteglow-control-*-x86_64.AppImage)"
-          SYSTAR="$(ls mechrevo-system-daemon-*-linux-x86_64.tar.gz)"
-
-          echo "==> .deb metadata"
-          dpkg-deb -I "$DEB"
-          if dpkg-deb -f "$DEB" Depends | grep -qi python; then
-            echo "error: .deb Depends unexpectedly references python" >&2
-            exit 1
-          fi
-
-          echo "==> .rpm requirements"
-          rpm -qp --requires "$RPM"
-          if rpm -qp --requires "$RPM" | grep -qi python; then
-            echo "error: .rpm Requires unexpectedly references python" >&2
-            exit 1
-          fi
-
-          echo "==> .AppImage inspection"
-          test -x "$APPIMG"
-          file "$APPIMG"
-
-          echo "==> system-daemon archive inspection"
-          tar -tzf "$SYSTAR" | grep -q 'libexec/mechrevo-profile-helper$'
-          tar -tzf "$SYSTAR" | grep -q 'libexec/mechrevo-turbod$'
-          tar -tzf "$SYSTAR" | grep -q 'systemd/mechrevo-turbo.service$'
-          tar -tzf "$SYSTAR" | grep -q 'polkit/org.cybernova.mechrevo.profile.policy$'
+        working-directory: dist
+        env:
+          VERSION: ${{ needs.rust-and-ui.outputs.version }}
+        run: bash ../.github/scripts/verify-packages.sh "$VERSION"
 
       - name: 上传 CI 预览构建产物
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
