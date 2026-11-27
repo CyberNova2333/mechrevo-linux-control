@@ -4,6 +4,7 @@
 
 mod commands;
 mod hid;
+mod services;
 mod telemetry;
 mod zone_lock;
 
@@ -14,6 +15,9 @@ fn main() {
             commands::get_system_theme,
             commands::set_window_theme,
             telemetry::get_live_telemetry,
+            services::list_services,
+            services::control_service,
+            services::get_service_logs,
             commands::all_lights_off,
             commands::get_lighting_state,
             commands::apply_lighting,

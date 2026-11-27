@@ -8,11 +8,13 @@ import type {
   LightingSavedParams,
   LightingStateResponse,
   LiveTelemetry,
+  ManagedServiceItem,
   PerformanceStatus,
   ProfileBundle,
   ProfilesConfig,
   ResolvedTheme,
   Rgb,
+  ServiceLogsResponse,
   SystemInfo,
   TuningConfig,
   WaterCoolingConfig,
@@ -24,6 +26,11 @@ export const api = {
   getSystemTheme: () => invoke<ResolvedTheme>("get_system_theme"),
   setWindowTheme: (mode: ResolvedTheme | "system") => invoke<void>("set_window_theme", { mode }),
   getLiveTelemetry: () => invoke<LiveTelemetry>("get_live_telemetry"),
+  listServices: () => invoke<ManagedServiceItem[]>("list_services"),
+  controlService: (unit: string, action: "start" | "stop" | "restart" | "enable" | "disable") =>
+    invoke<{ ok: boolean; service: ManagedServiceItem }>("control_service", { unit, action }),
+  getServiceLogs: (unit: string, lines?: number) =>
+    invoke<ServiceLogsResponse>("get_service_logs", { unit, lines }),
   allLightsOff: () => invoke<{ turned_off: string[]; errors: string[] }>("all_lights_off"),
 
   getLightingState: (device: "keyboard" | "lightbar") =>

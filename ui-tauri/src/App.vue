@@ -29,6 +29,7 @@ import {
   Monitor,
   Moon,
   PowerOff,
+  ServerCog,
   Sparkles,
   Sun,
 } from "lucide-vue-next";
@@ -51,6 +52,7 @@ import PerformancePage from "./pages/PerformancePage.vue";
 import LightingPage from "./pages/LightingPage.vue";
 import WaterCoolingPage from "./pages/WaterCoolingPage.vue";
 import ProfilesPage from "./pages/ProfilesPage.vue";
+import ServicesPage from "./pages/ServicesPage.vue";
 
 const THEME_STORAGE_KEY = "mechrevo-theme-pref";
 
@@ -85,6 +87,11 @@ const NAV_META: Record<PageId, NavMeta> = {
     id: "profiles",
     title: "情景预设与联动",
     subtitle: "性能与三区灯效一键情景打包及前台进程自动切换",
+  },
+  services: {
+    id: "services",
+    title: "后台服务管理",
+    subtitle: "Rust 守护进程启停控制、开机自启配置、休眠安全钩子与实时日志",
   },
 };
 
@@ -225,6 +232,11 @@ const menuOptions: MenuOption[] = [
     key: "profiles",
     icon: () => h(Layers, { size: 17, strokeWidth: 2 }),
   },
+  {
+    label: "后台服务",
+    key: "services",
+    icon: () => h(ServerCog, { size: 17, strokeWidth: 2 }),
+  },
 ];
 
 const currentMeta = computed(() => NAV_META[activePage.value]);
@@ -248,7 +260,8 @@ function syncFromHash() {
     pagePart === "performance" ||
     pagePart === "lighting" ||
     pagePart === "watercooling" ||
-    pagePart === "profiles"
+    pagePart === "profiles" ||
+    pagePart === "services"
   ) {
     activePage.value = pagePart;
     if (
@@ -354,6 +367,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
     "3": "lighting",
     "4": "watercooling",
     "5": "profiles",
+    "6": "services",
   };
   const target = map[e.key];
   if (target) {
@@ -435,16 +449,18 @@ onUnmounted(() => {
 
             <div class="sider-spacer" />
 
-            <div class="sider-hardware-card">
+            <div
+              class="sider-hardware-card"
+              style="cursor: pointer"
+              title="点击进入后台服务管理（快捷键 Ctrl+6）"
+              @click="navigateTo('services')"
+            >
               <div class="sider-hw-model">{{ sysInfo?.board_name || "YAOSHI Series" }}</div>
               <div class="sider-hw-meta mono">
                 <span>BIOS {{ sysInfo?.bios_version || "--" }}</span>
                 <span>Linux {{ sysInfo?.kernel || "--" }}</span>
               </div>
-              <div
-                class="sider-daemon-row"
-                title="Rust 后台守护进程健康状态（水冷 / 会话灯光 / 狂暴调度 / EC 恢复）"
-              >
+              <div class="sider-daemon-row">
                 <span
                   class="status-dot"
                   :class="daemonCount === 4 ? 'ok' : daemonCount > 0 ? 'warn' : 'muted'"
@@ -552,6 +568,10 @@ onUnmounted(() => {
                   pollPerfSummary();
                 }
               "
+            />
+            <ServicesPage
+              v-else-if="activePage === 'services'"
+              @services-changed="pollSystem"
             />
           </n-layout-content>
         </n-layout>

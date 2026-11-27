@@ -11,7 +11,37 @@ export type PageId =
   | "performance"
   | "lighting"
   | "watercooling"
-  | "profiles";
+  | "profiles"
+  | "services";
+
+export interface ManagedServiceItem {
+  unit: string;
+  title: string;
+  summary: string;
+  binary: string;
+  scope: "user" | "system";
+  kind: "daemon" | "hook";
+  installed: boolean;
+  load_state: string;
+  active_state: string;
+  sub_state: string;
+  enabled_state: string;
+  enabled: boolean;
+  running: boolean;
+  main_pid: number;
+  memory_bytes: number | null;
+  restarts: number;
+  active_since: string;
+  unit_type: string;
+  fragment_path: string;
+}
+
+export interface ServiceLogsResponse {
+  unit: string;
+  title: string;
+  lines: string[];
+  warning: string | null;
+}
 
 export type LightingTabId = "keyboard" | "lightbar" | "logo" | "policy";
 
