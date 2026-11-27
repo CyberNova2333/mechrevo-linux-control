@@ -7,7 +7,7 @@
 **上游仓库地址：** `https://github.com/CyberNova2333/mechrevo-linux-control`  
 **所对应的仓库版本及发行物：** `main` 分支（基于提交 `a833255` 及本次 v1.6.7-r4 合规更新工作树）  
 **记录覆盖范围及尚未核实部分：** 已核实本仓库全部受 Git 跟踪源码，包括 `iteglow/`（源自 Jean Elsner 的 MIT 键盘灯效控制实现及 CyberNova 扩展）、3 个独立 Linux 内核模块 C 源码文件（`GPL-2.0-only`，独立 `.ko` 不与用户态链接，已补齐 `licenses/GPL-2.0.txt`）、`research/firmware-link-20261115/nvidia-source/` 中 2 个 NVIDIA MIT 参考源码文件，以及仓内图标与审计截图。未核实范围：宿主 Linux 发行版提供的 GTK4/Adwaita/BlueZ/Python 运行库与 Linux 内核头文件（不随本仓库分发）。  
-**清单最后更新日期：** `2026-11-19`  
+**清单最后更新日期：** `2026-11-27`  
 **配套附加条款：** [中文完整文本](./LICENSE-ADDITIONAL_TERMS-zh-CN.md)；[英文参考译文](./LICENSE-ADDITIONAL_TERMS-en.md)；[工程实施指南](./IMPLEMENTATION-GUIDE.zh-en.md)
 
 > **填写状态：本清单已依据本仓库实际文件、Git 提交历史与各上游/字体原始许可文本核实填写。** 四个分区的排列与配套附加条款 v1.6.7-r4 第 3.2、7.1 款一致；本清单如实记录已核实范围与未覆盖范围，不扩大或缩减任何上游有效许可证授予的权利，也不以列名方式向第三方材料追加限制。
@@ -60,6 +60,7 @@
 | 工具记录编号及工具类别或名称 | 技术账户、机器人或环境标识 | 经核实的使用、控制或提交上下文 | 辅助范围及相关提交或材料 | 实际主体或组件记录关联 | 核实情况与必要说明 |
 | --- | --- | --- | --- | --- | --- |
 | `T-01`；gemini-code-assist（AI 编程辅助工具） | `200291788+gemini-code-assist@users.noreply.github.com`（https://github.com/apps/gemini-code-assist） | 在人类维护者（`P-01` CyberNova）指令、审阅与提交操作下参与工程辅助（Git 字段角色：Co-authored-by） | 代码草拟、重构、文档整理、测试编写与代码审查辅助（以 Git 历史 `Co-authored-by` / 工具记录为准） | `P-01`（工具本身非版权许可授权主体） | 已核实 Git 历史中存在该工具签名记录；工具及技术账户本身不标注附加条款同意状态，权属与许可依附加条款第 1.4、1.8 款按实际人类权利人及有效许可判断 |
+| `T-02`；Codex（AI 编程辅助工具） | `199175422+chatgpt-codex-connector[bot]@users.noreply.github.com`（https://github.com/apps/chatgpt-codex-connector） | 在人类维护者指令、审阅与提交操作下参与工程辅助（Git 字段角色：Co-authored-by） | 见本仓库 Git 提交历史 `Co-authored-by` / 工具记录 | 待关联实际人类主体（工具本身非版权许可授权主体） | 由工作流自 Git 历史自动登记；工具本身不标注附加条款同意状态，依 v1.6.7-r4 第 1.4、1.8 款处理 |
 
 ## 三、上游基线、依赖与第三方代码组件（含原始作者与贡献者） (Upstream Baselines, Dependencies & Third-Party Code Components)
 
