@@ -39,7 +39,7 @@ pub const REGISTERS: &[u16] = &[
     0x7D2, 0x7E6, 0x7E7, 0x7E8, 0xD48,
 ];
 
-const BASE_OWN_MASKS: &[(u16, u8)] = &[
+pub(crate) const BASE_OWN_MASKS: &[(u16, u8)] = &[
     (0x726, 128),
     (0x727, 64),
     (REG_MODE, 255),
@@ -50,14 +50,23 @@ const BASE_OWN_MASKS: &[(u16, u8)] = &[
     (0x7C6, 4),
 ];
 
-const GPU_OWN_MASKS: &[(u16, u8)] = &[
+pub(crate) const GPU_OWN_MASKS: &[(u16, u8)] = &[
     (0x743, 7),
     (0x744, 255),
     (0x745, 255),
     (0x746, 255),
 ];
 
-const MIN_DUTY: [i64; 11] = [40, 40, 40, 40, 50, 55, 60, 70, 80, 90, 100];
+pub(crate) const LOGO_MASKS: &[(u16, u8)] = &[
+    (0x767, 0x80),
+    (0x769, 0xFF),
+    (0x76A, 0xFF),
+    (0x76B, 0xFF),
+    (0x7AB, 0xE0),
+    (0x7C5, 0x07),
+];
+
+pub(crate) const MIN_DUTY: [i64; 11] = [40, 40, 40, 40, 50, 55, 60, 70, 80, 90, 100];
 
 static GUARD_STOP: AtomicBool = AtomicBool::new(false);
 static WAKE_WRITER_FD: AtomicI32 = AtomicI32::new(-1);
@@ -119,11 +128,19 @@ fn owned_group(addr: u16) -> &'static str {
 
 // ----------------------------------------------------------------- EC I/O trait
 
+pub(crate) fn logo_mask(addr: u16) -> Option<u8> {
+    if addr == 0x78C {
+        return Some(0x10);
+    }
+    LOGO_MASKS.iter().find(|(a, _)| *a == addr).map(|(_, m)| *m)
+}
+
 pub trait EcIo {
     fn read(&self, addr: u16) -> Result<u8, String>;
     fn write_mode(&mut self, value: u8) -> Result<(), String>;
     fn write_flag(&mut self, addr: u16, enabled: bool) -> Result<(), String>;
     fn write_tuning(&mut self, addr: u16, value: u8) -> Result<(), String>;
+    fn write_logo(&mut self, addr: u16, value: u8) -> Result<(), String>;
 }
 
 pub struct RealEc {
@@ -230,6 +247,30 @@ impl EcIo for RealEc {
         };
         if n != 1 {
             return Err("EC 写入不完整".to_string());
+        }
+        Ok(())
+    }
+
+    fn write_logo(&mut self, addr: u16, value: u8) -> Result<(), String> {
+        let Some(mask) = logo_mask(addr) else {
+            return Err("Unsupported logo register".to_string());
+        };
+        if (value & !mask) != 0 {
+            return Err("Invalid logo bits".to_string());
+        }
+        let cur = self.read(addr)?;
+        let merged = (cur & !mask) | value;
+        let offset = (EC_BASE + addr as u64) as libc::off_t;
+        let n = unsafe {
+            libc::pwrite(
+                self.file.as_raw_fd(),
+                &merged as *const u8 as *const libc::c_void,
+                1,
+                offset,
+            )
+        };
+        if n != 1 {
+            return Err("Logo 写入不完整".to_string());
         }
         Ok(())
     }
@@ -381,7 +422,7 @@ pub struct TuningState {
 }
 
 impl TuningState {
-    fn masks(&self) -> BTreeMap<u16, u8> {
+    pub(crate) fn masks(&self) -> BTreeMap<u16, u8> {
         let mut m = BTreeMap::new();
         for &(a, mask) in BASE_OWN_MASKS {
             m.insert(a, mask);
@@ -423,7 +464,7 @@ impl TuningState {
     }
 }
 
-fn validate_tuning_config(config: &Value) -> Result<(), String> {
+pub(crate) fn validate_tuning_config(config: &Value) -> Result<(), String> {
     let Some(obj) = config.as_object() else {
         return Err("自定义设置字段不完整".to_string());
     };
@@ -680,7 +721,7 @@ pub fn read_tuning_state(path: &Path) -> Result<Option<TuningState>, String> {
     }))
 }
 
-fn save_tuning_state(path: &Path, state: &TuningState) -> Result<(), String> {
+pub(crate) fn save_tuning_state(path: &Path, state: &TuningState) -> Result<(), String> {
     atomic_write_json(path, &state.to_json(), 0o600, ".mechrevo-", true)
 }
 
@@ -872,7 +913,7 @@ fn resolve_pending<E: EcIo>(
     save_tuning_state(state_path, state)
 }
 
-fn tuning_put<E: EcIo>(
+pub(crate) fn tuning_put<E: EcIo>(
     ec: &mut E,
     state_path: &Path,
     state: &mut TuningState,
@@ -1156,7 +1197,7 @@ fn turbo_release_optional() -> Result<Value, String> {
     Ok(json!({"available": false, "active": false, "recovery_needed": false}))
 }
 
-fn run_with_lock<T, F>(writable: bool, background: bool, f: F) -> Result<T, LockError>
+pub(crate) fn run_with_lock<T, F>(writable: bool, background: bool, f: F) -> Result<T, LockError>
 where
     F: FnOnce(&mut RealEc) -> Result<T, String>,
 {
@@ -1513,6 +1554,15 @@ mod tests {
         }
         fn write_tuning(&mut self, addr: u16, value: u8) -> Result<(), String> {
             self.vals.insert(addr, value);
+            Ok(())
+        }
+        fn write_logo(&mut self, addr: u16, value: u8) -> Result<(), String> {
+            let mask = logo_mask(addr).ok_or_else(|| "Unsupported logo register".to_string())?;
+            if (value & !mask) != 0 {
+                return Err("Invalid logo bits".to_string());
+            }
+            let cur = *self.vals.get(&addr).unwrap_or(&0);
+            self.vals.insert(addr, (cur & !mask) | value);
             Ok(())
         }
     }

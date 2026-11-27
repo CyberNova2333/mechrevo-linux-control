@@ -2,7 +2,7 @@
 name = "mechrevo-system-daemon"
 version = "0.4.0"
 edition = "2021"
-description = "Lightweight native Rust root system daemons for MECHREVO Linux Control (mechrevo-turbod and mechrevo-profile-guardd)"
+description = "Lightweight native Rust root system daemons and helpers for MECHREVO Linux Control"
 license = "AGPL-3.0-only"
 
 [[bin]]
@@ -12,6 +12,30 @@ path = "src/bin/mechrevo-turbod.rs"
 [[bin]]
 name = "mechrevo-profile-guardd"
 path = "src/bin/mechrevo-profile-guardd.rs"
+
+[[bin]]
+name = "mechrevo-profile-helper"
+path = "src/bin/mechrevo-profile-helper.rs"
+
+[[bin]]
+name = "mechrevo-acpi-check"
+path = "src/bin/mechrevo-acpi-check.rs"
+
+[[bin]]
+name = "mechrevo-powerd-sleep"
+path = "src/bin/mechrevo-powerd-sleep.rs"
+
+[[bin]]
+name = "mechrevo-turbo-helper"
+path = "src/bin/mechrevo-turbo-helper.rs"
+
+[[bin]]
+name = "mechrevo-turbo-lifecycle"
+path = "src/bin/mechrevo-turbo-lifecycle.rs"
+
+[[bin]]
+name = "mechrevo-nvidia-hibernate-patch"
+path = "src/bin/mechrevo-nvidia-hibernate-patch.rs"
 
 [dependencies]
 libc = "0.2"
