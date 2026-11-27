@@ -1,0 +1,26 @@
+[package]
+name = "mechrevo-system-daemon"
+version = "0.4.0"
+edition = "2021"
+description = "Lightweight native Rust root system daemons for MECHREVO Linux Control (mechrevo-turbod and mechrevo-profile-guardd)"
+license = "AGPL-3.0-only"
+
+[[bin]]
+name = "mechrevo-turbod"
+path = "src/bin/mechrevo-turbod.rs"
+
+[[bin]]
+name = "mechrevo-profile-guardd"
+path = "src/bin/mechrevo-profile-guardd.rs"
+
+[dependencies]
+libc = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

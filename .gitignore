@@ -13,5 +13,6 @@ modules.order
 .tmp_versions/
 watercooling-daemon/target/
 session-daemon/target/
+system-daemon/target/
 dist/
 packaging/cache/
