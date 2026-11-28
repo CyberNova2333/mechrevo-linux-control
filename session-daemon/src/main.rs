@@ -271,7 +271,7 @@ async fn spawn_logind_watcher(
     let handle = tokio::spawn(async move {
         while let Some(item) = stream.next().await {
             let Ok(msg) = item else {
-                continue;
+                break;
             };
             let member = msg
                 .header()
@@ -454,9 +454,15 @@ async fn run(args: CliArgs) -> Result<(), String> {
         .await
         .map_err(|e| format!("connect session D-Bus failed: {e}"))?;
 
-    let Some((session_id, session_path)) = find_unique_session(&system_bus, uid).await? else {
-        emit_json(&json!({"skipped": "exactly one active local graphical session is required"}));
-        return Ok(());
+    let (session_id, session_path) = loop {
+        if let Some(session) = find_unique_session(&system_bus, uid).await? {
+            break session;
+        }
+        if args.once {
+            emit_json(&json!({"skipped": "exactly one active local graphical session is required"}));
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_secs(5)).await;
     };
 
     let state_dir = default_state_dir();
@@ -530,7 +536,8 @@ async fn run(args: CliArgs) -> Result<(), String> {
             _ = sigint.recv() => {
                 break;
             }
-            Some(ev) = logind_rx.recv() => {
+            event = logind_rx.recv() => {
+                let ev = event.ok_or("logind signal subscription closed")?;
                 match ev {
                     LogindEvent::PrepareForSleep(entering) => {
                         let active_now = is_session_active(&system_bus, &user_bus, &session_path, uid).await;

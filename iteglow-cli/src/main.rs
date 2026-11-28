@@ -952,33 +952,6 @@ fn cmd_profile(args: &[String]) -> Result<(), String> {
 
 // ----------------------------------------------------------------- cooler commands
 
-fn default_wc_config() -> Value {
-    json!({
-        "version": 1,
-        "auto_connect": false,
-        "mac": "",
-        "strategy": "preset",
-        "preset": "silent",
-        "manual": {"pump_volt": 7, "pump_duty": 60, "fan_duty": 40},
-        "curve": {
-            "hysteresis_c": 3,
-            "points": [
-                {"temp_c": 45, "pump_volt": 7, "pump_duty": 60, "fan_duty": 40},
-                {"temp_c": 65, "pump_volt": 8, "pump_duty": 70, "fan_duty": 55},
-                {"temp_c": 80, "pump_volt": 11, "pump_duty": 90, "fan_duty": 85},
-            ],
-        },
-        "led": {
-            "mode": "off",
-            "color": [0, 128, 255],
-            "fan_policy": "sync",
-            "fan_color": [0, 128, 255],
-        },
-        "flow_protection": true,
-        "sleep_on_disconnect": true,
-    })
-}
-
 fn read_host_temp_c() -> Option<f64> {
     if let Ok(entries) = fs::read_dir("/sys/class/hwmon") {
         let mut best: Option<f64> = None;
@@ -1092,22 +1065,8 @@ fn wc_service_running() -> bool {
 
 fn save_local_wc_patch(patch: &Map<String, Value>) -> Result<Value, String> {
     let path = config_dir().join("watercooling.json");
-    let mut cur = read_json_file(&path, MAX_STATE_BYTES, true)?
-        .unwrap_or_else(default_wc_config);
-    let obj = cur.as_object_mut().ok_or("invalid watercooling config")?;
-    for (k, v) in patch {
-        if matches!(k.as_str(), "manual" | "curve" | "led") {
-            if let (Some(sub_v), Some(sub_cur)) = (v.as_object(), obj.get_mut(k).and_then(|x| x.as_object_mut())) {
-                for (sk, sv) in sub_v {
-                    sub_cur.insert(sk.clone(), sv.clone());
-                }
-                continue;
-            }
-        }
-        obj.insert(k.clone(), v.clone());
-    }
-    write_json_file(&path, &cur, 0o600)?;
-    Ok(cur)
+    let saved = iteglow_watercooling_config::save_offline_patch(&path, &runtime_dir(), &json!(patch))?;
+    Ok(json!(saved))
 }
 
 fn find_companion_bin(name: &str, libexec: bool) -> Option<PathBuf> {
@@ -1171,8 +1130,7 @@ fn cmd_cooler(args: &[String]) -> Result<(), String> {
             let res = if wc_service_running() {
                 wc_service_request(&json!({"op": "status"}), 5)?
             } else {
-                let cfg = read_json_file(&config_dir().join("watercooling.json"), MAX_STATE_BYTES, true)?
-                    .unwrap_or_else(default_wc_config);
+                let cfg = json!(iteglow_watercooling_config::load_config(&config_dir().join("watercooling.json"))?);
                 json!({
                     "service_running": false,
                     "connected": false,
@@ -1442,6 +1400,26 @@ fn main() -> ExitCode {
 mod tests {
     use super::*;
     use crate::hid::{preset_cells, KBD_MATRIX_CELLS};
+
+    #[test]
+    fn offline_cooler_patch_preserves_settings_and_rejects_invalid_or_busy_writes() {
+        use std::os::unix::fs::PermissionsExt;
+        use iteglow_watercooling_config::{acquire_lock, load_config, save_offline_patch};
+        let dir = std::env::temp_dir().join(format!("iteglow-cli-wc-{}", std::process::id()));
+        std::fs::create_dir(&dir).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = dir.join("watercooling.json");
+        save_offline_patch(&path, &dir, &json!({"auto_connect": true, "led": {"mode": "static"}})).unwrap();
+        let cfg = save_offline_patch(&path, &dir, &json!({"led": {"color": [4, 5, 6]}})).unwrap();
+        assert!(cfg.auto_connect);
+        assert_eq!(cfg.led.mode, "static");
+        assert_eq!(cfg.led.color, [4, 5, 6]);
+        assert!(save_offline_patch(&path, &dir, &json!({"manual": {"fan_duty": 101}})).is_err());
+        let _daemon = acquire_lock(&dir).unwrap();
+        assert!(save_offline_patch(&path, &dir, &json!({"auto_connect": false})).is_err());
+        assert_eq!(load_config(&path).unwrap(), cfg);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 
     #[test]
     fn parse_colors_directions_and_inline_matrix() {

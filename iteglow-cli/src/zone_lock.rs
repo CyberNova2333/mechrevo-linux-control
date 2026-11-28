@@ -434,18 +434,20 @@ pub fn write_json_file(path: &Path, data: &Value, mode: u32) -> Result<(), Strin
         fs::create_dir_all(parent).map_err(|e| format!("创建目录失败: {e}"))?;
     }
     let seq = TMP_SEQ.fetch_add(1, Ordering::Relaxed);
-    let tmp = PathBuf::from(format!("{}.tmp.{}.{seq}", path.display(), std::process::id()));
+    let mut name = path.as_os_str().to_owned();
+    name.push(format!(".tmp.{}.{seq}", std::process::id()));
+    let tmp = PathBuf::from(name);
     let mut encoded = serde_json::to_string_pretty(data)
         .map_err(|e| format!("序列化 JSON 失败: {e}"))?;
     encoded.push('\n');
+    let mut file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .mode(mode)
+        .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW)
+        .open(&tmp)
+        .map_err(|e| format!("创建临时文件失败: {e}"))?;
     let res: Result<(), String> = (|| {
-        let mut file = OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .mode(mode)
-            .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW)
-            .open(&tmp)
-            .map_err(|e| format!("创建临时文件失败: {e}"))?;
         file.set_permissions(fs::Permissions::from_mode(mode))
             .map_err(|e| format!("设置临时文件权限失败: {e}"))?;
         file.write_all(encoded.as_bytes())

@@ -721,6 +721,12 @@ def apply_profile(
     return applied
 
 
+def _profile_part(profile, part):
+    if not profile:
+        return None
+    return profile.get(part) if part == "performance" else profile.get("lighting", {}).get(part)
+
+
 class ProfileRuleRunner:
     """Session watcher adapter connecting RuleEvaluator with /proc, WMI, and hardware."""
 
@@ -753,9 +759,11 @@ class ProfileRuleRunner:
         self.clock = clock
         self.emit = emit
         self.evaluator = RuleEvaluator()
+        self._owned = {}
         self.owns_lighting = False
 
     def deactivate(self) -> None:
+        self._owned.clear()
         self.evaluator.reset()
         self.owns_lighting = False
 
@@ -795,6 +803,7 @@ class ProfileRuleRunner:
             b0_seq = latest_wmi_code_seq(wmi, WMI_MODE_KEY_CODE)
             fan_safety = bool(wmi.get("fan_safety_protect")) if isinstance(wmi, dict) else False
             procs = self.scanner()
+            previous = copy.copy(self.evaluator)
             decision = self.evaluator.step(
                 cfg,
                 processes=procs,
@@ -809,52 +818,56 @@ class ProfileRuleRunner:
             if decision.reason:
                 result["reason"] = decision.reason
 
-            if decision.action == "apply" and decision.profile_name:
-                target = cfg["profiles"][decision.profile_name]
-                if self.apply:
-                    apply_profile(
-                        target,
-                        helper_runner=self.helper_runner,
-                        hid_writer=self.hid_writer,
-                        transaction=self.transaction,
-                        save_manual=False,
-                    )
-                if target.get("lighting"):
-                    self.owns_lighting = True
+            target = cfg["profiles"].get(decision.profile_name)
+            updating = decision.action in ("apply", "noop") and target is not None
+            releasing = decision.action == "release"
+            yielding = decision.action == "yield_mode_key"
+            if updating or releasing or yielding:
+                restore = decision.restore_profile
+                if updating and cfg["restore_previous"]:
+                    restore = self.evaluator.baseline_profile
+                elif yielding and self.owns_lighting:
+                    restore = {"lighting": _read_manual_lighting(self.directory, self.uid)}
+                for part in ("keyboard", "lightbar", "logo", "performance"):
+                    desired = _profile_part(target, part) if updating else None
+                    if desired is not None and self._owned.get(part) == desired:
+                        continue
+                    if desired is None and part not in self._owned:
+                        continue
+                    value = desired if desired is not None else _profile_part(restore, part)
+                    if value is None or (part == "performance" and fan_safety):
+                        self._owned.pop(part, None)
+                        continue
+                    if self.apply:
+                        bundle = {"performance": value} if part == "performance" else {"lighting": {part: value}}
+                        try:
+                            applied = apply_profile(bundle, helper_runner=self.helper_runner, hid_writer=self.hid_writer,
+                                                    transaction=self.transaction, save_manual=False)
+                            if part != "performance" and part not in applied["lighting"]:
+                                self._owned.pop(part, None)
+                                continue
+                            if part == "performance" and applied["warnings"]:
+                                raise RuntimeError("; ".join(applied["warnings"]))
+                        except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
+                            result["errors"].append(f"{part}: {exc}")
+                            if yielding:
+                                self._owned.pop(part, None)
+                            else:
+                                self._owned[part] = None
+                            continue
+                    if desired is None:
+                        self._owned.pop(part, None)
+                    else:
+                        self._owned[part] = desired
+                    if result["action"] == "noop":
+                        result["action"] = "apply"
+                if releasing and result["errors"]:
+                    self.evaluator = previous
+                was_owning = self.owns_lighting
+                self.owns_lighting = any(part != "performance" for part in self._owned)
                 result["active_lighting"] = self.owns_lighting
-            elif decision.action == "release":
-                was_owning = self.owns_lighting
-                self.owns_lighting = False
-                result["active_lighting"] = False
-                result["released_lighting"] = was_owning
-                if self.apply and decision.restore_profile:
-                    apply_profile(
-                        decision.restore_profile,
-                        helper_runner=self.helper_runner,
-                        hid_writer=self.hid_writer,
-                        transaction=self.transaction,
-                        save_manual=False,
-                    )
-            elif decision.action == "yield_mode_key":
-                was_owning = self.owns_lighting
-                self.owns_lighting = False
-                result["active_lighting"] = False
-                result["released_lighting"] = was_owning
-                if self.apply:
-                    # On 0xB0 Mode Key yield, NEVER touch firmware performance mode;
-                    # only restore saved manual lighting if a rule owned lighting.
-                    if was_owning:
-                        manual_light = _read_manual_lighting(self.directory, self.uid)
-                        if manual_light:
-                            apply_profile(
-                                {"lighting": manual_light},
-                                helper_runner=self.helper_runner,
-                                hid_writer=self.hid_writer,
-                                transaction=self.transaction,
-                                save_manual=False,
-                                apply_performance=False,
-                            )
-            if self.emit and decision.action not in ("noop", "disabled", "hold", "yielded"):
+                result["released_lighting"] = was_owning and not self.owns_lighting
+            if self.emit and (result["errors"] or result["action"] not in ("noop", "disabled", "hold", "yielded")):
                 self.emit({"event": "profile_rule", **result})
         except Exception as exc:
             result["errors"].append(str(exc))

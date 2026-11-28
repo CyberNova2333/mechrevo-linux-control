@@ -12,7 +12,7 @@ use std::ffi::CString;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -386,22 +386,23 @@ pub fn read_system_json(path: &Path, max_bytes: usize) -> Option<Value> {
 /// Atomic JSON write matching `iteglow.state.write` (preserves 0600 permissions).
 pub fn write_state_json(path: &Path, data: &Value) -> Result<(), String> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("create_dir_all failed: {e}"))?;
-        let _ = fs::set_permissions(parent, fs::Permissions::from_mode(0o700));
+        fs::DirBuilder::new().recursive(true).mode(0o700).create(parent).map_err(|e| format!("create_dir_all failed: {e}"))?;
     }
     let seq = TMP_SEQ.fetch_add(1, Ordering::Relaxed);
-    let tmp = PathBuf::from(format!("{}.tmp.{}.{seq}", path.display(), std::process::id()));
+    let mut name = path.as_os_str().to_owned();
+    name.push(format!(".tmp.{}.{seq}", std::process::id()));
+    let tmp = PathBuf::from(name);
     let mut encoded = serde_json::to_string_pretty(data)
         .map_err(|e| format!("serialize state JSON failed: {e}"))?;
     encoded.push('\n');
+    let mut file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .mode(0o600)
+        .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW)
+        .open(&tmp)
+        .map_err(|e| format!("open temp state file failed: {e}"))?;
     let write_res: Result<(), String> = (|| {
-        let mut file = OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .mode(0o600)
-            .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW)
-            .open(&tmp)
-            .map_err(|e| format!("open temp state file failed: {e}"))?;
         file.set_permissions(fs::Permissions::from_mode(0o600))
             .map_err(|e| format!("fchmod temp state file failed: {e}"))?;
         file.write_all(encoded.as_bytes())

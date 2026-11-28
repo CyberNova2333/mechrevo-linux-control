@@ -559,7 +559,7 @@ pub fn read_tuning_state(path: &Path) -> Result<Option<TuningState>, String> {
     let fd = unsafe {
         libc::open(
             c_path.as_ptr(),
-            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC,
         )
     };
     if fd < 0 {

@@ -24,6 +24,10 @@ from iteglow import watercooling as wc  # noqa: E402
 from iteglow.watercooling_ble import CoolerBleClient  # noqa: E402
 from iteglow.watercooling_service import (  # noqa: E402
     CoolerCoordinator,
+    _RequestQueue,
+    _read_request,
+    _remove_stale_socket,
+    cooler_lock,
     dispatch_command,
     service_request,
 )
@@ -352,6 +356,105 @@ class BleClientCoordinatorAndCliTests(unittest.TestCase):
             finally:
                 t.join(timeout=2.0)
                 srv.close()
+
+    def test_partial_pump_write_and_manual_disconnect(self):
+        clock = FakeClock()
+        tr = FakeBleTransport(clock)
+        client = CoolerBleClient(tr, clock=clock)
+        coord = CoolerCoordinator(client=client, config={"preset": "stop", "auto_connect": True},
+                                  config_saver=lambda cfg: cfg, temp_reader=lambda: 40, ec_reader=dict, clock=clock)
+        for req in ({"op": "connect", "mac": 42}, {"op": "connect", "mac": "bad"},
+                    {"op": "prepare_sleep", "entering": "false"}, {"op": "scan", "timeout_s": float("inf")}):
+            with self.assertRaises(ValueError):
+                dispatch_command(coord, req)
+        self.assertFalse(coord.sleeping)
+        self.assertEqual(tr.connect_calls, 0)
+        coord.connect()
+        write = tr.write_frame
+
+        def fail_fan(data, write_type):
+            if data[:2] == bytes([0xfe, 0x1b]):
+                raise RuntimeError("ATT error: 0x0e")
+            write(data, write_type)
+
+        with patch.object(tr, "write_frame", side_effect=fail_fan):
+            with self.assertRaises(RuntimeError):
+                coord.set_config({"preset": "silent"})
+            self.assertEqual((coord.applied_pump_volt, coord.applied_fan_duty), (7, 0))
+            before = len(tr.writes)
+            coord.connect()
+            self.assertEqual(len(tr.writes), before)
+            tr.next_meter_state = 1
+            clock.advance(6)
+            coord.tick()
+            self.assertTrue(coord.flow_monitor.tripped)
+            self.assertTrue(coord.actuators_dirty)
+        coord.tick()
+        self.assertFalse(coord.actuators_dirty)
+        self.assertEqual(coord.applied_pump_volt, 0)
+        coord.reset_fault()
+        with patch.object(coord, "_config_saver", side_effect=OSError("read-only")):
+            with self.assertRaises(OSError):
+                coord.emergency_stop()
+        self.assertIn(wc.encode_sleep(), [frame for _, _, frame in tr.writes])
+        clock.advance(60)
+        coord.tick()
+        self.assertFalse(client.connected)
+
+    def test_missing_meter_reply_invalidates_previous_good_reading(self):
+        clock = FakeClock()
+        tr = FakeBleTransport(clock)
+        client = CoolerBleClient(tr, clock=clock)
+        client.connect()
+        self.assertEqual(client.meter_state, 2)
+        tr._on_notify = None
+        self.assertIsNone(client.query_meter())
+
+    def test_delayed_glib_requests_keep_their_own_deadlines_and_replies(self):
+        import queue
+        from iteglow import watercooling_service as service
+
+        requests = _RequestQueue(None)
+        requests.busy = True
+        expired, first, second = (queue.Queue(1) for _ in range(3))
+        with patch.object(service.time, "monotonic", return_value=10):
+            requests.submit({"op": "connect"}, expired, 11)
+            requests.submit({"op": "disconnect"}, first, 30)
+            requests.submit({"op": "prepare_sleep"}, second)
+        requests.busy = False
+        with patch.object(service.time, "monotonic", return_value=12), \
+             patch.object(service, "dispatch_command", side_effect=lambda _, req: req["op"]) as dispatch:
+            requests.drain()
+        self.assertEqual(dispatch.call_count, 2)
+        self.assertTrue(expired.empty())
+        self.assertEqual(first.get_nowait()["result"], "disconnect")
+        self.assertEqual(second.get_nowait()["result"], "prepare_sleep")
+
+    def test_socket_framing_stale_paths_and_offline_lock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "ipc"
+            p.write_text("preserve")
+            with self.assertRaises(RuntimeError):
+                _remove_stale_socket(p)
+            self.assertEqual(p.read_text(), "preserve")
+            p.unlink()
+            with socket.socket(socket.AF_UNIX) as srv:
+                srv.bind(str(p))
+                srv.listen(1)
+                with self.assertRaises(RuntimeError):
+                    _remove_stale_socket(p)
+            _remove_stale_socket(p)
+            self.assertFalse(p.exists())
+            with cooler_lock(Path(tmp)), self.assertRaises(RuntimeError), cooler_lock(Path(tmp)):
+                self.fail("duplicate lock acquired")
+        with contextlib.ExitStack() as stack:
+            reader, writer = map(stack.enter_context, socket.socketpair())
+            writer.sendall(b'{"op":')
+            writer.sendall(b'"status"}\n')
+            self.assertEqual(_read_request(reader), {"op": "status"})
+            writer.sendall(b"x" * 16384 + b"\n")
+            with self.assertRaises(ValueError):
+                _read_request(reader)
 
     def test_cli_cooler_offline_commands_and_root_guard(self):
         parser = cli.build_parser()

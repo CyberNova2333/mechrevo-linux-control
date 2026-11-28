@@ -11,6 +11,7 @@ Verified live rules:
 """
 from __future__ import annotations
 
+import math
 import time
 from typing import Callable, Dict, List, Optional, Protocol, Tuple
 
@@ -394,7 +395,9 @@ class CoolerBleClient:
             self.on_disconnect_event(reason)
 
     def scan(self, timeout_s: float = 5.0, target_mac: str = "") -> List[dict]:
-        return self.transport.scan(timeout_s=timeout_s, target_mac=target_mac)
+        if type(timeout_s) not in (int, float) or (isinstance(timeout_s, float) and not math.isfinite(timeout_s)):
+            raise ValueError("timeout_s 需要有限数值")
+        return self.transport.scan(timeout_s=max(0.5, min(timeout_s, 20.0)), target_mac=target_mac)
 
     def _handle_link_drop(self, reason: str) -> None:
         was_connected = self.connected
@@ -412,6 +415,8 @@ class CoolerBleClient:
         elapsed = self._clock() - self._last_tx_at
         if self._last_tx_at > 0 and elapsed < self.min_gap_s:
             self.transport.pump(self.min_gap_s - elapsed)
+        if not self.connected:
+            raise RuntimeError("水冷蓝牙连接已断开")
         wtype = force_type or self.preferred_write_type
         try:
             self.transport.write_frame(data, write_type=wtype)
@@ -435,7 +440,8 @@ class CoolerBleClient:
 
     def connect(self, target_mac: str = "", scan_timeout_s: float = 6.0) -> dict:
         if self.connected:
-            return {"name": self.device_name, "address": self.device_mac, "fw_version": self.fw_version}
+            return {"name": self.device_name, "address": self.device_mac, "fw_version": self.fw_version,
+                    "meter_state": self.meter_state}
         self.fw_version = None
         self.meter_state = None
         last_err: Optional[Exception] = None
@@ -452,6 +458,10 @@ class CoolerBleClient:
                 break
             except Exception as exc:
                 last_err = exc
+                try:
+                    self.transport.disconnect()
+                except Exception:
+                    pass
                 msg = str(exc).lower()
                 if attempt < 3 and any(
                     tok in msg
@@ -463,10 +473,6 @@ class CoolerBleClient:
                         "br-connection-canceled",
                     )
                 ):
-                    try:
-                        self.transport.disconnect()
-                    except Exception:
-                        pass
                     self.transport.pump(0.9)
                     continue
                 raise
@@ -476,10 +482,16 @@ class CoolerBleClient:
         self.device_name = info.get("name", "")
         self.device_mac = info.get("address", "")
         self.preferred_write_type = "request"
-        self.send_paced(wc.encode_handshake())
-        self.transport.pump(0.35)
-        self.send_paced(wc.encode_meter_query())
-        self.transport.pump(0.25)
+        try:
+            self.send_paced(wc.encode_handshake())
+            self.transport.pump(0.35)
+            self.send_paced(wc.encode_meter_query())
+            self.transport.pump(0.25)
+            if not self.connected:
+                raise RuntimeError("握手期间水冷蓝牙连接已断开")
+        except Exception:
+            self.disconnect(send_sleep=False, stop_actuators=False)
+            raise
         return {
             "name": self.device_name,
             "address": self.device_mac,
@@ -488,8 +500,13 @@ class CoolerBleClient:
         }
 
     def query_meter(self) -> Optional[int]:
-        self.send_paced(wc.encode_meter_query())
-        self.transport.pump(0.18)
+        self.meter_state = None
+        try:
+            self.send_paced(wc.encode_meter_query())
+            self.transport.pump(0.18)
+        except Exception:
+            self.meter_state = None
+            raise
         return self.meter_state
 
     def apply_actuators(self, pump_volt: int, pump_duty: int, fan_duty: int) -> None:
@@ -501,17 +518,23 @@ class CoolerBleClient:
             self.send_paced(frame)
 
     def disconnect(self, *, send_sleep: bool = True, stop_actuators: bool = True) -> None:
+        errors = []
         if self.connected:
-            try:
-                if stop_actuators:
-                    self.send_paced(wc.encode_pump(0, 0))
-                    self.send_paced(wc.encode_fan(0))
-                    self.send_paced(wc.encode_fan_led_ctrl(False))
-                    self.send_paced(wc.encode_main_led(False, [0, 0, 0], "off"))
-                if send_sleep:
+            if stop_actuators:
+                frames = (("水泵", wc.encode_pump(0, 0)), ("风扇", wc.encode_fan(0)),
+                          ("风扇灯", wc.encode_fan_led_ctrl(False)), ("主灯", wc.encode_main_led(False, [0, 0, 0], "off")))
+                for name, frame in frames:
+                    try:
+                        self.send_paced(frame)
+                    except Exception as exc:
+                        errors.append(f"{name}: {exc}")
+            if send_sleep:
+                try:
                     self.send_paced(wc.encode_sleep(), force_type="command")
                     self.transport.pump(0.25)
-            except Exception:
-                pass
+                except Exception as exc:
+                    errors.append(f"休眠: {exc}")
         self.connected = False
         self.transport.disconnect()
+        if errors:
+            raise RuntimeError("未确认设备停止指令：" + "；".join(errors))

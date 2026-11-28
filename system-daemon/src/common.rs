@@ -128,7 +128,7 @@ pub fn trusted_file(path: &Path, private: bool, limit: usize) -> Result<Vec<u8>,
     let fd = unsafe {
         libc::open(
             c_path.as_ptr(),
-            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
         )
     };
     if fd < 0 {
@@ -301,18 +301,18 @@ pub struct CmdOutput {
     pub stderr: String,
 }
 
-fn set_nonblock(fd: i32) {
-    unsafe {
-        let flags = libc::fcntl(fd, libc::F_GETFL);
-        if flags >= 0 {
-            let _ = libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK);
-        }
+fn set_nonblock(fd: i32) -> std::io::Result<()> {
+    let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+    if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
+        return Err(std::io::Error::last_os_error());
     }
+    Ok(())
 }
 
 fn drain_fd_capped(fd: i32, dst: &mut Vec<u8>, cap: usize) -> bool {
     let mut chunk = [0u8; 4096];
-    loop {
+    // Yield to the other pipe and the deadline even when this pipe stays readable.
+    for _ in 0..cap.div_ceil(chunk.len()) {
         let n = unsafe { libc::read(fd, chunk.as_mut_ptr() as *mut libc::c_void, chunk.len()) };
         if n > 0 {
             let take = (n as usize).min(cap.saturating_sub(dst.len()));
@@ -333,6 +333,7 @@ fn drain_fd_capped(fd: i32, dst: &mut Vec<u8>, cap: usize) -> bool {
         }
         return true;
     }
+    false
 }
 
 /// Run an external binary with a hard wall-clock timeout, non-blocking pipe draining
@@ -355,11 +356,12 @@ pub fn run_command_timeout(
 
     let out_pipe = child.stdout.take();
     let err_pipe = child.stderr.take();
-    if let Some(ref f) = out_pipe {
-        set_nonblock(f.as_raw_fd());
-    }
-    if let Some(ref f) = err_pipe {
-        set_nonblock(f.as_raw_fd());
+    for fd in [out_pipe.as_ref().map(AsRawFd::as_raw_fd), err_pipe.as_ref().map(AsRawFd::as_raw_fd)].into_iter().flatten() {
+        if let Err(e) = set_nonblock(fd) {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(format!("设置子进程管道失败: {e}"));
+        }
     }
 
     let mut out_buf = Vec::new();

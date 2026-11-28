@@ -18,6 +18,7 @@ class ReleaseVersionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             checkout = Path(tmp)
             files = [*ROOT.glob("*/Cargo.toml"), *ROOT.glob("*/Cargo.lock"),
+                     ROOT / "watercooling-daemon/config/Cargo.toml", ROOT / "watercooling-daemon/config/Cargo.lock",
                      ROOT / "ui-tauri/src-tauri/Cargo.toml", ROOT / "ui-tauri/src-tauri/Cargo.lock",
                      ROOT / "ui-tauri/package.json", ROOT / "ui-tauri/src-tauri/tauri.conf.json"]
             for src in files:
@@ -46,7 +47,7 @@ class ReleaseVersionTests(unittest.TestCase):
                 data = (checkout / src.relative_to(ROOT)).read_text()
                 if src.name == "Cargo.lock":
                     packages = tomllib.loads(data)["package"]
-                    self.assertEqual([p["version"] for p in packages if "source" not in p], [version])
+                    self.assertEqual({p["version"] for p in packages if "source" not in p}, {version})
                     upstream = [p for p in tomllib.loads(src.read_text())["package"] if "source" in p]
                     self.assertEqual([p for p in packages if "source" in p], upstream)
                 elif src.suffix == ".json":

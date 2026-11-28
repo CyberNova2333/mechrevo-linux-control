@@ -106,7 +106,7 @@ jobs:
               echo "error: missing AGPL-3.0-only SPDX header: $file" >&2
               MISSING=1
             fi
-          done < <(find watercooling-daemon/src session-daemon/src system-daemon/src iteglow-cli/src ui-tauri/src ui-tauri/src-tauri/src packaging \
+          done < <(find watercooling-daemon/src watercooling-daemon/config/src session-daemon/src system-daemon/src iteglow-cli/src ui-tauri/src ui-tauri/src-tauri/src packaging \
             -type f \( -name '*.rs' -o -name '*.ts' -o -name '*.vue' -o -name '*.css' -o -name '*.sh' -o -name '*.mjs' \) -print0)
           test "$MISSING" -eq 0
 
@@ -126,18 +126,18 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm build
 
-      - name: Rust 单元测试（全部 5 个 Crate）
+      - name: Rust 单元测试（全部 Crate）
         run: |
           set -euo pipefail
-          for crate in watercooling-daemon session-daemon system-daemon iteglow-cli ui-tauri/src-tauri; do
+          for crate in watercooling-daemon/config watercooling-daemon session-daemon system-daemon iteglow-cli ui-tauri/src-tauri; do
             echo "==> cargo test ($crate)"
             (cd "$crate" && cargo test --locked)
           done
 
-      - name: Rust Clippy 严格静态检查（全部 5 个 Crate）
+      - name: Rust Clippy 严格静态检查（全部 Crate）
         run: |
           set -euo pipefail
-          for crate in watercooling-daemon session-daemon system-daemon iteglow-cli ui-tauri/src-tauri; do
+          for crate in watercooling-daemon/config watercooling-daemon session-daemon system-daemon iteglow-cli ui-tauri/src-tauri; do
             echo "==> cargo clippy ($crate)"
             (cd "$crate" && cargo clippy --locked --all-targets -- -D warnings)
           done

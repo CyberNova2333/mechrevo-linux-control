@@ -129,7 +129,7 @@ def validate_config(raw: object) -> dict:
             cfg[key] = raw[key]
     if "mac" in raw:
         mac = raw["mac"]
-        if not isinstance(mac, str) or (mac != "" and not MAC_RE.match(mac)):
+        if not isinstance(mac, str) or (mac != "" and not MAC_RE.fullmatch(mac)):
             raise ValueError("mac: 需要空字符串或 XX:XX:XX:XX:XX:XX")
         cfg["mac"] = mac.upper()
     if "strategy" in raw:
@@ -182,10 +182,10 @@ def validate_config(raw: object) -> dict:
 
 def load_config(path: Optional[Path] = None) -> dict:
     p = Path(path) if path is not None else config_path()
-    if not p.exists():
-        return default_config()
-    raw = json.loads(p.read_text(encoding="utf-8"))
-    return validate_config(raw)
+    from .lighting_session import _read_saved
+    missing = object()
+    raw = _read_saved(p, os.getuid(), missing=missing, writable_mask=0o022)
+    return default_config() if raw is missing else validate_config(raw)
 
 
 def save_config(cfg: dict, path: Optional[Path] = None) -> dict:

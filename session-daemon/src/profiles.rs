@@ -507,7 +507,7 @@ impl RuleDecision {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct RuleEvaluator {
     pub active_rule: Option<String>,
     pub active_profile: Option<String>,
@@ -846,37 +846,76 @@ async fn apply_performance(perf: &Value) -> Result<(), String> {
     Ok(())
 }
 
-async fn apply_profile_bundle(
-    profile: &Value,
-    apply_lighting: bool,
-    apply_perf: bool,
-) -> Result<(), String> {
-    let clean = validate_profile(profile)?;
-    if apply_lighting {
-        if let Some(light) = clean.get("lighting").and_then(|v| v.as_object()) {
-            for zone in ["keyboard", "lightbar"] {
-                if let Some(zcfg) = light.get(zone) {
-                    if !hidraw_available(zone) {
-                        continue;
-                    }
-                    let act: RestoreAction = validate_hid(zone, zcfg)?;
-                    let _guard = ZoneGuard::acquire(zone)?;
-                    apply_action(&act).await?;
+fn profile_part<'a>(profile: Option<&'a Value>, part: &str) -> Option<&'a Value> {
+    let profile = profile?;
+    if part == "performance" {
+        profile.get(part)
+    } else {
+        profile.get("lighting")?.get(part)
+    }
+}
+
+async fn apply_part(part: &str, config: &Value) -> Result<(), String> {
+    if part == "performance" {
+        return apply_performance(config).await;
+    }
+    let action: RestoreAction = if part == "logo" {
+        validate_logo(config)?
+    } else {
+        validate_hid(part, config)?
+    };
+    let _guard = ZoneGuard::acquire(part)?;
+    apply_action(&action).await
+}
+
+/// Apply or restore each owned component independently. A null entry records an uncertain write.
+async fn reconcile_parts<'a, F, Fut>(
+    owned: &mut Map<String, Value>,
+    target: Option<&'a Value>,
+    restore: Option<&'a Value>,
+    yielding: bool,
+    fan_safety: bool,
+    mut write: F,
+) -> (bool, Vec<String>)
+where
+    F: FnMut(&'static str, &'a Value) -> Fut,
+    Fut: Future<Output = Result<bool, String>>,
+{
+    let mut changed = false;
+    let mut errors = Vec::new();
+    for part in ["keyboard", "lightbar", "logo", "performance"] {
+        let desired = profile_part(target, part);
+        if owned.get(part) == desired { continue; }
+        let value = desired.or_else(|| profile_part(restore, part));
+        let Some(value) = value else {
+            owned.remove(part);
+            continue;
+        };
+        if part == "performance" && fan_safety {
+            if desired.is_none() { owned.remove(part); }
+            continue;
+        }
+        match write(part, value).await {
+            Ok(false) => { owned.remove(part); }
+            Ok(true) => {
+                changed = true;
+                if let Some(v) = desired {
+                    owned.insert(part.into(), v.clone());
+                } else {
+                    owned.remove(part);
                 }
             }
-            if let Some(lcfg) = light.get("logo") {
-                let act = validate_logo(lcfg)?;
-                let _guard = ZoneGuard::acquire("logo")?;
-                apply_action(&act).await?;
+            Err(e) => {
+                errors.push(format!("{part}: {e}"));
+                if yielding {
+                    owned.remove(part);
+                } else {
+                    owned.insert(part.into(), Value::Null);
+                }
             }
         }
     }
-    if apply_perf {
-        if let Some(perf) = clean.get("performance") {
-            apply_performance(perf).await?;
-        }
-    }
-    Ok(())
+    (changed, errors)
 }
 
 pub struct ProfileTickResult {
@@ -889,6 +928,8 @@ pub struct ProfileRuleRunner {
     pub apply: bool,
     pub evaluator: RuleEvaluator,
     pub owns_lighting: bool,
+    // Null means a write was attempted but its outcome is unknown.
+    owned: Map<String, Value>,
 }
 
 impl ProfileRuleRunner {
@@ -897,11 +938,13 @@ impl ProfileRuleRunner {
             apply,
             evaluator: RuleEvaluator::default(),
             owns_lighting: false,
+            owned: Map::new(),
         }
     }
 
     pub fn deactivate(&mut self) {
         self.evaluator.reset();
+        self.owned.clear();
         self.owns_lighting = false;
     }
 
@@ -959,7 +1002,8 @@ impl ProfileRuleRunner {
             .unwrap_or(false);
         let procs = scan_processes(Path::new("/proc"), uid);
 
-        let decision = self
+        let previous = self.evaluator.clone();
+        let mut decision = self
             .evaluator
             .step(&cfg, &procs, b0_seq, fan_safety, now_secs, || async {
                 capture_current_profile(state_dir, uid).await
@@ -967,51 +1011,53 @@ impl ProfileRuleRunner {
             .await;
 
         let mut errors: Vec<String> = Vec::new();
-        let mut released_lighting = false;
-
-        match decision.action.as_str() {
-            "apply" => {
-                if let Some(ref prof_name) = decision.profile_name {
-                    if let Some(target) = cfg.profiles.get(prof_name) {
-                        if self.apply {
-                            if let Err(e) = apply_profile_bundle(target, true, true).await {
-                                errors.push(e);
-                            }
-                        }
-                        if target.get("lighting").is_some() {
-                            self.owns_lighting = true;
-                        }
+        let was_owning = self.owns_lighting;
+        let target = decision.profile_name.as_ref().and_then(|name| cfg.profiles.get(name));
+        let updating = matches!(decision.action.as_str(), "apply" | "noop") && target.is_some();
+        let releasing = decision.action == "release";
+        let yielding = decision.action == "yield_mode_key";
+        if updating || releasing || yielding {
+            let manual = if yielding && was_owning {
+                Some(json!({"lighting": read_manual_lighting(state_dir, uid)}))
+            } else {
+                None
+            };
+            let restore = if updating && cfg.restore_previous {
+                self.evaluator.baseline_profile.as_ref()
+            } else if yielding {
+                manual.as_ref()
+            } else {
+                decision.restore_profile.as_ref()
+            };
+            let apply = self.apply;
+            let (changed, failures) = reconcile_parts(
+                &mut self.owned,
+                if updating { target } else { None },
+                restore,
+                yielding,
+                fan_safety,
+                |part, value| async move {
+                    if !apply {
+                        return Ok(true);
                     }
-                }
-            }
-            "release" => {
-                let was_owning = self.owns_lighting;
-                self.owns_lighting = false;
-                released_lighting = was_owning;
-                if self.apply {
-                    if let Some(ref restore) = decision.restore_profile {
-                        if let Err(e) = apply_profile_bundle(restore, true, true).await {
-                            errors.push(e);
-                        }
+                    if matches!(part, "keyboard" | "lightbar") && !hidraw_available(part) {
+                        return Ok(false);
                     }
-                }
+                    apply_part(part, value).await?;
+                    Ok(true)
+                },
+            ).await;
+            errors = failures;
+            if changed && decision.action == "noop" {
+                decision.action = "apply".into();
             }
-            "yield_mode_key" => {
-                let was_owning = self.owns_lighting;
-                self.owns_lighting = false;
-                released_lighting = was_owning;
-                if self.apply && was_owning {
-                    let manual_light = read_manual_lighting(state_dir, uid);
-                    if !manual_light.is_empty() {
-                        let bundle = json!({"lighting": Value::Object(manual_light)});
-                        if let Err(e) = apply_profile_bundle(&bundle, true, false).await {
-                            errors.push(e);
-                        }
-                    }
-                }
+            if releasing && !errors.is_empty() {
+                // Keep the original baseline and key sequence until the remaining writes finish.
+                self.evaluator = previous;
             }
-            _ => {}
         }
+        self.owns_lighting = self.owned.keys().any(|part| part != "performance");
+        let released_lighting = was_owning && !self.owns_lighting;
 
         if !matches!(
             decision.action.as_str(),
@@ -1076,6 +1122,30 @@ mod tests {
         assert!(procs[0].contains(&"cyberpunk2077.exe".to_string()));
         assert!(procs[0].contains(&"cyberpunk2077".to_string()));
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[tokio::test]
+    async fn retries_failed_rules_without_replaying_other_hardware_writes() {
+        let mut owned = Map::new();
+        let target = json!({"lighting": {"keyboard": {"mode": "off"}}, "performance": {"mode": "turbo"}});
+        let baseline = json!({"lighting": {"keyboard": {"mode": "rainbow"}, "logo": {"mode": "solid"}},
+                              "performance": {"mode": "balanced"}});
+        for (desired, fail, expected) in [
+            (Some(&target), true, vec!["keyboard", "performance"]),
+            (Some(&target), false, vec!["performance"]),
+            (Some(&target), false, vec![]),
+            (None, true, vec!["keyboard", "performance"]),
+            (None, false, vec!["performance"]),
+        ] {
+            let mut writes = Vec::new();
+            let (_, errors) = reconcile_parts(&mut owned, desired, Some(&baseline), false, false, |part, _| {
+                writes.push(part);
+                std::future::ready(if fail && part == "performance" { Err("helper busy".into()) } else { Ok(true) })
+            }).await;
+            assert_eq!(writes, expected);
+            assert_eq!(!errors.is_empty(), fail);
+        }
+        assert!(owned.is_empty());
     }
 
     #[tokio::test]

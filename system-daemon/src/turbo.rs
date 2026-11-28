@@ -14,7 +14,7 @@ use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::ffi::{CString, OsStr};
 use std::fs::{self, File};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::os::linux::net::SocketAddrExt;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
@@ -734,20 +734,32 @@ fn check_peer_root(stream: &UnixStream) -> Result<(), String> {
     Ok(())
 }
 
+fn read_request(stream: &mut UnixStream, deadline: Instant) -> Result<Value, String> {
+    let mut line = Vec::new();
+    let mut chunk = [0; 512];
+    while line.len() < 2048 {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err("读取客户端请求超时".into());
+        }
+        stream.set_read_timeout(Some(remaining)).map_err(|e| e.to_string())?;
+        let limit = chunk.len().min(2048 - line.len());
+        let n = stream.read(&mut chunk[..limit]).map_err(|e| format!("读取客户端请求失败: {e}"))?;
+        if n == 0 { break; }
+        if let Some(end) = chunk[..n].iter().position(|&b| b == b'\n') {
+            line.extend_from_slice(&chunk[..end]);
+            return serde_json::from_slice(&line).map_err(|e| format!("请求 JSON 无效: {e}"));
+        }
+        line.extend_from_slice(&chunk[..n]);
+    }
+    Err("请求过长或不完整".into())
+}
+
 fn handle_client<D: TurboDevice>(controller: &mut Controller<D>, mut stream: UnixStream) {
-    let _ = stream.set_read_timeout(Some(Duration::from_millis(300)));
-    let _ = stream.set_write_timeout(Some(Duration::from_millis(300)));
+    if stream.set_write_timeout(Some(Duration::from_millis(300))).is_err() { return; }
     let response = (|| -> Result<Value, String> {
         check_peer_root(&stream)?;
-        let mut reader = std::io::BufReader::new(&stream);
-        let mut buf = Vec::new();
-        let n = std::io::BufRead::read_until(&mut std::io::Read::take(&mut reader, 2049), b'\n', &mut buf)
-            .map_err(|e| format!("读取客户端请求失败: {e}"))?;
-        if n == 0 || n > 2048 || !buf.ends_with(b"\n") {
-            return Err("请求过长或不完整".to_string());
-        }
-        let req: Value =
-            serde_json::from_slice(&buf).map_err(|e| format!("请求 JSON 无效: {e}"))?;
+        let req = read_request(&mut stream, Instant::now() + Duration::from_millis(300))?;
         dispatch(controller, &req)
     })();
     let reply = match response {
@@ -870,14 +882,10 @@ pub fn run_daemon() -> Result<(), String> {
         };
         let rc = unsafe { libc::poll(&mut pfd, 1, wait_ms) };
         if rc > 0 && (pfd.revents & libc::POLLIN) != 0 {
-            loop {
-                match listener.accept() {
-                    Ok((stream, _)) => {
-                        let _ = stream.set_nonblocking(false);
-                        handle_client(&mut controller, stream);
-                    }
-                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
-                    Err(_) => break,
+            // Service heartbeat and signal deadlines between queued requests.
+            if let Ok((stream, _)) = listener.accept() {
+                if stream.set_nonblocking(false).is_ok() {
+                    handle_client(&mut controller, stream);
                 }
             }
         }
@@ -1007,6 +1015,15 @@ mod tests {
             runtime_ready_fn: Box::new(|| Ok(())),
             powerd_ready_fn: Box::new(|| Ok(())),
         }
+    }
+
+    #[test]
+    fn request_deadline_is_checked_even_if_socket_is_readable() {
+        let (mut reader, mut writer) = UnixStream::pair().unwrap();
+        writer.write_all(b"{\"op\":\"status\"}\n").unwrap();
+        assert!(read_request(&mut reader, Instant::now()).is_err());
+        let req = read_request(&mut reader, Instant::now() + Duration::from_secs(1)).unwrap();
+        assert_eq!(req["op"], "status");
     }
 
     #[test]

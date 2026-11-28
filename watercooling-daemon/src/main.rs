@@ -15,14 +15,13 @@ mod ipc;
 mod protocol;
 
 use crate::ble::{BluezBleTransport, CoolerBleClient};
-use crate::coordinator::{load_config_or_default, CoolerCoordinator, MonotonicClock};
+use crate::coordinator::{CoolerCoordinator, MonotonicClock};
 use crate::ipc::{bind_ipc_listener, serve_ipc, IpcCommand};
 use futures_util::StreamExt;
 use serde_json::{json, Value};
-use std::fs::{self, OpenOptions};
+use std::fs;
 use std::io::Write;
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
-use std::os::unix::io::AsRawFd;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -61,22 +60,6 @@ fn verify_runtime_dir(path: &Path, my_uid: u32) -> Result<(), String> {
     Ok(())
 }
 
-fn acquire_lock(lock_path: &Path) -> Result<fs::File, String> {
-    let file = OpenOptions::new()
-        .create(true)
-        .read(true)
-        .write(true)
-        .mode(0o600)
-        .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW)
-        .open(lock_path)
-        .map_err(|e| format!("打开锁文件失败: {e}"))?;
-    let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-    if rc != 0 {
-        return Err("水冷守护进程已在运行".to_string());
-    }
-    Ok(file)
-}
-
 #[derive(Debug)]
 enum LogindEvent {
     PrepareForSleep(bool),
@@ -103,7 +86,7 @@ async fn spawn_logind_watcher(
     let handle = tokio::spawn(async move {
         while let Some(item) = stream.next().await {
             let Ok(msg) = item else {
-                continue;
+                break;
             };
             let member = msg
                 .header()
@@ -156,17 +139,16 @@ async fn run_daemon(my_uid: u32) -> Result<(), String> {
     let rdir = runtime_dir();
     verify_runtime_dir(&rdir, my_uid)?;
 
-    let lock_path = rdir.join("iteglow-watercooling.lock");
     let sock_path = rdir.join("iteglow-watercooling.sock");
-    let _lock_file = acquire_lock(&lock_path)?;
+    let _lock_file = protocol::acquire_lock(&rdir)?;
 
-    let listener = bind_ipc_listener(&sock_path)?;
     let system_bus = Connection::system()
         .await
         .map_err(|e| format!("连接系统 D-Bus 失败: {e}"))?;
 
     let cfg_path = protocol::config_path();
-    let cfg = load_config_or_default(&cfg_path);
+    let cfg = protocol::load_config(&cfg_path)?;
+    let listener = bind_ipc_listener(&sock_path).await?;
     let shared_snapshot = Arc::new(RwLock::new(
         CoolerCoordinator::<BluezBleTransport>::default_snapshot(&cfg),
     ));
@@ -203,17 +185,18 @@ async fn run_daemon(my_uid: u32) -> Result<(), String> {
         "socket": sock_path.display().to_string(),
     }));
 
-    loop {
+    let result = loop {
         tokio::select! {
             _ = sigterm.recv() => {
                 emit_json(&json!({"event": "daemon_stopping", "signal": "SIGTERM"}));
-                break;
+                break Ok(());
             }
             _ = sigint.recv() => {
                 emit_json(&json!({"event": "daemon_stopping", "signal": "SIGINT"}));
-                break;
+                break Ok(());
             }
-            Some(ev) = logind_rx.recv() => {
+            event = logind_rx.recv() => {
+                let Some(ev) = event else { break Err("logind 信号订阅已关闭".to_string()) };
                 match ev {
                     LogindEvent::PrepareForSleep(entering) => {
                         emit_json(&json!({"event": "prepare_for_sleep", "entering": entering}));
@@ -221,14 +204,18 @@ async fn run_daemon(my_uid: u32) -> Result<(), String> {
                     }
                     LogindEvent::PrepareForShutdown => {
                         emit_json(&json!({"event": "prepare_for_shutdown"}));
-                        break;
+                        break Ok(());
                     }
                 }
             }
             Some(cmd) = cmd_rx.recv() => {
+                if cmd.reply.is_closed() { continue; }
                 let resp = match coordinator.dispatch(&cmd.req).await {
                     Ok(result) => json!({"ok": true, "result": result}),
-                    Err(error) => json!({"ok": false, "error": error}),
+                    Err(error) => {
+                        coordinator.status().await;
+                        json!({"ok": false, "error": error})
+                    }
                 };
                 let _ = cmd.reply.send(resp);
             }
@@ -236,11 +223,11 @@ async fn run_daemon(my_uid: u32) -> Result<(), String> {
                 coordinator.tick().await;
             }
         }
-    }
+    };
 
     coordinator.prepare_for_sleep(true).await;
     logind_abort.abort();
     ipc_task.abort();
     let _ = fs::remove_file(&sock_path);
-    Ok(())
+    result
 }

@@ -8,7 +8,7 @@ Listens to logind PrepareForSleep / PrepareForShutdown to safely sleep and disco
 from __future__ import annotations
 
 from collections import deque
-import errno
+from contextlib import contextmanager
 import fcntl
 import json
 import os
@@ -70,6 +70,7 @@ class CoolerCoordinator:
 
         self.sleeping = False
         self.current_tier = 0
+        self._pump_may_be_on = False
         self.applied_pump_volt = 0
         self.applied_pump_duty = 0
         self.applied_fan_duty = 0
@@ -83,6 +84,7 @@ class CoolerCoordinator:
         self._last_meter_poll = 0.0
         self._last_c1_seq: Optional[int] = None
         self._last_connect_attempt = 0.0
+        self._manual_disconnect = False
         self._next_connect_at = 0.0
         self._reconnect_failures = 0
         self._consecutive_meter_errors = 0
@@ -98,6 +100,7 @@ class CoolerCoordinator:
 
     def _on_ble_disconnected(self, reason: str) -> None:
         self.flow_monitor.on_disconnect()
+        self._pump_may_be_on = False
         self.applied_pump_volt = 0
         self.applied_pump_duty = 0
         self.applied_fan_duty = 0
@@ -165,7 +168,14 @@ class CoolerCoordinator:
     def connect(self, mac: str = "") -> dict:
         if self.sleeping:
             raise RuntimeError("系统正在进入睡眠/休眠，禁止连接水冷")
+        if not isinstance(mac, str) or (mac and not wc.MAC_RE.fullmatch(mac)):
+            raise ValueError("无效的水冷 MAC 地址")
+        self._manual_disconnect = False
         target = mac.upper() if mac else self.config.get("mac", "")
+        if self.client.connected:
+            if target and target.upper() != self.client.device_mac.upper():
+                raise ValueError("请先断开当前水冷设备再连接其他设备")
+            return {**self.status(), "connect_info": self.client.connect(target_mac=target)}
         self.last_error = ""
         info = self.client.connect(target_mac=target)
         self.flow_monitor.on_disconnect()
@@ -185,20 +195,41 @@ class CoolerCoordinator:
         )
         return {**self.status(), "connect_info": info}
 
+    def _stop_link(self, sleep: bool, reason: str) -> Optional[str]:
+        try:
+            self.client.disconnect(send_sleep=sleep, stop_actuators=True)
+        except Exception as exc:
+            self.last_error = str(exc)
+            self._emit("cooler_stop_failed", reason=reason, error=self.last_error)
+            return self.last_error
+        finally:
+            self._on_ble_disconnected(reason)
+        return None
+
     def disconnect(self, *, send_sleep: Optional[bool] = None) -> dict:
+        self._manual_disconnect = True
         use_sleep = self.config["sleep_on_disconnect"] if send_sleep is None else bool(send_sleep)
-        self.client.disconnect(send_sleep=use_sleep, stop_actuators=True)
-        self._on_ble_disconnected("manual_disconnect")
+        error = self._stop_link(use_sleep, "manual_disconnect")
         self.last_reason = "disconnected"
+        if error:
+            raise RuntimeError(error)
         return self.status()
 
     def emergency_stop(self) -> dict:
+        self._manual_disconnect = True
+        error = self._stop_link(True, "manual_disconnect")
         self.config["strategy"] = "preset"
         self.config["preset"] = "stop"
         self.config["led"]["mode"] = "off"
-        self._config_saver(self.config)
-        self.disconnect(send_sleep=True)
         self.last_reason = "emergency_stop"
+        try:
+            self._config_saver(self.config)
+        except Exception as exc:
+            if error:
+                raise RuntimeError(f"{error}；{exc}") from exc
+            raise
+        if error:
+            raise RuntimeError(error)
         return self.status()
 
     def reset_fault(self) -> dict:
@@ -224,6 +255,8 @@ class CoolerCoordinator:
                 merged[k] = v
         canonical = wc.validate_config(merged)
         saved = self._config_saver(canonical)
+        if saved["auto_connect"] and not self.config["auto_connect"]:
+            self._manual_disconnect = False
         self.config = saved
         self.actuators_dirty = True
         self.led_dirty = True
@@ -235,8 +268,7 @@ class CoolerCoordinator:
         if entering:
             self.sleeping = True
             if self.client.connected:
-                self.client.disconnect(send_sleep=True, stop_actuators=True)
-                self._on_ble_disconnected("prepare_for_sleep")
+                self._stop_link(True, "prepare_for_sleep")
             self.last_reason = "sleeping"
         else:
             self.sleeping = False
@@ -244,6 +276,21 @@ class CoolerCoordinator:
             self._next_connect_at = self._clock() + WAKE_RECONNECT_DELAY_S
             self.last_reason = "resumed"
         return self.status()
+
+    def _write_actuators(self, pv: int, pd: int, fd: int) -> None:
+        pump, fan = wc.encode_pump(pv, pd), wc.encode_fan(fd)
+        self.actuators_dirty = True
+        if pv > 0 and not self._pump_may_be_on:
+            self.client.meter_state = None
+            self._pump_may_be_on = True
+            self.flow_monitor.update(now=self._clock(), pump_volt=pv, meter_state=None,
+                                     flow_protection=self.config["flow_protection"])
+        self.client.send_paced(pump)
+        self.applied_pump_volt, self.applied_pump_duty = pv, pd
+        self._pump_may_be_on = pv > 0
+        self.client.send_paced(fan)
+        self.applied_fan_duty = fd
+        self.actuators_dirty = False
 
     def apply_targets(self, *, force: bool = False) -> None:
         if not self.client.connected:
@@ -253,22 +300,18 @@ class CoolerCoordinator:
 
         if self.flow_monitor.update(
             now=now,
-            pump_volt=self.applied_pump_volt,
+            pump_volt=int(self._pump_may_be_on),
             meter_state=self.client.meter_state,
             flow_protection=self.config["flow_protection"],
         ):
             was_tripped = self.last_reason == "flow_fault_locked"
             self.last_error = self.flow_monitor.trip_reason
-            if (self.applied_pump_volt, self.applied_pump_duty, self.applied_fan_duty) != (0, 0, 0):
+            if force or self.actuators_dirty or self._pump_may_be_on or self.applied_fan_duty:
                 try:
-                    self.client.apply_actuators(0, 0, 0)
+                    self._write_actuators(0, 0, 0)
                 except Exception as exc:
-                    self.last_error = f"{self.flow_monitor.trip_reason}; 紧急停泵失败: {exc}"
-                self.applied_pump_volt = 0
-                self.applied_pump_duty = 0
-                self.applied_fan_duty = 0
+                    self.last_error = f"{self.flow_monitor.trip_reason}; 紧急停泵失败(将重试): {exc}"
             self.last_reason = "flow_fault_locked"
-            self.actuators_dirty = False
             if not was_tripped:
                 self._emit(
                     "flow_fault_tripped",
@@ -289,11 +332,7 @@ class CoolerCoordinator:
         self.last_reason = reason
 
         if force or self.actuators_dirty or (pv, pd, fd) != (self.applied_pump_volt, self.applied_pump_duty, self.applied_fan_duty):
-            self.client.apply_actuators(pv, pd, fd)
-            self.applied_pump_volt = pv
-            self.applied_pump_duty = pd
-            self.applied_fan_duty = fd
-            self.actuators_dirty = False
+            self._write_actuators(pv, pd, fd)
             self.flow_monitor.update(
                 now=now,
                 pump_volt=pv,
@@ -312,7 +351,7 @@ class CoolerCoordinator:
         if self.sleeping:
             return
         if not self.client.connected:
-            if self.config["auto_connect"] and not self.flow_monitor.tripped and now >= self._next_connect_at:
+            if self.config["auto_connect"] and not self._manual_disconnect and not self.flow_monitor.tripped and now >= self._next_connect_at:
                 self._last_connect_attempt = now
                 try:
                     self.connect()
@@ -329,7 +368,7 @@ class CoolerCoordinator:
                     )
             return
 
-        poll_interval = 2.0 if self.applied_pump_volt > 0 else 6.0
+        poll_interval = 2.0 if self._pump_may_be_on else 6.0
         if now - self._last_meter_poll >= poll_interval:
             self._last_meter_poll = now
             try:
@@ -347,8 +386,10 @@ class CoolerCoordinator:
                 if not self.client.connected:
                     return
                 if self._consecutive_meter_errors >= MAX_CONSECUTIVE_METER_ERRORS:
-                    self.client.disconnect(send_sleep=False, stop_actuators=False)
-                    self._on_ble_disconnected("meter_poll_failed")
+                    if self.config["flow_protection"] and self._pump_may_be_on:
+                        self.flow_monitor.tripped = True
+                        self.flow_monitor.trip_reason = self.last_error
+                    self._stop_link(True, "meter_poll_failed")
                     return
         try:
             self.apply_targets(force=False)
@@ -360,25 +401,31 @@ class CoolerCoordinator:
 def dispatch_command(coordinator: CoolerCoordinator, req: dict) -> dict:
     if not isinstance(req, dict) or "op" not in req:
         raise ValueError("请求缺少 op 字段")
+    def boolean(key, default):
+        value = req.get(key, default)
+        if type(value) is not bool:
+            raise ValueError(f"{key} 需要布尔值")
+        return value
+
     op = req["op"]
     if op == "ping":
         return {"pong": True, "connected": coordinator.client.connected}
     if op == "status":
         return coordinator.status()
     if op == "scan":
-        return {"devices": coordinator.scan(float(req.get("timeout_s", 5.0)))}
+        return {"devices": coordinator.scan(req.get("timeout_s", 5.0))}
     if op == "connect":
-        return coordinator.connect(str(req.get("mac", "")))
+        return coordinator.connect(req.get("mac", ""))
     if op == "disconnect":
-        return coordinator.disconnect(send_sleep=req.get("send_sleep"))
+        return coordinator.disconnect(send_sleep=None if req.get("send_sleep") is None else boolean("send_sleep", True))
     if op == "emergency_stop":
         return coordinator.emergency_stop()
     if op == "reset_fault":
         return coordinator.reset_fault()
     if op == "set_config":
-        return coordinator.set_config(req.get("config", {}), apply_now=bool(req.get("apply_now", True)))
+        return coordinator.set_config(req.get("config"), apply_now=boolean("apply_now", True))
     if op == "prepare_sleep":
-        return coordinator.prepare_for_sleep(bool(req.get("entering", True)))
+        return coordinator.prepare_for_sleep(boolean("entering", True))
     raise ValueError(f"不支持的水冷命令: {op}")
 
 
@@ -419,6 +466,99 @@ def is_service_running(sock_path: Optional[Path] = None) -> bool:
         return False
 
 
+@contextmanager
+def cooler_lock(rdir: Path):
+    _verify_runtime_dir(rdir)
+    fd = os.open(lock_path(rdir), os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+            raise RuntimeError("水冷锁文件权限异常")
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise RuntimeError("水冷服务或配置正忙") from exc
+        yield
+    finally:
+        os.close(fd)
+
+
+def _remove_stale_socket(path: Path) -> None:
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return
+    if not stat.S_ISSOCK(info.st_mode) or info.st_uid != os.getuid():
+        raise RuntimeError(f"水冷 socket 路径已被占用: {path}")
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+        probe.settimeout(0.5)
+        try:
+            probe.connect(str(path))
+        except ConnectionRefusedError:
+            path.unlink()
+            return
+    raise RuntimeError("水冷控制 socket 仍被占用")
+
+
+def _read_request(conn: socket.socket) -> dict:
+    deadline = time.monotonic() + 2.0
+    buf = bytearray()
+    while len(buf) < 16384:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("读取水冷请求超时")
+        conn.settimeout(remaining)
+        chunk = conn.recv(min(4096, 16384 - len(buf)))
+        if not chunk:
+            break
+        line, end, _ = chunk.partition(b"\n")
+        buf.extend(line)
+        if end:
+            return json.loads(buf)
+    raise ValueError("水冷服务请求格式无效")
+
+
+class _RequestQueue:
+    """Serialize BLE operations across callbacks reentered by GLib during GATT waits."""
+
+    def __init__(self, coordinator):
+        self.coordinator = coordinator
+        self.pending = deque()
+        self.busy = False
+        self.stopping = False
+
+    def submit(self, req, reply, deadline=None):
+        if self.stopping or (deadline is not None and time.monotonic() >= deadline):
+            return False
+        op = req.get("op") if isinstance(req, dict) else None
+        if self.busy and op in ("ping", "status"):
+            result = ({"pong": True, "connected": self.coordinator.client.connected}
+                      if op == "ping" else self.coordinator.status_snapshot())
+            reply.put({"ok": True, "result": result})
+        else:
+            self.pending.append((req, reply, deadline))
+            self.drain()
+        return False  # GLib idle callbacks run once.
+
+    def drain(self):
+        if self.busy:
+            return
+        self.busy = True
+        try:
+            while self.pending and not self.stopping:
+                req, reply, deadline = self.pending.popleft()
+                if deadline is not None and time.monotonic() >= deadline:
+                    continue
+                try:
+                    result = dispatch_command(self.coordinator, req)
+                except Exception as exc:
+                    reply.put({"ok": False, "error": str(exc)})
+                else:
+                    reply.put({"ok": True, "result": result})
+        finally:
+            self.busy = False
+
+
 def run_daemon() -> int:
     if os.geteuid() == 0:
         raise RuntimeError("水冷用户服务必须以当前桌面用户运行，请勿使用 root/sudo")
@@ -428,26 +568,9 @@ def run_daemon() -> int:
     from gi.repository import Gio, GLib
 
     rdir = runtime_dir()
-    _verify_runtime_dir(rdir)
-    lpath = lock_path(rdir)
     spath = socket_path(rdir)
-
-    lock_fd = os.open(lpath, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
-    try:
-        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError as exc:
-        os.close(lock_fd)
-        raise RuntimeError("水冷守护进程已在运行") from exc
-
-    try:
-        if spath.exists():
-            try:
-                is_alive = is_service_running(spath)
-            except Exception:
-                is_alive = False
-            if is_alive:
-                raise RuntimeError("水冷控制 socket 仍被占用")
-            spath.unlink()
+    with cooler_lock(rdir):
+        _remove_stale_socket(spath)
 
         srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         srv.bind(str(spath))
@@ -461,71 +584,31 @@ def run_daemon() -> int:
         coordinator = CoolerCoordinator(event_logger=log_event)
         loop = GLib.MainLoop()
         system_bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
-        stop_flag = [False]
-        in_ble_op = [False]
-        pending_ops: deque = deque()
-
-        def drain_pending() -> None:
-            while pending_ops and not in_ble_op[0]:
-                req, res_q = pending_ops.popleft()
-                execute_req(req, res_q)
-
-        def execute_req(req: dict, res_q: queue.Queue) -> None:
-            op = req.get("op") if isinstance(req, dict) else None
-            if in_ble_op[0]:
-                if op == "ping":
-                    res_q.put({"ok": True, "result": {"pong": True, "connected": coordinator.client.connected}})
-                    return
-                if op == "status":
-                    res_q.put({"ok": True, "result": coordinator.status_snapshot()})
-                    return
-                pending_ops.append((req, res_q))
-                return
-            in_ble_op[0] = True
-            try:
-                res_q.put({"ok": True, "result": dispatch_command(coordinator, req)})
-            except Exception as exc:
-                res_q.put({"ok": False, "error": str(exc)})
-            finally:
-                in_ble_op[0] = False
-            drain_pending()
+        requests = _RequestQueue(coordinator)
 
         def on_manager_signal(_conn, _sender, _path, _iface, member, params, *_user_data):
             values = params.unpack()
             if member == "PrepareForSleep":
                 entering = bool(values[0])
                 log_event({"event": "prepare_for_sleep", "entering": entering})
-                if in_ble_op[0]:
-                    pending_ops.append(({"op": "prepare_sleep", "entering": entering}, queue.Queue(1)))
-                else:
-                    in_ble_op[0] = True
-                    try:
-                        coordinator.prepare_for_sleep(entering)
-                    finally:
-                        in_ble_op[0] = False
-                    drain_pending()
+                requests.submit({"op": "prepare_sleep", "entering": entering}, queue.Queue(1))
             elif member == "PrepareForShutdown" and values[0]:
                 log_event({"event": "prepare_for_shutdown"})
-                coordinator.prepare_for_sleep(True)
                 stop_daemon()
 
         def on_tick():
-            if in_ble_op[0]:
+            if requests.busy or requests.stopping:
                 return True
-            in_ble_op[0] = True
+            requests.busy = True
             try:
                 coordinator.tick()
             finally:
-                in_ble_op[0] = False
-            drain_pending()
+                requests.busy = False
+            requests.drain()
             return True
 
         def stop_daemon(*_):
-            stop_flag[0] = True
-            try:
-                coordinator.prepare_for_sleep(True)
-            except Exception:
-                pass
+            requests.stopping = True
             loop.quit()
             return False
 
@@ -544,7 +627,7 @@ def run_daemon() -> int:
         tick_id = GLib.timeout_add_seconds(1, on_tick)
 
         def sock_worker():
-            while not stop_flag[0]:
+            while not requests.stopping:
                 try:
                     conn, _ = srv.accept()
                 except socket.timeout:
@@ -557,21 +640,16 @@ def run_daemon() -> int:
                         _, uid, _ = struct.unpack("3i", conn.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
                         if uid != os.getuid():
                             raise PermissionError("仅允许同用户进程访问水冷服务")
-                        raw = conn.recv(16384)
-                        if not raw or b"\n" not in raw:
-                            raise ValueError("水冷服务请求格式无效")
-                        req = json.loads(raw.decode("utf-8"))
+                        req = _read_request(conn)
                         res_q: queue.Queue = queue.Queue(1)
-
-                        def run_main():
-                            execute_req(req, res_q)
-                            return False
-
-                        GLib.idle_add(run_main)
+                        GLib.idle_add(requests.submit, req, res_q, time.monotonic() + 20.0)
                         resp = res_q.get(timeout=20.0)
+                    except queue.Empty:
+                        resp = {"ok": False, "error": "水冷服务执行超时"}
                     except Exception as exc:
                         resp = {"ok": False, "error": str(exc)}
                     try:
+                        conn.settimeout(2.0)
                         conn.sendall((json.dumps(resp, ensure_ascii=False) + "\n").encode("utf-8"))
                     except OSError:
                         pass
@@ -582,19 +660,16 @@ def run_daemon() -> int:
         try:
             loop.run()
         finally:
-            stop_flag[0] = True
+            requests.stopping = True
             GLib.source_remove(tick_id)
             system_bus.signal_unsubscribe(sub_id)
-            srv.close()
+            try:
+                coordinator.prepare_for_sleep(True)
+            finally:
+                srv.close()
             if spath.exists():
                 try:
                     spath.unlink()
                 except OSError:
                     pass
-    finally:
-        try:
-            fcntl.flock(lock_fd, fcntl.LOCK_UN)
-        except OSError:
-            pass
-        os.close(lock_fd)
     return 0

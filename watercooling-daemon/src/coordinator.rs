@@ -10,7 +10,7 @@ use crate::protocol::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -78,6 +78,7 @@ pub struct CoolerCoordinator<T: BleTransport> {
     pub applied: StageConfig,
     applied_led: Option<String>,
     actuators_dirty: bool,
+    pump_may_be_on: bool,
     led_dirty: bool,
     pub last_reason: String,
     pub last_error: String,
@@ -85,6 +86,7 @@ pub struct CoolerCoordinator<T: BleTransport> {
     pub last_ec_state: EcWatercoolerState,
     last_meter_poll: f64,
     last_c1_seq: Option<i64>,
+    manual_disconnect: bool,
     next_connect_at: f64,
     reconnect_failures: usize,
     consecutive_meter_errors: u32,
@@ -119,6 +121,7 @@ impl<T: BleTransport> CoolerCoordinator<T> {
             },
             applied_led: None,
             actuators_dirty: false,
+            pump_may_be_on: false,
             led_dirty: false,
             last_reason: "idle".to_string(),
             last_error: String::new(),
@@ -126,6 +129,7 @@ impl<T: BleTransport> CoolerCoordinator<T> {
             last_ec_state: EcWatercoolerState::default(),
             last_meter_poll: 0.0,
             last_c1_seq: None,
+            manual_disconnect: false,
             next_connect_at: 0.0,
             reconnect_failures: 0,
             consecutive_meter_errors: 0,
@@ -186,6 +190,7 @@ impl<T: BleTransport> CoolerCoordinator<T> {
     }
 
     fn on_ble_disconnected(&mut self, reason: &str) {
+        self.pump_may_be_on = false;
         self.flow_monitor.on_disconnect();
         self.applied = StageConfig {
             pump_volt: 0,
@@ -229,28 +234,39 @@ impl<T: BleTransport> CoolerCoordinator<T> {
         if self.sleeping {
             return Err("系统正在进入睡眠/休眠，禁止连接水冷".to_string());
         }
+        if !mac.is_empty() && !protocol::is_valid_mac(mac) {
+            return Err("无效的水冷 MAC 地址".into());
+        }
         let target = if !mac.is_empty() {
             mac.to_ascii_uppercase()
         } else {
             self.config.mac.clone()
         };
-        self.last_error.clear();
+        self.drain_ble_events();
+        let already_connected = self.client.connected;
+        if already_connected && !target.is_empty() && !target.eq_ignore_ascii_case(&self.client.device_mac) {
+            return Err("请先断开当前水冷设备再连接其他设备".into());
+        }
+        self.manual_disconnect = false;
         let info = self.client.connect(&target, 6.0).await?;
-        self.flow_monitor.on_disconnect();
-        self.reconnect_failures = 0;
-        self.next_connect_at = 0.0;
-        self.consecutive_meter_errors = 0;
-        self.actuators_dirty = true;
-        self.led_dirty = true;
-        self.last_meter_poll = self.clock.now_secs();
-        self.apply_targets(true).await?;
-        self.emit(json!({
-            "event": "cooler_connected",
-            "device_name": self.client.device_name,
-            "device_mac": self.client.device_mac,
-            "fw_version": self.client.fw_version,
-            "meter_state": self.client.meter_state,
-        }));
+        if !already_connected {
+            self.last_error.clear();
+            self.flow_monitor.on_disconnect();
+            self.reconnect_failures = 0;
+            self.next_connect_at = 0.0;
+            self.consecutive_meter_errors = 0;
+            self.actuators_dirty = true;
+            self.led_dirty = true;
+            self.last_meter_poll = self.clock.now_secs();
+            self.apply_targets(true).await?;
+            self.emit(json!({
+                "event": "cooler_connected",
+                "device_name": self.client.device_name,
+                "device_mac": self.client.device_mac,
+                "fw_version": self.client.fw_version,
+                "meter_state": self.client.meter_state,
+            }));
+        }
         let snap = self.status().await;
         let mut out = serde_json::to_value(&snap).map_err(|e| e.to_string())?;
         if let Some(obj) = out.as_object_mut() {
@@ -262,23 +278,38 @@ impl<T: BleTransport> CoolerCoordinator<T> {
         Ok(out)
     }
 
-    pub async fn disconnect(&mut self, send_sleep: Option<bool>) -> StatusSnapshot {
-        let use_sleep = send_sleep.unwrap_or(self.config.sleep_on_disconnect);
-        self.client.disconnect(use_sleep, true).await;
-        self.on_ble_disconnected("manual_disconnect");
-        self.last_reason = "disconnected".to_string();
-        self.status().await
+    async fn stop_link(&mut self, sleep: bool, reason: &str) -> Result<(), String> {
+        let result = self.client.disconnect(sleep, true).await;
+        self.on_ble_disconnected(reason);
+        if let Err(e) = &result {
+            self.last_error = e.clone();
+            self.emit(json!({"event": "cooler_stop_failed", "error": e, "reason": reason}));
+        }
+        result
+    }
+
+    pub async fn disconnect(&mut self, send_sleep: Option<bool>) -> Result<StatusSnapshot, String> {
+        self.manual_disconnect = true;
+        let result = self.stop_link(send_sleep.unwrap_or(self.config.sleep_on_disconnect), "manual_disconnect").await;
+        self.last_reason = "disconnected".into();
+        let snap = self.status().await;
+        result.map(|()| snap)
     }
 
     pub async fn emergency_stop(&mut self) -> Result<StatusSnapshot, String> {
-        // Safety-first: physically stop pump/fan & put cooler to sleep BEFORE touching disk config.
-        self.disconnect(Some(true)).await;
+        self.manual_disconnect = true;
+        let stop = self.stop_link(true, "manual_disconnect").await;
         self.config.strategy = "preset".to_string();
         self.config.preset = "stop".to_string();
         self.config.led.mode = "off".to_string();
-        self.config = protocol::save_config(&self.config, &self.config_path)?;
-        self.last_reason = "emergency_stop".to_string();
-        Ok(self.status().await)
+        self.last_reason = "emergency_stop".into();
+        let save = protocol::save_config(&self.config, &self.config_path);
+        let snap = self.status().await;
+        match (stop, save) {
+            (Err(e), Err(disk)) => Err(format!("{e}；{disk}")),
+            (Err(e), _) | (_, Err(e)) => Err(e),
+            _ => Ok(snap),
+        }
     }
 
     pub async fn reset_fault(&mut self) -> Result<StatusSnapshot, String> {
@@ -295,7 +326,11 @@ impl<T: BleTransport> CoolerCoordinator<T> {
 
     pub async fn set_config(&mut self, patch: &Value, apply_now: bool) -> Result<StatusSnapshot, String> {
         let canonical = protocol::merge_config_patch(&self.config, patch)?;
-        self.config = protocol::save_config(&canonical, &self.config_path)?;
+        let saved = protocol::save_config(&canonical, &self.config_path)?;
+        if saved.auto_connect && !self.config.auto_connect {
+            self.manual_disconnect = false;
+        }
+        self.config = saved;
         self.actuators_dirty = true;
         self.led_dirty = true;
         if apply_now && self.client.connected && !self.sleeping {
@@ -308,8 +343,7 @@ impl<T: BleTransport> CoolerCoordinator<T> {
         if entering {
             self.sleeping = true;
             if self.client.connected {
-                self.client.disconnect(true, true).await;
-                self.on_ble_disconnected("prepare_for_sleep");
+                let _ = self.stop_link(true, "prepare_for_sleep").await;
             }
             self.last_reason = "sleeping".to_string();
         } else {
@@ -319,6 +353,26 @@ impl<T: BleTransport> CoolerCoordinator<T> {
             self.last_reason = "resumed".to_string();
         }
         self.status().await
+    }
+
+    async fn write_actuators(&mut self, pv: i64, pd: i64, fd: i64) -> Result<(), String> {
+        let pump = protocol::encode_pump(pv, pd)?;
+        let fan = protocol::encode_fan(fd)?;
+        self.actuators_dirty = true;
+        if pv > 0 && !self.pump_may_be_on {
+            // A write error does not establish whether the peripheral accepted the frame.
+            self.client.meter_state = None;
+            self.pump_may_be_on = true;
+            self.flow_monitor.update(self.clock.now_secs(), pv, None, self.config.flow_protection);
+        }
+        self.client.send_paced(&pump, None).await?;
+        self.applied.pump_volt = pv;
+        self.applied.pump_duty = pd;
+        self.pump_may_be_on = pv > 0;
+        self.client.send_paced(&fan, None).await?;
+        self.applied.fan_duty = fd;
+        self.actuators_dirty = false;
+        Ok(())
     }
 
     pub async fn apply_targets(&mut self, force: bool) -> Result<(), String> {
@@ -331,29 +385,18 @@ impl<T: BleTransport> CoolerCoordinator<T> {
 
         if self.flow_monitor.update(
             now,
-            self.applied.pump_volt,
+            i64::from(self.pump_may_be_on),
             self.client.meter_state,
             self.config.flow_protection,
         ) {
             let was_tripped = self.last_reason == "flow_fault_locked";
             self.last_error = self.flow_monitor.trip_reason.clone();
-            if self.applied.pump_volt != 0 || self.applied.pump_duty != 0 || self.applied.fan_duty != 0 {
-                match self.client.apply_actuators(0, 0, 0).await {
-                    Ok(()) => {
-                        self.applied = StageConfig {
-                            pump_volt: 0,
-                            pump_duty: 0,
-                            fan_duty: 0,
-                        };
-                    }
-                    Err(e) => {
-                        // Keep `self.applied` non-zero so subsequent ticks keep retrying emergency stop.
-                        self.last_error = format!("{}; 紧急停泵失败(将重试): {e}", self.flow_monitor.trip_reason);
-                    }
+            if force || self.actuators_dirty || self.pump_may_be_on || self.applied.fan_duty != 0 {
+                if let Err(e) = self.write_actuators(0, 0, 0).await {
+                    self.last_error = format!("{}; 紧急停泵失败(将重试): {e}", self.flow_monitor.trip_reason);
                 }
             }
             self.last_reason = "flow_fault_locked".to_string();
-            self.actuators_dirty = false;
             if !was_tripped {
                 self.emit(json!({
                     "event": "flow_fault_tripped",
@@ -382,14 +425,7 @@ impl<T: BleTransport> CoolerCoordinator<T> {
             fan_duty: fd,
         };
         if force || self.actuators_dirty || target != self.applied {
-            let starting_pump = self.applied.pump_volt == 0 && pv > 0;
-            self.client.apply_actuators(pv, pd, fd).await?;
-            if starting_pump {
-                // Do not let a pre-stop `Some(2)` meter value mask dry-run on pump restart.
-                self.client.meter_state = None;
-            }
-            self.applied = target;
-            self.actuators_dirty = false;
+            self.write_actuators(pv, pd, fd).await?;
             self.flow_monitor.update(
                 now,
                 pv,
@@ -418,7 +454,7 @@ impl<T: BleTransport> CoolerCoordinator<T> {
         }
         if !self.client.connected {
             self.sample_inputs();
-            if self.config.auto_connect && !self.flow_monitor.tripped && now >= self.next_connect_at {
+            if self.config.auto_connect && !self.manual_disconnect && !self.flow_monitor.tripped && now >= self.next_connect_at {
                 if let Err(e) = self.connect("").await {
                     let delay = RECONNECT_BACKOFF_S
                         [self.reconnect_failures.min(RECONNECT_BACKOFF_S.len() - 1)];
@@ -437,7 +473,7 @@ impl<T: BleTransport> CoolerCoordinator<T> {
             return;
         }
 
-        let poll_interval = if self.applied.pump_volt > 0 { 2.0 } else { 6.0 };
+        let poll_interval = if self.pump_may_be_on { 2.0 } else { 6.0 };
         if now - self.last_meter_poll >= poll_interval {
             self.last_meter_poll = now;
             match self.client.query_meter().await {
@@ -460,8 +496,11 @@ impl<T: BleTransport> CoolerCoordinator<T> {
                         return;
                     }
                     if self.consecutive_meter_errors >= MAX_CONSECUTIVE_METER_ERRORS {
-                        self.client.disconnect(false, false).await;
-                        self.on_ble_disconnected("meter_poll_failed");
+                        if self.config.flow_protection && self.pump_may_be_on {
+                            self.flow_monitor.tripped = true;
+                            self.flow_monitor.trip_reason = self.last_error.clone();
+                        }
+                        let _ = self.stop_link(true, "meter_poll_failed").await;
                         self.publish_snapshot().await;
                         return;
                     }
@@ -486,14 +525,17 @@ impl<T: BleTransport> CoolerCoordinator<T> {
             .get("op")
             .and_then(Value::as_str)
             .ok_or_else(|| "请求缺少 op 字段".to_string())?;
+        let optional_bool = |key: &str| {
+            req.get(key).map(|v| v.as_bool().ok_or_else(|| format!("{key} 需要布尔值"))).transpose()
+        };
         match op {
             "ping" => Ok(json!({"pong": true, "connected": self.client.connected})),
             "status" => serde_json::to_value(self.status().await).map_err(|e| e.to_string()),
             "scan" => {
                 let raw_t = req
                     .get("timeout_s")
-                    .and_then(Value::as_f64)
-                    .unwrap_or(5.0);
+                    .map(|v| v.as_f64().ok_or("timeout_s 需要有限数值"))
+                    .transpose()?.unwrap_or(5.0);
                 if !raw_t.is_finite() {
                     return Err("timeout_s 必须是有限数值".to_string());
                 }
@@ -502,12 +544,12 @@ impl<T: BleTransport> CoolerCoordinator<T> {
                 Ok(json!({"devices": devices}))
             }
             "connect" => {
-                let mac = req.get("mac").and_then(Value::as_str).unwrap_or("");
+                let mac = req.get("mac").map(|v| v.as_str().ok_or("mac 需要字符串")).transpose()?.unwrap_or("");
                 self.connect(mac).await
             }
             "disconnect" => {
-                let send_sleep = req.get("send_sleep").and_then(Value::as_bool);
-                serde_json::to_value(self.disconnect(send_sleep).await).map_err(|e| e.to_string())
+                let send_sleep = if req["send_sleep"].is_null() { None } else { optional_bool("send_sleep")? };
+                serde_json::to_value(self.disconnect(send_sleep).await?).map_err(|e| e.to_string())
             }
             "emergency_stop" => {
                 serde_json::to_value(self.emergency_stop().await?).map_err(|e| e.to_string())
@@ -519,18 +561,12 @@ impl<T: BleTransport> CoolerCoordinator<T> {
                 let patch = req
                     .get("config")
                     .ok_or_else(|| "配置更新必须是 JSON 对象".to_string())?;
-                let apply_now = req
-                    .get("apply_now")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(true);
+                let apply_now = optional_bool("apply_now")?.unwrap_or(true);
                 serde_json::to_value(self.set_config(patch, apply_now).await?)
                     .map_err(|e| e.to_string())
             }
             "prepare_sleep" => {
-                let entering = req
-                    .get("entering")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(true);
+                let entering = optional_bool("entering")?.unwrap_or(true);
                 serde_json::to_value(self.prepare_for_sleep(entering).await)
                     .map_err(|e| e.to_string())
             }
@@ -562,10 +598,6 @@ impl<T: BleTransport> CoolerCoordinator<T> {
             config: cfg.clone(),
         }
     }
-}
-
-pub fn load_config_or_default(path: &Path) -> CoolerConfig {
-    protocol::load_config(path).unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -601,6 +633,7 @@ mod tests {
         connect_calls: usize,
         fail_connects: usize,
         fail_write: Option<String>,
+        fail_fan: bool,
         next_meter: u8,
         writes: Vec<(String, Vec<u8>)>,
         events: Option<mpsc::UnboundedSender<BleEvent>>,
@@ -612,6 +645,7 @@ mod tests {
                 connect_calls: 0,
                 fail_connects: 0,
                 fail_write: None,
+                fail_fan: false,
                 next_meter: 2,
                 writes: Vec::new(),
                 events: None,
@@ -671,6 +705,9 @@ mod tests {
             write_type: &'a str,
         ) -> BoxFuture<'a, Result<(), String>> {
             Box::pin(async move {
+                if self.fail_fan && data.starts_with(&[0xfe, 0x1b]) {
+                    return Err("ATT error: 0x0e".into());
+                }
                 if let Some(err) = &self.fail_write {
                     return Err(err.clone());
                 }
@@ -745,6 +782,51 @@ mod tests {
         assert!(coord.client.connected);
 
         let _ = std::fs::remove_file(tmp);
+    }
+
+    #[tokio::test]
+    async fn partial_actuator_failure_keeps_flow_protection_and_retries_stop() {
+        let clock = FakeClock::new(50.0);
+        let cfg = protocol::validate_config_value(&json!({"auto_connect": true, "preset": "stop"})).unwrap();
+        let snap = Arc::new(RwLock::new(CoolerCoordinator::<FakeTransport>::default_snapshot(&cfg)));
+        let client = CoolerBleClient::new(FakeTransport::new(), Duration::from_millis(1));
+        let tmp = std::env::temp_dir().join(format!("iteglow-partial-{}.json", std::process::id()));
+        let mut coord = CoolerCoordinator::new(client, cfg, tmp.clone(), clock.clone(), snap, None);
+        for req in [json!({"op": "connect", "mac": 42}), json!({"op": "connect", "mac": "bad"}),
+                    json!({"op": "prepare_sleep", "entering": "false"}), json!({"op": "scan", "timeout_s": "10"})] {
+            assert!(coord.dispatch(&req).await.is_err());
+        }
+        assert_eq!(coord.client.transport.connect_calls, 0);
+        assert!(!coord.sleeping);
+        coord.connect("").await.unwrap();
+        coord.client.transport.next_meter = 1;
+        coord.client.transport.fail_fan = true;
+        assert!(coord.set_config(&json!({"preset": "silent"}), true).await.is_err());
+        assert_eq!((coord.applied.pump_volt, coord.applied.fan_duty), (7, 0));
+        let writes = coord.client.transport.writes.len();
+        coord.connect("").await.unwrap();
+        assert_eq!(coord.client.transport.writes.len(), writes);
+        assert!(coord.connect("00:11:22:33:44:55").await.is_err());
+
+        clock.advance(6.0);
+        coord.tick().await;
+        assert!(coord.flow_monitor.tripped && coord.actuators_dirty);
+        assert_eq!(coord.applied.pump_volt, 0);
+        coord.client.transport.fail_fan = false;
+        coord.tick().await;
+        assert!(!coord.actuators_dirty);
+        coord.reset_fault().await.unwrap();
+        coord.disconnect(Some(false)).await.unwrap();
+        clock.advance(60.0);
+        coord.tick().await;
+        assert!(!coord.client.connected);
+        coord.connect("").await.unwrap();
+        assert!(coord.client.connected);
+        coord.client.transport.fail_fan = true;
+        assert!(coord.emergency_stop().await.unwrap_err().contains("风扇"));
+        assert!(!coord.client.connected);
+        assert_eq!(protocol::load_config(&tmp).unwrap().preset, "stop");
+        std::fs::remove_file(tmp).unwrap();
     }
 
     #[tokio::test]

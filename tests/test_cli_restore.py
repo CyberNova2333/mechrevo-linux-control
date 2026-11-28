@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "iteglow/src"))
-from iteglow import cli, protocol
+from iteglow import cli, lighting_session, protocol
 
 
 class CliRestoreTest(unittest.TestCase):
@@ -47,10 +47,22 @@ class CliRestoreTest(unittest.TestCase):
                 opener.assert_not_called()
                 device.send.assert_not_called()
 
+    def test_pin_validates_before_export_and_preserves_readable_system_mode(self):
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = str(Path(tmp) / "pinned.json")
+            with patch.object(cli.state, "SYSTEM_STATE_PATH", dest), patch.object(cli.os, "geteuid", return_value=0):
+                with patch.object(lighting_session, "_read_saved", return_value={"invalid": "data"}), contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(cli.cmd_pin(SimpleNamespace()), 1)
+                    self.assertFalse(Path(dest).exists())
+                cli.state.write(dest, {"keyboard": {"mode": "off"}})
+                self.assertEqual(os.stat(dest).st_mode & 0o777, 0o644)
+
     def test_pin_is_an_export_and_does_not_promise_automatic_system_restore(self):
         output = io.StringIO()
         with patch.object(cli.os, "geteuid", return_value=0), \
-             patch.object(cli.state, "load", return_value={"keyboard": {"mode": "off"}}), \
+             patch.object(lighting_session, "_read_saved", return_value={"keyboard": {"mode": "off"}}), \
              patch.object(cli.state, "write") as write, contextlib.redirect_stdout(output):
             self.assertEqual(cli.cmd_pin(SimpleNamespace()), 0)
         write.assert_called_once()

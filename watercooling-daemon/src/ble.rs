@@ -299,7 +299,7 @@ impl BluezBleTransport {
         let handle = tokio::spawn(async move {
             while let Some(item) = stream.next().await {
                 let Ok(msg) = item else {
-                    continue;
+                    break;
                 };
                 let path = msg
                     .header()
@@ -603,6 +603,7 @@ pub struct CoolerBleClient<T: BleTransport> {
     pub fw_version: Option<String>,
     pub meter_state: Option<u8>,
     meter_rx_seq: u64,
+    telemetry_lost: bool,
     pub preferred_write_type: String,
     event_rx: Option<mpsc::UnboundedReceiver<BleEvent>>,
     pending_disconnect: Option<String>,
@@ -620,67 +621,58 @@ impl<T: BleTransport> CoolerBleClient<T> {
             fw_version: None,
             meter_state: None,
             meter_rx_seq: 0,
+            telemetry_lost: false,
             preferred_write_type: "request".to_string(),
             event_rx: None,
             pending_disconnect: None,
         }
     }
 
+    fn handle_event(&mut self, event: BleEvent) {
+        match event {
+            BleEvent::Notify(raw) => self.handle_rx(&raw),
+            BleEvent::Disconnected(reason) if self.connected => {
+                self.connected = false;
+                self.pending_disconnect = Some(reason);
+            }
+            BleEvent::Disconnected(_) => {}
+        }
+    }
+
+    fn notification_stream_closed(&mut self) {
+        // Keep the GATT writer available so flow protection can still send stop frames.
+        self.event_rx = None;
+        self.telemetry_lost = true;
+        self.meter_state = None;
+    }
+
+    fn poll_events(&mut self) {
+        while let Some(rx) = self.event_rx.as_mut() {
+            match rx.try_recv() {
+                Ok(ev) => self.handle_event(ev),
+                Err(mpsc::error::TryRecvError::Disconnected) => self.notification_stream_closed(),
+                Err(mpsc::error::TryRecvError::Empty) => break,
+            }
+        }
+    }
+
     pub fn drain_events(&mut self) -> Option<String> {
-        let mut disconnect_reason = self.pending_disconnect.take();
-        let mut incoming = Vec::new();
-        if let Some(rx) = self.event_rx.as_mut() {
-            while let Ok(ev) = rx.try_recv() {
-                incoming.push(ev);
-            }
-        }
-        for ev in incoming {
-            match ev {
-                BleEvent::Notify(raw) => self.handle_rx(&raw),
-                BleEvent::Disconnected(reason) => {
-                    if self.connected {
-                        self.connected = false;
-                        disconnect_reason = Some(reason);
-                    }
-                }
-            }
-        }
-        disconnect_reason
+        self.poll_events();
+        self.pending_disconnect.take()
     }
 
     async fn pump_events(&mut self, dur: Duration) {
-        if dur.is_zero() {
-            self.drain_events();
-            return;
-        }
+        self.poll_events();
         let deadline = Instant::now() + dur;
         while let Some(rem) = deadline.checked_duration_since(Instant::now()) {
-            if rem.is_zero() {
-                break;
-            }
-            let ev = if let Some(rx) = self.event_rx.as_mut() {
-                match timeout(rem, rx.recv()).await {
-                    Ok(Some(ev)) => Some(ev),
-                    Ok(None) => {
-                        sleep(rem).await;
-                        None
-                    }
-                    Err(_) => break,
-                }
-            } else {
+            let Some(rx) = self.event_rx.as_mut() else {
                 sleep(rem).await;
                 break;
             };
-            if let Some(ev) = ev {
-                match ev {
-                    BleEvent::Notify(raw) => self.handle_rx(&raw),
-                    BleEvent::Disconnected(reason) => {
-                        if self.connected {
-                            self.connected = false;
-                            self.pending_disconnect = Some(reason);
-                        }
-                    }
-                }
+            match timeout(rem, rx.recv()).await {
+                Ok(Some(ev)) => self.handle_event(ev),
+                Ok(None) => self.notification_stream_closed(),
+                Err(_) => break,
             }
         }
     }
@@ -709,6 +701,7 @@ impl<T: BleTransport> CoolerBleClient<T> {
     }
 
     pub async fn send_paced(&mut self, data: &[u8], force_type: Option<&str>) -> Result<(), String> {
+        self.poll_events();
         if !self.connected {
             return Err("水冷蓝牙未连接".to_string());
         }
@@ -717,6 +710,9 @@ impl<T: BleTransport> CoolerBleClient<T> {
             if elapsed < self.min_gap {
                 self.pump_events(self.min_gap - elapsed).await;
             }
+        }
+        if !self.connected {
+            return Err("水冷蓝牙连接已断开".into());
         }
         let wtype = force_type
             .map(ToOwned::to_owned)
@@ -768,6 +764,7 @@ impl<T: BleTransport> CoolerBleClient<T> {
             });
         }
         self.fw_version = None;
+        self.telemetry_lost = false;
         self.meter_state = None;
         self.pending_disconnect = None;
 
@@ -789,6 +786,7 @@ impl<T: BleTransport> CoolerBleClient<T> {
                         last_err = Some(e);
                         continue;
                     }
+                    self.transport.disconnect().await;
                     return Err(e);
                 }
             }
@@ -804,16 +802,20 @@ impl<T: BleTransport> CoolerBleClient<T> {
 
         let hs = protocol::encode_handshake();
         if let Err(e) = self.send_paced(&hs, None).await {
-            self.disconnect(false, false).await;
+            let _ = self.disconnect(false, false).await;
             return Err(e);
         }
         self.pump_events(Duration::from_millis(350)).await;
         let mq = protocol::encode_meter_query();
         if let Err(e) = self.send_paced(&mq, None).await {
-            self.disconnect(false, false).await;
+            let _ = self.disconnect(false, false).await;
             return Err(e);
         }
         self.pump_events(Duration::from_millis(250)).await;
+        if !self.connected || self.telemetry_lost {
+            let _ = self.disconnect(false, false).await;
+            return Err("握手期间水冷蓝牙连接已断开".into());
+        }
 
         Ok(ConnectInfo {
             name: self.device_name.clone(),
@@ -824,28 +826,22 @@ impl<T: BleTransport> CoolerBleClient<T> {
     }
 
     pub async fn query_meter(&mut self) -> Result<Option<u8>, String> {
+        self.meter_state = None;
+        if self.telemetry_lost {
+            return Err("BlueZ 水冷通知订阅已关闭".into());
+        }
         let before_seq = self.meter_rx_seq;
         let mq = protocol::encode_meter_query();
-        self.send_paced(&mq, None).await?;
+        if let Err(e) = self.send_paced(&mq, None).await {
+            self.meter_state = None;
+            return Err(e);
+        }
         self.pump_events(Duration::from_millis(180)).await;
         if self.meter_rx_seq == before_seq {
             // No fresh meter notification arrived; do not retain stale `Some(2)` across silent stalls.
             self.meter_state = None;
         }
         Ok(self.meter_state)
-    }
-
-    pub async fn apply_actuators(
-        &mut self,
-        pump_volt: i64,
-        pump_duty: i64,
-        fan_duty: i64,
-    ) -> Result<(), String> {
-        let p = protocol::encode_pump(pump_volt, pump_duty)?;
-        let f = protocol::encode_fan(fan_duty)?;
-        self.send_paced(&p, None).await?;
-        self.send_paced(&f, None).await?;
-        Ok(())
     }
 
     pub async fn apply_led(&mut self, led: &LedConfig) -> Result<(), String> {
@@ -856,24 +852,28 @@ impl<T: BleTransport> CoolerBleClient<T> {
         Ok(())
     }
 
-    pub async fn disconnect(&mut self, send_sleep: bool, stop_actuators: bool) {
+    pub async fn disconnect(&mut self, send_sleep: bool, stop_actuators: bool) -> Result<(), String> {
+        let mut errors = Vec::new();
         if self.connected {
             if stop_actuators {
-                if let Ok(p0) = protocol::encode_pump(0, 0) {
-                    let _ = self.send_paced(&p0, None).await;
-                }
-                if let Ok(f0) = protocol::encode_fan(0) {
-                    let _ = self.send_paced(&f0, None).await;
-                }
-                let sync = protocol::encode_fan_led_ctrl(false, [0, 0, 0], 0);
-                let _ = self.send_paced(&sync, None).await;
-                if let Ok(off) = protocol::encode_main_led(false, [0, 0, 0], "off") {
-                    let _ = self.send_paced(&off, None).await;
+                let frames = [
+                    ("水泵", protocol::encode_pump(0, 0)),
+                    ("风扇", protocol::encode_fan(0)),
+                    ("风扇灯", Ok(protocol::encode_fan_led_ctrl(false, [0, 0, 0], 0))),
+                    ("主灯", protocol::encode_main_led(false, [0, 0, 0], "off")),
+                ];
+                for (name, frame) in frames {
+                    let result = match frame {
+                        Ok(bytes) => self.send_paced(&bytes, None).await,
+                        Err(e) => Err(e),
+                    };
+                    if let Err(e) = result { errors.push(format!("{name}: {e}")); }
                 }
             }
             if send_sleep {
-                let sl = protocol::encode_sleep();
-                let _ = self.send_paced(&sl, Some("command")).await;
+                if let Err(e) = self.send_paced(&protocol::encode_sleep(), Some("command")).await {
+                    errors.push(format!("休眠: {e}"));
+                }
                 self.pump_events(Duration::from_millis(250)).await;
             }
         }
@@ -881,5 +881,6 @@ impl<T: BleTransport> CoolerBleClient<T> {
         self.event_rx = None;
         self.pending_disconnect = None;
         self.transport.disconnect().await;
+        if errors.is_empty() { Ok(()) } else { Err(format!("未确认设备停止指令：{}", errors.join("；"))) }
     }
 }

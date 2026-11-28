@@ -224,10 +224,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "iteglow-watercooling-config"
+version = "0.4.0"
+dependencies = [
+ "libc",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "iteglow-watercoolingd"
 version = "0.4.0"
 dependencies = [
  "futures-util",
+ "iteglow-watercooling-config",
  "libc",
  "serde",
  "serde_json",

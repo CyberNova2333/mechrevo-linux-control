@@ -13,7 +13,7 @@ from . import __version__, devices, effects, keymap, protocol, state
 from . import watercooling as wc
 from .protocol import RGB
 from .watercooling_ble import CoolerBleClient
-from .watercooling_service import is_service_running, run_daemon, service_request
+from .watercooling_service import cooler_lock, is_service_running, run_daemon, runtime_dir, service_request
 from .zone_lock import ZoneTransaction
 
 
@@ -267,21 +267,26 @@ def cmd_pin(args) -> int:
     if os.geteuid() != 0:
         print("pin writes the system state; run it with sudo.", file=sys.stderr)
         return 1
-    # find the invoking user's state file: pkexec (GUI) sets PKEXEC_UID,
-    # sudo sets SUDO_USER
-    src_user = None
-    if os.environ.get("PKEXEC_UID"):
-        import pwd
-        src_user = pwd.getpwuid(int(os.environ["PKEXEC_UID"])).pw_name
-    elif os.environ.get("SUDO_USER") not in (None, "root"):
-        src_user = os.environ["SUDO_USER"]
-    src = state.user_state_path(src_user)
-    data = state.load(src)
-    if not data:
-        print(f"no saved state at {src}; run `iteglow set ...` (or the GUI) first.",
-              file=sys.stderr)
+    from pathlib import Path
+    import pwd
+    from .lighting_session import _read_saved, validate_hid
+
+    try:
+        account = None
+        if os.environ.get("PKEXEC_UID"):
+            account = pwd.getpwuid(int(os.environ["PKEXEC_UID"]))
+        elif os.environ.get("SUDO_USER") not in (None, "", "root"):
+            account = pwd.getpwnam(os.environ["SUDO_USER"])
+        src = Path(state.user_state_path(account.pw_name if account else None))
+        data = _read_saved(src, account.pw_uid if account else 0, writable_mask=0o022)
+        if not isinstance(data, dict) or not data or set(data) - {"keyboard", "lightbar"}:
+            raise ValueError(f"no valid saved lighting state at {src}")
+        for device, settings in data.items():
+            validate_hid(device, settings)
+        state.write(state.SYSTEM_STATE_PATH, data)
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        print(f"pin failed: {exc}", file=sys.stderr)
         return 1
-    state.write(state.SYSTEM_STATE_PATH, data)
     print(f"pinned {', '.join(sorted(data))} -> {state.SYSTEM_STATE_PATH}")
     print("Export only; restore it manually with `iteglow restore --system`.")
     print("Automatic restore uses your user state via iteglow-session-restore.service when configured.")
@@ -401,16 +406,17 @@ def cmd_profile(args) -> int:
 
 
 def _save_local_wc_patch(patch: dict) -> dict:
-    cur = wc.load_config()
-    merged = dict(cur)
-    for k, v in patch.items():
-        if k in ("manual", "curve", "led") and isinstance(v, dict) and isinstance(merged.get(k), dict):
-            sub = dict(merged[k])
-            sub.update(v)
-            merged[k] = sub
-        else:
-            merged[k] = v
-    return wc.save_config(merged)
+    with cooler_lock(runtime_dir()):
+        cur = wc.load_config()
+        merged = dict(cur)
+        for k, v in patch.items():
+            if k in ("manual", "curve", "led") and isinstance(v, dict) and isinstance(merged.get(k), dict):
+                sub = dict(merged[k])
+                sub.update(v)
+                merged[k] = sub
+            else:
+                merged[k] = v
+        return wc.save_config(merged)
 
 
 def cmd_cooler(args) -> int:

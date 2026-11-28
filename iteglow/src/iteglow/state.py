@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import pwd
+import tempfile
 from typing import Optional
 from .zone_lock import ZoneTransaction
 
@@ -38,11 +39,17 @@ def load(path: str) -> dict:
 
 def write(path: str, data: dict) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-    os.replace(tmp, path)
+    f = tempfile.NamedTemporaryFile(mode="w", dir=os.path.dirname(path), delete=False)
+    try:
+        with f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+            if path == SYSTEM_STATE_PATH:
+                os.fchmod(f.fileno(), 0o644)
+        os.replace(f.name, path)
+    finally:
+        if os.path.exists(f.name):
+            os.unlink(f.name)
 
 
 def save(label: str, params: dict) -> bool:

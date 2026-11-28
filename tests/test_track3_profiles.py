@@ -189,6 +189,46 @@ class ProfileRunnerAndApplyTest(unittest.TestCase):
         self.assertEqual(res["action"], "disabled")
         scanner.assert_not_called()
 
+    def test_retries_only_failed_profile_parts_and_restores_only_owned_zones(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = profiles.default_config()
+            cfg["profiles"] = profiles.builtin_templates()
+            cfg["auto_switch_enabled"] = True
+            cfg["rules"] = [{"name": "Game", "enabled": True, "match": ["game"], "profile": "gaming-fps"}]
+            runner = profiles.ProfileRuleRunner(active=lambda: True, config=lambda: cfg, directory=Path(tmp),
+                                                uid=os.getuid(), apply=True, process_scanner=lambda: [("game",)],
+                                                wmi_reader=dict)
+            target = cfg["profiles"]["gaming-fps"]["lighting"]["keyboard"]
+            baseline = {"lighting": {"keyboard": target, "logo": {"mode": "solid", "brightness": 50, "color": [0, 0, 0]}},
+                        "performance": {"mode": "balanced"}}
+            calls = []
+            fail_performance = [True]
+
+            def apply_one(bundle, **kwargs):
+                calls.append(bundle)
+                if "performance" in bundle and fail_performance[0]:
+                    fail_performance[0] = False
+                    raise RuntimeError("temporary helper failure")
+                return {"lighting": list(bundle.get("lighting", {})), "warnings": []}
+
+            with patch.object(runner, "_capture_baseline", return_value=baseline), patch.object(profiles, "apply_profile", side_effect=apply_one):
+                self.assertTrue(runner.tick()["errors"])
+                self.assertTrue(runner.owns_lighting)
+                calls.clear()
+                self.assertFalse(runner.tick()["errors"])
+                self.assertEqual(calls, [{"performance": cfg["profiles"]["gaming-fps"]["performance"]}])
+                calls.clear()
+                self.assertEqual(runner.tick()["action"], "noop")
+                self.assertFalse(calls)
+                cfg["auto_switch_enabled"] = False
+                fail_performance[0] = True
+                self.assertTrue(runner.tick()["errors"])
+                self.assertEqual(calls, [{"lighting": {"keyboard": target}}, {"performance": {"mode": "balanced"}}])
+                calls.clear()
+                self.assertFalse(runner.tick()["errors"])
+                self.assertEqual(calls, [{"performance": {"mode": "balanced"}}])
+                self.assertEqual(runner.tick()["action"], "disabled")
+
     def test_runner_auto_apply_does_not_overwrite_manual_state_and_respects_b0_yield(self):
         with tempfile.TemporaryDirectory() as td:
             state_dir = Path(td)

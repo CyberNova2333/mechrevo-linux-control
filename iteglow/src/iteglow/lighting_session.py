@@ -19,6 +19,7 @@ from pathlib import Path
 import signal
 import stat
 import subprocess
+import time
 from typing import Callable, Optional, Tuple
 
 from . import effects, keymap, protocol, state
@@ -119,15 +120,15 @@ def validate_logo(saved: dict) -> RestoreAction:
     return RestoreAction("logo", logo_json=json.dumps(data, separators=(",", ":")))
 
 
-def _read_saved(path: Path, uid: int, *, max_bytes: int = MAX_STATE_BYTES):
+def _read_saved(path: Path, uid: int, *, max_bytes: int = MAX_STATE_BYTES, missing=None, writable_mask=0o002):
     try:
         fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
     except FileNotFoundError:
-        return None
+        return missing
     with os.fdopen(fd, "rb") as stream:
         info = os.fstat(stream.fileno())
-        if not stat.S_ISREG(info.st_mode) or info.st_uid != uid or info.st_mode & 0o002:
-            raise ValueError("saved state must be a user-owned regular file, not world-writable")
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != uid or info.st_mode & writable_mask:
+            raise ValueError("unsafe saved state ownership, file type or permissions")
         if info.st_size > max_bytes:
             raise ValueError("saved state exceeds size limit")
         data = stream.read(max_bytes + 1)
@@ -476,15 +477,17 @@ def main(argv=None):
                     "org.freedesktop.DBus.Properties", "GetAll",
                     GLib.Variant("(s)", ("org.freedesktop.login1.Session",)))[0]
 
-    sessions = call(system_bus, "org.freedesktop.login1", "/org/freedesktop/login1",
-                    "org.freedesktop.login1.Manager", "ListSessions")[0]
-    candidates = [(sid, path) for sid, owner, _name, _seat, path in sessions
-                  if owner == uid and eligible_session(properties(path), uid)]
-    if len(candidates) != 1:
-        print(json.dumps({"skipped": "exactly one active local graphical session is required"}))
-        if lock_fd is not None:
-            os.close(lock_fd)
-        return 0
+    while True:
+        sessions = call(system_bus, "org.freedesktop.login1", "/org/freedesktop/login1",
+                        "org.freedesktop.login1.Manager", "ListSessions")[0]
+        candidates = [(sid, path) for sid, owner, _name, _seat, path in sessions
+                      if owner == uid and eligible_session(properties(path), uid)]
+        if len(candidates) == 1:
+            break
+        if args.once:
+            print(json.dumps({"skipped": "exactly one active local graphical session is required"}))
+            return 0
+        time.sleep(5)
     session_id, session_path = candidates[0]
 
     def active():

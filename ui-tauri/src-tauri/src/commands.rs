@@ -364,7 +364,7 @@ pub async fn get_logo_status() -> Result<Value, String> {
 pub async fn apply_logo(mode: String, brightness: u8, color: [u8; 3]) -> Result<Value, String> {
     let cfg = validate_logo_params(&mode, brightness, color)?;
     let encoded = serde_json::to_string(&cfg).map_err(|e| e.to_string())?;
-    let _guard = ZoneGuard::acquire("logo")?;
+    let _guard = ZoneGuard::acquire_async("logo").await?;
     let resp = run_profile_helper(&["logo", &encoded], 5).await?;
 
     let actual = json!({
@@ -372,15 +372,15 @@ pub async fn apply_logo(mode: String, brightness: u8, color: [u8; 3]) -> Result<
         "brightness": resp.get("brightness").cloned().unwrap_or(json!(brightness)),
         "color": resp.get("color").cloned().unwrap_or(json!(color)),
     });
-    let _sguard = ZoneGuard::acquire("manual-state")?;
-    let _ = write_user_json(&state_dir().join("logo.json"), &actual);
-    let _ = write_user_json(&state_dir().join("logo-prefs.json"), &cfg);
+    let _sguard = ZoneGuard::acquire_async("manual-state").await?;
+    write_user_json(&state_dir().join("logo.json"), &actual)?;
+    write_user_json(&state_dir().join("logo-prefs.json"), &cfg)?;
     Ok(resp)
 }
 
 #[tauri::command]
 pub async fn set_logo_enabled(enabled: bool) -> Result<Value, String> {
-    let _guard = ZoneGuard::acquire("logo")?;
+    let _guard = ZoneGuard::acquire_async("logo").await?;
     let arg = if enabled { "on" } else { "off" };
     let resp = run_profile_helper(&["logo", arg], 5).await?;
     if let (Some(mode), Some(brightness), Some(color)) = (
@@ -393,8 +393,8 @@ pub async fn set_logo_enabled(enabled: bool) -> Result<Value, String> {
             "brightness": brightness,
             "color": color,
         });
-        let _sguard = ZoneGuard::acquire("manual-state")?;
-        let _ = write_user_json(&state_dir().join("logo.json"), &actual);
+        let _sguard = ZoneGuard::acquire_async("manual-state").await?;
+        write_user_json(&state_dir().join("logo.json"), &actual)?;
     }
     Ok(resp)
 }
@@ -886,64 +886,10 @@ const ALLOWED_WC_OPS: &[&str] = &[
     "emergency_stop",
 ];
 
-fn default_watercooling_config() -> Value {
-    json!({
-        "version": 1,
-        "auto_connect": false,
-        "mac": "",
-        "strategy": "preset",
-        "preset": "silent",
-        "manual": {"pump_volt": 7, "pump_duty": 60, "fan_duty": 40},
-        "curve": {
-            "hysteresis_c": 3,
-            "points": [
-                {"temp_c": 45, "pump_volt": 7, "pump_duty": 60, "fan_duty": 40},
-                {"temp_c": 65, "pump_volt": 8, "pump_duty": 70, "fan_duty": 55},
-                {"temp_c": 80, "pump_volt": 11, "pump_duty": 90, "fan_duty": 85},
-            ],
-        },
-        "led": {
-            "mode": "off",
-            "color": [0, 128, 255],
-            "fan_policy": "sync",
-            "fan_color": [0, 128, 255],
-        },
-        "flow_protection": true,
-        "sleep_on_disconnect": true,
-    })
-}
-
-fn validate_offline_wc_config(cfg: &Value) -> Result<(), String> {
-    let obj = cfg.as_object().ok_or("水冷配置必须是对象")?;
-    if let Some(m) = obj.get("manual").and_then(|v| v.as_object()) {
-        let pv = m.get("pump_volt").and_then(|v| v.as_i64()).unwrap_or(0);
-        let pd = m.get("pump_duty").and_then(|v| v.as_i64()).unwrap_or(0);
-        if !matches!(pv, 0 | 7 | 8 | 11 | 12) {
-            return Err("手动水泵电压仅支持 0、7、8、11、12 V".to_string());
-        }
-        if !(0..=100).contains(&pd) {
-            return Err("手动水泵占空比需在 0..100%".to_string());
-        }
-        if pv > 0 && pd == 0 {
-            return Err("水泵电压大于 0 V 时占空比不能为 0%".to_string());
-        }
-    }
-    let encoded_len = serde_json::to_string_pretty(cfg)
-        .map(|s| s.len() + 1)
-        .unwrap_or(usize::MAX);
-    if encoded_len > MAX_STATE_BYTES {
-        return Err("水冷配置文件超过大小限制".to_string());
-    }
-    Ok(())
-}
-
 #[tauri::command]
 pub async fn get_watercooling_local_config() -> Result<Value, String> {
     let path = config_dir().join("watercooling.json");
-    match read_user_json(&path, MAX_STATE_BYTES)? {
-        Some(v) => Ok(v),
-        None => Ok(default_watercooling_config()),
-    }
+    Ok(json!(iteglow_watercooling_config::load_config(&path)?))
 }
 
 enum WcIpcErr {
@@ -970,7 +916,6 @@ pub async fn watercooling_request(req: Value) -> Result<Value, String> {
                 e.kind(),
                 std::io::ErrorKind::NotFound
                     | std::io::ErrorKind::ConnectionRefused
-                    | std::io::ErrorKind::PermissionDenied
             ) {
                 WcIpcErr::Offline(msg)
             } else {
@@ -1010,9 +955,8 @@ pub async fn watercooling_request(req: Value) -> Result<Value, String> {
             // ONLY when the daemon is genuinely offline may we persist validated config locally.
             if op == "set_config" {
                 if let Some(cfg) = req.get("config") {
-                    validate_offline_wc_config(cfg)?;
                     let path = config_dir().join("watercooling.json");
-                    write_user_json(&path, cfg)?;
+                    let cfg = iteglow_watercooling_config::save_offline_patch(&path, &runtime_dir(), cfg)?;
                     return Ok(json!({"saved_offline": true, "config": cfg}));
                 }
             }

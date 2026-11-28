@@ -17,7 +17,7 @@ doesn't expose (e.g. lightbar wave/breathing/marquee/neon).
 ```
 iteglow doctor                         # check drivers/devices/permissions
 iteglow set lightbar wave --speed 4    # rainbow wave on the lightbar
-iteglow set keyboard solid --color #00ffcc
+iteglow set keyboard solid --color '#00ffcc'
 iteglow off                            # turn everything off
 iteglow gui                            # graphical control panel
 ```
@@ -76,7 +76,9 @@ iteglow doctor
 
 ## 3. Install iteglow
 
-### Debian / Ubuntu — the package (recommended)
+This section describes the upstream Python distribution. For this repository’s native CLI, desktop app and systemd user services, follow the [MECHREVO Linux Control installation guide](../README.md).
+
+### Upstream Debian / Ubuntu package
 
 Grab the `.deb` from the [releases page](https://github.com/JeanElsner/iteglow/releases)
 and install it:
@@ -147,7 +149,7 @@ iteglow list                       # modes per device
 iteglow doctor                     # drivers + permissions self-check
 
 # Lightbar
-iteglow set lightbar static  --color #00ffcc --brightness 80
+iteglow set lightbar static  --color '#00ffcc' --brightness 80
 iteglow set lightbar wave    --speed 4
 iteglow set lightbar neon    --direction reverse --palette ff0000 00ff00 0000ff
 
@@ -178,19 +180,17 @@ The controllers lose their state on suspend (and dual-boot leaves them in
 whatever state Windows set). Worse, the kernel driver cannot re-enable the
 `048d:7001` lightbar on resume ([tuxedo-drivers #371](https://gitlab.com/tuxedocomputers/development/packages/tuxedo-drivers/-/issues/371)).
 
-Every `iteglow set` (and GUI change) records your last state. To re-apply it
-automatically on every boot and resume:
+In MECHREVO Linux Control, `iteglow set` saves the current user's lighting
+settings. To restore them at graphical login and after resume, run the
+following as that user after installing the native package.
 
 ```bash
-iteglow set lightbar wave --speed 4     # get things how you like them
-sudo iteglow pin                        # pin that state system-wide
-                                        # (or click "Pin for boot & resume" in the GUI)
+systemctl --user enable --now iteglow-session-restore.service
 ```
 
-`iteglow-restore.service` (installed by the Debian package; also in `data/`)
-then powers the lightbar controller back on and re-applies the pinned state
-after boot, suspend and hibernate. `iteglow restore` re-applies your own last
-state manually at any time.
+For a manual restore, run `iteglow restore`. To share a snapshot system-wide,
+run `sudo iteglow pin` once and use `iteglow restore --system` as the desktop
+user when you want to apply that snapshot.
 
 ## Contributing
 

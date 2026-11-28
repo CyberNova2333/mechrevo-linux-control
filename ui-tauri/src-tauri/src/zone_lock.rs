@@ -5,17 +5,15 @@
 //! and Python `iteglow.zone_lock`.
 
 use serde_json::Value;
-use std::collections::HashMap;
 use std::ffi::CString;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
-use std::os::unix::io::{FromRawFd, RawFd};
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
+use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex, OnceLock};
-use std::thread::{self, ThreadId};
+use std::thread;
 use std::time::{Duration, Instant};
 
 pub const VALID_ZONES: &[&str] = &["keyboard", "lightbar", "logo", "manual-state"];
@@ -23,45 +21,6 @@ pub const MAX_STATE_BYTES: usize = 65_536;
 pub const MAX_PROFILE_BYTES: usize = 262_144;
 
 static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
-
-struct LockState {
-    owner: Option<ThreadId>,
-    depth: usize,
-    fd: Option<RawFd>,
-}
-
-struct LockEntry {
-    state: Mutex<LockState>,
-    cvar: Condvar,
-}
-
-type EntryMap = HashMap<(PathBuf, String), Arc<LockEntry>>;
-static ENTRIES: OnceLock<Mutex<EntryMap>> = OnceLock::new();
-
-fn entry_for(runtime_dir: &Path, zone: &str) -> Arc<LockEntry> {
-    let map = ENTRIES.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut guard = map.lock().unwrap_or_else(|e| e.into_inner());
-    let abs = if runtime_dir.is_absolute() {
-        runtime_dir.to_path_buf()
-    } else {
-        std::env::current_dir()
-            .unwrap_or_else(|_| PathBuf::from("/"))
-            .join(runtime_dir)
-    };
-    guard
-        .entry((abs, zone.to_string()))
-        .or_insert_with(|| {
-            Arc::new(LockEntry {
-                state: Mutex::new(LockState {
-                    owner: None,
-                    depth: 0,
-                    fd: None,
-                }),
-                cvar: Condvar::new(),
-            })
-        })
-        .clone()
-}
 
 pub fn runtime_dir() -> PathBuf {
     if let Ok(d) = std::env::var("XDG_RUNTIME_DIR") {
@@ -150,115 +109,39 @@ fn open_lock_fd(rdir: &Path, zone: &str) -> Result<RawFd, String> {
 }
 
 pub struct ZoneGuard {
-    entry: Arc<LockEntry>,
-    acquired: bool,
+    // Each transaction owns a distinct open file description across async task migration.
+    _file: File,
 }
 
 impl ZoneGuard {
     pub fn acquire(zone: &str) -> Result<Self, String> {
+        Self::acquire_in(&runtime_dir(), zone, Duration::from_secs(5))
+    }
+
+    fn acquire_in(dir: &Path, zone: &str, wait: Duration) -> Result<Self, String> {
         if !VALID_ZONES.contains(&zone) {
             return Err(format!("未知灯光分区锁: {zone}"));
         }
-        let rdir = runtime_dir();
-        let entry = entry_for(&rdir, zone);
-        let me = thread::current().id();
-        let deadline = Instant::now() + Duration::from_secs(5);
-
-        let mut state = entry.state.lock().unwrap_or_else(|e| e.into_inner());
-        while state.depth > 0 && state.owner != Some(me) {
-            let Some(rem) = deadline.checked_duration_since(Instant::now()) else {
-                return Err("灯光分区事务正忙，请稍后重试".to_string());
-            };
-            if rem.is_zero() {
+        let file = unsafe { File::from_raw_fd(open_lock_fd(dir, zone)?) };
+        let deadline = Instant::now() + wait;
+        loop {
+            if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0 {
+                return Ok(Self { _file: file });
+            }
+            let err = std::io::Error::last_os_error();
+            if !matches!(err.kind(), std::io::ErrorKind::Interrupted | std::io::ErrorKind::WouldBlock) {
+                return Err(format!("获取分区锁失败: {err}"));
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
                 return Err("灯光分区事务正忙，请稍后重试".to_string());
             }
-            let (s, wait_res) = entry
-                .cvar
-                .wait_timeout(state, rem)
-                .unwrap_or_else(|e| e.into_inner());
-            state = s;
-            if wait_res.timed_out() && state.depth > 0 && state.owner != Some(me) {
-                return Err("灯光分区事务正忙，请稍后重试".to_string());
-            }
+            thread::sleep(remaining.min(Duration::from_millis(20)));
         }
-
-        if state.depth == 0 {
-            state.owner = Some(me);
-            state.depth = 1;
-            drop(state);
-
-            let fd = match open_lock_fd(&rdir, zone) {
-                Ok(fd) => fd,
-                Err(e) => {
-                    let mut st = entry.state.lock().unwrap_or_else(|e| e.into_inner());
-                    st.owner = None;
-                    st.depth = 0;
-                    entry.cvar.notify_all();
-                    return Err(e);
-                }
-            };
-            loop {
-                let rc = unsafe { libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB) };
-                if rc == 0 {
-                    let mut st = entry.state.lock().unwrap_or_else(|e| e.into_inner());
-                    st.fd = Some(fd);
-                    break;
-                }
-                let err = std::io::Error::last_os_error();
-                if err.raw_os_error() == Some(libc::EINTR) {
-                    continue;
-                }
-                if err.raw_os_error() != Some(libc::EWOULDBLOCK)
-                    && err.raw_os_error() != Some(libc::EAGAIN)
-                {
-                    unsafe { libc::close(fd) };
-                    let mut st = entry.state.lock().unwrap_or_else(|e| e.into_inner());
-                    st.owner = None;
-                    st.depth = 0;
-                    entry.cvar.notify_all();
-                    return Err(format!("获取分区锁失败: {err}"));
-                }
-                if Instant::now() >= deadline {
-                    unsafe { libc::close(fd) };
-                    let mut st = entry.state.lock().unwrap_or_else(|e| e.into_inner());
-                    st.owner = None;
-                    st.depth = 0;
-                    entry.cvar.notify_all();
-                    return Err("灯光分区事务正忙，请稍后重试".to_string());
-                }
-                thread::sleep(Duration::from_millis(20));
-            }
-        } else {
-            state.depth += 1;
-            drop(state);
-        }
-        Ok(Self {
-            entry,
-            acquired: true,
-        })
     }
-}
 
-impl Drop for ZoneGuard {
-    fn drop(&mut self) {
-        if !self.acquired {
-            return;
-        }
-        self.acquired = false;
-        let mut state = self.entry.state.lock().unwrap_or_else(|e| e.into_inner());
-        if state.depth > 0 {
-            state.depth -= 1;
-            if state.depth == 0 {
-                state.owner = None;
-                if let Some(fd) = state.fd.take() {
-                    unsafe {
-                        let _ = libc::flock(fd, libc::LOCK_UN);
-                        libc::close(fd);
-                    }
-                }
-                self.entry.cvar.notify_all();
-            }
-        }
+    pub async fn acquire_async(zone: &'static str) -> Result<Self, String> {
+        tokio::task::spawn_blocking(move || Self::acquire(zone)).await.map_err(|e| e.to_string())?
     }
 }
 
@@ -301,22 +184,23 @@ pub fn read_user_json(path: &Path, max_bytes: usize) -> Result<Option<Value>, St
 
 pub fn write_user_json(path: &Path, data: &Value) -> Result<(), String> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("创建目录失败: {e}"))?;
-        let _ = fs::set_permissions(parent, fs::Permissions::from_mode(0o700));
+        fs::DirBuilder::new().recursive(true).mode(0o700).create(parent).map_err(|e| format!("创建目录失败: {e}"))?;
     }
     let seq = TMP_SEQ.fetch_add(1, Ordering::Relaxed);
-    let tmp = PathBuf::from(format!("{}.tmp.{}.{seq}", path.display(), std::process::id()));
+    let mut name = path.as_os_str().to_owned();
+    name.push(format!(".tmp.{}.{seq}", std::process::id()));
+    let tmp = PathBuf::from(name);
     let mut encoded = serde_json::to_string_pretty(data)
         .map_err(|e| format!("序列化 JSON 失败: {e}"))?;
     encoded.push('\n');
+    let mut file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .mode(0o600)
+        .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW)
+        .open(&tmp)
+        .map_err(|e| format!("创建临时文件失败: {e}"))?;
     let res: Result<(), String> = (|| {
-        let mut file = OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .mode(0o600)
-            .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW)
-            .open(&tmp)
-            .map_err(|e| format!("创建临时文件失败: {e}"))?;
         file.set_permissions(fs::Permissions::from_mode(0o600))
             .map_err(|e| format!("设置临时文件权限失败: {e}"))?;
         file.write_all(encoded.as_bytes())
@@ -339,4 +223,21 @@ pub fn write_user_json(path: &Path, data: &Value) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn independent_logo_transactions_on_one_thread_exclude_each_other() {
+        let dir = std::env::temp_dir().join(format!("iteglow-zone-test-{}", std::process::id()));
+        fs::create_dir(&dir).unwrap();
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o700)).unwrap();
+        let first = ZoneGuard::acquire_in(&dir, "logo", Duration::ZERO).unwrap();
+        assert!(ZoneGuard::acquire_in(&dir, "logo", Duration::ZERO).is_err());
+        thread::spawn(move || drop(first)).join().unwrap();
+        drop(ZoneGuard::acquire_in(&dir, "logo", Duration::ZERO).unwrap());
+        fs::remove_dir_all(dir).unwrap();
+    }
 }

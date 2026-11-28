@@ -5,7 +5,7 @@
 
 use crate::coordinator::StatusSnapshot;
 use serde_json::{json, Value};
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,9 +22,20 @@ pub struct IpcCommand {
     pub reply: oneshot::Sender<Value>,
 }
 
-pub fn bind_ipc_listener(sock_path: &Path) -> Result<UnixListener, String> {
-    if sock_path.exists() {
-        let _ = std::fs::remove_file(sock_path);
+pub async fn bind_ipc_listener(sock_path: &Path) -> Result<UnixListener, String> {
+    match std::fs::symlink_metadata(sock_path) {
+        Ok(meta) if meta.file_type().is_socket() && meta.uid() == unsafe { libc::geteuid() } => {
+            // Both implementations hold the same daemon lock throughout bind and cleanup.
+            match timeout(Duration::from_millis(500), UnixStream::connect(sock_path)).await {
+                Ok(Err(e)) if e.kind() == std::io::ErrorKind::ConnectionRefused => {
+                    std::fs::remove_file(sock_path).map_err(|e| e.to_string())?;
+                }
+                _ => return Err("水冷控制 socket 仍被占用".into()),
+            }
+        }
+        Ok(_) => return Err(format!("水冷 socket 路径已被占用: {}", sock_path.display())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(e.to_string()),
     }
     let listener = UnixListener::bind(sock_path)
         .map_err(|e| format!("绑定水冷 IPC socket 失败 ({}): {e}", sock_path.display()))?;
@@ -176,9 +187,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bind_preserves_existing_files_and_live_listeners() {
+        let path = std::env::temp_dir().join(format!("iteglow-bind-{}.sock", std::process::id()));
+        std::fs::write(&path, b"preserve").unwrap();
+        assert!(bind_ipc_listener(&path).await.is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), b"preserve");
+        std::fs::remove_file(&path).unwrap();
+        let first = bind_ipc_listener(&path).await.unwrap();
+        assert!(bind_ipc_listener(&path).await.is_err());
+        drop(first);
+        let _replacement = bind_ipc_listener(&path).await.unwrap();
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[tokio::test]
     async fn test_ipc_ping_and_status_fast_path() {
         let sock = std::env::temp_dir().join(format!("iteglow-ipc-{}.sock", std::process::id()));
-        let listener = bind_ipc_listener(&sock).unwrap();
+        let listener = bind_ipc_listener(&sock).await.unwrap();
         let cfg = CoolerConfig::default();
         let snap = Arc::new(RwLock::new(CoolerCoordinator::<DummyTransport>::default_snapshot(&cfg)));
         let (tx, _rx) = mpsc::channel(8);
