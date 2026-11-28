@@ -100,8 +100,8 @@ struct snapshot {
 
 struct owned_byte {
 	u16 reg;
-	u8 mask, before, target;
-	bool attempted, restore_attempted;
+	u8 mask, before, target, prior;
+	bool attempted, write_pending, restore_attempted;
 };
 
 /* APTC/APTN is a firmware-produced full byte. We restore it only while still
@@ -114,6 +114,8 @@ static struct owned_byte owned[] = {
 static u64 before_cstm, before_gatm, target_cstm, target_gatm;
 static bool cstm_attempted, gatm_attempted;
 static bool cstm_restoring, gatm_restoring;
+static u64 prior_cstm, prior_gatm;
+static bool cstm_pending, gatm_pending;
 static u32 restore_skipped;
 
 struct client {
@@ -349,6 +351,8 @@ static int set_owned(unsigned int index, u8 bits)
 		return ret;
 	if (b->attempted && (now & b->mask) != b->target)
 		return -ESTALE;
+	b->prior = now & b->mask;
+	b->write_pending = true;
 	b->target = bits & b->mask;
 	b->attempted = true; /* Include a write accepted before an ACPI error. */
 	ret = write_ec(b->reg, (now & ~b->mask) | b->target);
@@ -356,6 +360,8 @@ static int set_owned(unsigned int index, u8 bits)
 		ret = read_ec(b->reg, &after);
 	if (!ret && (after & b->mask) != b->target)
 		ret = -EIO;
+	if (!ret)
+		b->write_pending = false;
 	return ret;
 }
 
@@ -452,7 +458,7 @@ static void finish_recovery(void)
 {
 	int i;
 
-	recovery_needed = cstm_attempted || gatm_attempted;
+	recovery_needed = policy_uncertain || cstm_attempted || gatm_attempted;
 	for (i = 0; i < ARRAY_SIZE(owned); i++)
 		recovery_needed |= owned[i].attempted;
 	if (!recovery_needed && recovery_pin) {
@@ -475,10 +481,11 @@ static void relinquish_policy(void)
 	if (gatm_attempted)
 		restore_skipped |= BIT(4);
 	cstm_attempted = gatm_attempted = false;
+	policy_uncertain = false;
 	finish_recovery();
 }
 
-static bool foreign_bits(const struct snapshot *s, bool failed_command)
+static bool foreign_bits(const struct snapshot *s)
 {
 	int i;
 	u8 observed;
@@ -490,13 +497,23 @@ static bool foreign_bits(const struct snapshot *s, bool failed_command)
 		if (i == 2 && !standard_turbo(s))
 			continue;
 		observed = value(s, owned[i].reg) & owned[i].mask;
+		/* A failed write may have left its previous (already leased) value.
+		 * Resolve that ambiguity once, using a successful snapshot. */
+		if (owned[i].write_pending && observed == owned[i].prior)
+			owned[i].target = observed;
+		owned[i].write_pending = false;
 		if (observed != owned[i].target &&
-		    (!(failed_command || owned[i].restore_attempted) || observed != owned[i].before))
+		    (!owned[i].restore_attempted || observed != owned[i].before))
 			return true;
 	}
-	if (s->cstm != target_cstm && (!(failed_command || cstm_restoring) || s->cstm != before_cstm))
+	if (cstm_pending && s->cstm == prior_cstm)
+		target_cstm = s->cstm;
+	if (gatm_pending && s->gatm == prior_gatm)
+		target_gatm = s->gatm;
+	cstm_pending = gatm_pending = false;
+	if (s->cstm != target_cstm && (!cstm_restoring || s->cstm != before_cstm))
 		return true;
-	if (s->gatm != target_gatm && (!(failed_command || gatm_restoring) || s->gatm != before_gatm))
+	if (s->gatm != target_gatm && (!gatm_restoring || s->gatm != before_gatm))
 		return true;
 	return false;
 }
@@ -505,7 +522,6 @@ static int release_lease(const char *reason)
 {
 	struct snapshot s;
 	bool custom = true, same_turbo = false;
-	bool failed_command = !strcmp(reason, "acquire_failed") || !strcmp(reason, "command_failed");
 	int ret, first = 0;
 
 	active = false;
@@ -526,7 +542,7 @@ static int release_lease(const char *reason)
 	/* Freeze ownership before any method with side effects. Custom tuning shares
 	 * APPE/APTC, so we relinquish the entire policy, not merely its mode byte.
 	 * Otherwise a recovery PMSF could overwrite an external controller's state. */
-	if (custom || value(&s, 0x706) != 0x40 || foreign_bits(&s, failed_command)) {
+	if (custom || value(&s, 0x706) != 0x40 || foreign_bits(&s)) {
 		/* An unreadable result from our own method is not proof of a foreign
 		 * owner. Keep the module pinned instead of silently abandoning it. */
 		if (policy_uncertain && !custom) {
@@ -567,7 +583,7 @@ static int release_lease(const char *reason)
 	ret = refresh_policy(same_turbo);
 	if (ret && !first)
 		first = ret;
-	ret = restore_byte(2, same_turbo);
+	ret = policy_uncertain ? -EUCLEAN : restore_byte(2, same_turbo);
 	if (ret && !first)
 		first = ret;
 	restoring = false;
@@ -600,12 +616,14 @@ static int acquire_lease(struct file *file, bool want_quiet)
 		owned[i].before = value(&s, owned[i].reg) & owned[i].mask;
 		owned[i].target = owned[i].before;
 		owned[i].attempted = false;
+		owned[i].write_pending = false;
 		owned[i].restore_attempted = false;
 	}
 	before_cstm = target_cstm = s.cstm;
 	before_gatm = target_gatm = s.gatm;
 	cstm_attempted = gatm_attempted = false;
 	cstm_restoring = gatm_restoring = false;
+	cstm_pending = gatm_pending = false;
 	restore_skipped = 0;
 	restore_rc = 0;
 	lease_owner = file;
@@ -691,13 +709,19 @@ static int run_command(struct file *file, enum command cmd)
 		combined = cmd == COMBINED_OFF || cmd == COMBINED_ON;
 		enabled = cmd == COMBINED_ON || cmd == GAME_ON;
 		if (combined) {
+			prior_cstm = s.cstm;
+			cstm_pending = true;
 			target_cstm = enabled;
 			cstm_attempted = true;
 		} else {
+			prior_gatm = s.gatm;
+			gatm_pending = true;
 			target_gatm = enabled;
 			gatm_attempted = true;
 		}
 		ret = wmi_workload(combined, enabled, true, true);
+		if (!ret)
+			cstm_pending = gatm_pending = false;
 	}
 	if (!ret)
 		ret = read_snapshot(&s);
@@ -1128,19 +1152,22 @@ static int __init bridge_init(void)
 	if (ret)
 		return ret;
 	ret = wmi_driver_register(&wmi_event_driver);
-	if (ret) {
-		unregister_pm_notifier(&pm_notifier);
-		return ret;
-	}
+	if (ret)
+		goto cancel_wmi;
 	ret = misc_register(&bridge);
 	if (ret) {
+		WRITE_ONCE(shutting_down, true);
 		wmi_driver_unregister(&wmi_event_driver);
-		unregister_pm_notifier(&pm_notifier);
-		return ret;
+		goto cancel_wmi;
 	}
 	schedule_delayed_work(&lease_work, msecs_to_jiffies(GUARD_MS));
 	pr_info("mechrevo_turbo_lease: candidate ABI 1 ready; no lease acquired\n");
 	return 0;
+
+cancel_wmi:
+	cancel_work_sync(&wmi_work);
+	unregister_pm_notifier(&pm_notifier);
+	return ret;
 }
 
 static void __exit bridge_exit(void)

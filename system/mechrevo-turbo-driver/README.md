@@ -9,15 +9,15 @@ make CC=x86_64-linux-gnu-gcc-13 W=1
 python3 test_core.py
 ```
 
-驱动构建子任务只运行离线测试；主代理随后已部署当前哈希并完成真实WMI、归还、自动阈值调度与pre/post排练，详见[实机资格记录](../../research/turbo-qualification-20261115/README.md)。`build-manifest.json`保留构建时状态，不表示此后仍未部署。编译成功本身不代表验收，真实PM和物理拔电仍未测试。
+2026-11-27 构建已在本机通过 CTAF 开关回执、静音与高能联合负载、主动归还、最后一个 owner FD 关闭和看门狗超时验收。八秒超时后已观察到拥有位恢复，守护进程接管后已恢复高能狂暴。构建哈希见 [build-manifest.json](build-manifest.json)，原始回读和功耗样本见[本次实机记录](../../research/turbo-qualification-20261127.json)。真实睡眠和物理拔电仍待验证。旧构建的自动阈值和 pre/post 排练见 [11 月 15 日记录](../../research/turbo-qualification-20261115/README.md)。
 
 `test_core.py` 从当前 C 文件提取实际租约、所有权、回滚、watchdog 和 PM notifier 函数，用模拟固件执行，并启用 AddressSanitizer/UndefinedBehaviorSanitizer。它不打开设备、不加载模块、不执行真实 ACPI。当前测试覆盖：
 
 - 全部 256 种圆口状态的主/备用判定，排除 USB-C 供电误判。
 - 支持码门禁、其他 FD 无法控制 lease、normal release、共享字节保留。
-- 136 个 release I/O 点、79 个 acquire I/O 点、72 个活动 WMI I/O 点，分别在接受前/接受后注入故障，全部恢复模拟初始状态。
+- 156 个 release I/O 点、91 个 acquire I/O 点、84 个活动 WMI I/O 点，分别在接受前/接受后注入故障，全部恢复模拟初始状态。
 - 模式键改档、GPU 自定义 bit2、外部 APTC/工作负载接管、超时、AC 消失、PM prepare 和恢复后不自动重新接管。
-- 恢复瞬时错误重试、持续失败的有界重试和 module pin。
+- 恢复瞬时错误重试、持续失败的有界重试和 module pin。写入失败后保留该字段写入前的值，后续显式归还或 PM 重试可以识别仍属于本次租约的旧值。
 
 这里的 PM 测试是实际 C 函数的离线 notifier 测试，**没有让本机睡眠/休眠**。AC 测试只修改模拟寄存器，**没有物理拔插电源**。后续真实WMI框架与release/FD close/8秒超时结果已单独归档，不能把这些结果延伸为PM或物理拔电已验证。
 

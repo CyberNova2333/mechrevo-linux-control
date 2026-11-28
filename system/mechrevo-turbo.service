@@ -5,7 +5,7 @@ StartLimitIntervalSec=60
 StartLimitBurst=3
 
 [Service]
-Type=simple
+Type=notify
 ExecCondition=/usr/bin/systemctl is-active --quiet nvidia-powerd.service
 ExecStartPre=/usr/local/libexec/mechrevo-turbo-lifecycle prepare
 ExecStart=/usr/local/libexec/mechrevo-turbod

@@ -89,6 +89,7 @@ firmware = r'''
 static u8 bank[4096], initial[4096];
 static u64 fw_cstm, fw_gatm;
 static int writes, aptc_writes, pmsfs, wmis, io_count, fail_at, persistent_fail;
+static bool fail_next_tb43;
 static bool fail_after, support_game=true, support_combined=true;
 static bool io_fails(void) { io_count++;return persistent_fail || (fail_at && io_count==fail_at); }
 static int read_ec(u16 reg,u8 *out) {
@@ -103,6 +104,11 @@ static int read_name(const char *path,u64 *out) {
 }
 static int write_ec(u16 reg,u8 v) {
  bool failure=io_fails();
+ if (reg == REG_TB43 && fail_next_tb43) {
+  fail_next_tb43 = false;
+  persistent_fail = 1; /* Also fail the first recovery snapshot. */
+  return -EIO;
+ }
  assert(reg==REG_APPE||reg==REG_TB43||reg==REG_APTC);
  if(failure&&!fail_after)return -EIO;
  bank[reg]=v;writes++;if(reg==REG_APTC)aptc_writes++;
@@ -221,6 +227,22 @@ int main(void) {
  assert(run_command(&owner,RELEASE)==-EIO&&recovery_needed&&pins==1);
  jiffies+=RECOVERY_MS;watchdog(NULL);released();
  puts("PASS transient read fault recovered by kernel watchdog");
+ for (phase=0; phase<2; phase++) {
+  reset();acquire();
+  fail_next_tb43=true;
+  assert(run_command(&owner,VARIANT_EXTREME)==-EIO && recovery_needed && pins==1);
+  persistent_fail=0;
+  if (phase) assert(pm_event(NULL,PM_SUSPEND_PREPARE,NULL)==0);
+  else assert(run_command(&owner,RELEASE)==0);
+  released();
+ }
+ puts("PASS failed variant plus failed recovery snapshot, retried by owner and PM");
+ reset();acquire();assert(!run_command(&owner,COMBINED_ON));
+ /* The first I/O after the eligibility snapshot is the WMI call. */
+ fail_at=io_count+ARRAY_SIZE(registers)+3;
+ assert(run_command(&owner,COMBINED_OFF)==-EIO);
+ released();
+ puts("PASS failed workload OFF restores the previously active workload");
  reset();prior=io_count;acquire();acquire_steps=io_count-prior;
  prior=io_count;assert(!run_command(&owner,GAME_ON));game_steps=io_count-prior;
  assert(!run_command(&owner,COMBINED_ON));prior=io_count;

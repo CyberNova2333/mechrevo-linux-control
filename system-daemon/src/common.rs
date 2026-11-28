@@ -345,6 +345,8 @@ pub fn run_command_timeout(
     const MAX_PIPE_BYTES: usize = 262_144;
     let mut child = Command::new(program)
         .args(args)
+        // Only the service's main process reports readiness to systemd.
+        .env_remove("NOTIFY_SOCKET")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

@@ -6,8 +6,11 @@ PASS custom DB bit and foreign policy ownership: zero recovery writes/method cal
 PASS timeout, AC removal, PM prepare and no automatic resume acquisition
 PASS bounded failed recovery remains pinned until explicit successful recovery
 PASS transient read fault recovered by kernel watchdog
-PASS 136 release I/O positions, each before/after acceptance; all original state restored
-NOTE release fault positions with already-original mask skipped: 0/272
-PASS 79 acquire I/O positions, each before/after acceptance; all original state restored
-NOTE acquire fault positions with already-original mask skipped: 2/158
-PASS 72 active WMI I/O positions, each before/after acceptance; all original state restored
+PASS failed variant plus failed recovery snapshot, retried by owner and PM
+PASS failed workload OFF restores the previously active workload
+PASS 156 release I/O positions, each before/after acceptance; all original state restored
+NOTE release fault positions with already-original mask skipped: 0/312
+PASS 91 acquire I/O positions, each before/after acceptance; all original state restored
+NOTE acquire fault positions with already-original mask skipped: 0/182
+PASS 84 active WMI I/O positions, each before/after acceptance; all original state restored
+PASS WMI ring wraparound and 0xB0 immediate lease release

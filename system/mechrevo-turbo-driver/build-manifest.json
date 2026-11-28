@@ -1,19 +1,18 @@
 {
-  "timestamp": "2026-11-15T08:20:25.700831+00:00",
-  "installed": false,
-  "loaded_by_this_subtask": false,
+  "timestamp": "2026-11-27T14:25:53.814023+00:00",
+  "installed": true,
+  "loaded_by_this_subtask": true,
   "kernel": "6.8.0-149-generic",
   "build": "make CC=x86_64-linux-gnu-gcc-13 W=1",
-  "srcversion": "96D362D313EBFB892AE0918",
+  "srcversion": "7EFE845739FFCEFFC08068A",
   "sha256": {
-    "mechrevo_turbo_lease.c": "28fab091fc42b681c4ecf8c09088dfd0db2a4f4ad0a394f58d59e09f71910dc5",
-    "mechrevo_turbo_lease.ko": "803853479e5f28ce8cf2420f2dc05f7b07483c15809e3664bc961d1b4fa250d0",
-    "test_core.py": "94a0547954e6cf24207e8b2ee632ba537b00a0da984a25a0a65b40dfb5ae1900",
-    "offline-tests.txt": "3a7630d740454f7d085633c960dae9ac97afdb99757b888bd4dd00f5a3e120fd"
+    "mechrevo_turbo_lease.c": "0634c5f70694f11707caebeaf6fd73f3b0a04fb57f193550d487c51485c8055a",
+    "mechrevo_turbo_lease.ko": "68539ec6dbd57137b2b7cd5266dcfe57beedfaff45fd52cee6639b879eab35e6",
+    "test_core.py": "c15ed4e29762313783215ec1cce661485b0d5f1bf7f535381aacd0396042a549",
+    "offline-tests.txt": "33af6dc89e9ac43275b59fb21886863cc04cdcb6888eb93ecbf58e4664f91754"
   },
   "limits": [
-    "PM notifier tested only with extracted C and fake firmware; no real sleep",
-    "Adapter loss tested only with fake registers; no physical unplug",
-    "Real WMI framework and runtime timing require separate host qualification"
-  ]
+    "Physical suspend/hibernate and adapter removal tested only with fake firmware"
+  ],
+  "qualification": "../../research/turbo-qualification-20261127.json"
 }

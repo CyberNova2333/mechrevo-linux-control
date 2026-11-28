@@ -12,13 +12,14 @@ use crate::oem_scheduler::{advance, LoadSample, Operation, SchedulerState};
 use crate::sha256::sha256_hex;
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
-use std::ffi::CString;
+use std::ffi::{CString, OsStr};
 use std::fs::{self, File};
 use std::io::Write;
+use std::os::linux::net::SocketAddrExt;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::io::{AsRawFd, FromRawFd};
-use std::os::unix::net::{UnixListener, UnixStream};
+use std::os::unix::net::{SocketAddr, UnixDatagram, UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -759,6 +760,15 @@ fn handle_client<D: TurboDevice>(controller: &mut Controller<D>, mut stream: Uni
     }
 }
 
+fn notify_ready(socket: &OsStr) -> std::io::Result<()> {
+    let address = match socket.as_bytes().strip_prefix(b"@") {
+        Some(name) => SocketAddr::from_abstract_name(name)?,
+        None => SocketAddr::from_pathname(socket)?,
+    };
+    UnixDatagram::unbound()?.send_to_addr(b"READY=1", &address)?;
+    Ok(())
+}
+
 pub fn run_daemon() -> Result<(), String> {
     if unsafe { libc::geteuid() } != 0 {
         return Err("守护进程需要root与已验收的专用内核lease".to_string());
@@ -794,6 +804,10 @@ pub fn run_daemon() -> Result<(), String> {
         controller
             .release("startup_reconcile")
             .map_err(|e| e.to_string())?;
+    }
+
+    if let Some(socket) = std::env::var_os("NOTIFY_SOCKET") {
+        notify_ready(&socket).map_err(|e| format!("无法通知 systemd 控制接口就绪: {e}"))?;
     }
 
     let mut sampler = Samples::default();

@@ -1,0 +1,373 @@
+{
+  "time": "2026-11-27T14:27:35.879828+00:00",
+  "kernel": "6.8.0-149-generic",
+  "driver_sha256": "68539ec6dbd57137b2b7cd5266dcfe57beedfaff45fd52cee6639b879eab35e6",
+  "srcversion": "7EFE845739FFCEFFC08068A",
+  "previous_sha256": "3c8b1842516f97f369739a2744afb587caf0c7420130ce676dc8a1f1969436b4",
+  "lease": [
+    {
+      "phase": "initial",
+      "mono": 18774.59,
+      "active": false,
+      "pending": false,
+      "variant": "extreme",
+      "ack": null,
+      "owned": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        48
+      ],
+      "reason": "idle"
+    },
+    {
+      "phase": "acquire quiet",
+      "mono": 18774.61,
+      "active": true,
+      "pending": true,
+      "variant": "quiet",
+      "ack": null,
+      "owned": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        48
+      ],
+      "reason": "none"
+    },
+    {
+      "phase": "combined 1",
+      "mono": 18774.61,
+      "active": true,
+      "pending": true,
+      "variant": "quiet",
+      "ack": 187,
+      "owned": [
+        1,
+        1,
+        143,
+        1,
+        0,
+        48
+      ],
+      "reason": "none"
+    },
+    {
+      "phase": "variant quiet",
+      "mono": 18778.55,
+      "active": true,
+      "pending": true,
+      "variant": "quiet",
+      "ack": null,
+      "owned": [
+        1,
+        1,
+        143,
+        1,
+        0,
+        48
+      ],
+      "reason": "none"
+    },
+    {
+      "phase": "variant extreme",
+      "mono": 18788.73,
+      "active": true,
+      "pending": true,
+      "variant": "extreme",
+      "ack": null,
+      "owned": [
+        1,
+        0,
+        138,
+        1,
+        0,
+        48
+      ],
+      "reason": "none"
+    },
+    {
+      "phase": "combined 0",
+      "mono": 18802.89,
+      "active": true,
+      "pending": true,
+      "variant": "extreme",
+      "ack": 170,
+      "owned": [
+        1,
+        0,
+        10,
+        0,
+        0,
+        48
+      ],
+      "reason": "none"
+    },
+    {
+      "phase": "release",
+      "mono": 18802.9,
+      "active": false,
+      "pending": false,
+      "variant": "extreme",
+      "ack": null,
+      "owned": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        48
+      ],
+      "reason": "released"
+    },
+    {
+      "phase": "acquire extreme",
+      "mono": 18802.91,
+      "active": true,
+      "pending": true,
+      "variant": "extreme",
+      "ack": null,
+      "owned": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        48
+      ],
+      "reason": "none"
+    },
+    {
+      "phase": "combined 1",
+      "mono": 18802.92,
+      "active": true,
+      "pending": true,
+      "variant": "extreme",
+      "ack": 187,
+      "owned": [
+        1,
+        0,
+        138,
+        1,
+        0,
+        48
+      ],
+      "reason": "none"
+    },
+    {
+      "phase": "owner closed",
+      "mono": 18802.93,
+      "active": false,
+      "pending": false,
+      "variant": "extreme",
+      "ack": 187,
+      "owned": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        48
+      ],
+      "reason": "owner_closed"
+    },
+    {
+      "phase": "acquire quiet",
+      "mono": 18802.94,
+      "active": true,
+      "pending": true,
+      "variant": "quiet",
+      "ack": null,
+      "owned": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        48
+      ],
+      "reason": "none"
+    },
+    {
+      "phase": "combined 1",
+      "mono": 18802.94,
+      "active": true,
+      "pending": true,
+      "variant": "quiet",
+      "ack": 187,
+      "owned": [
+        1,
+        1,
+        143,
+        1,
+        0,
+        48
+      ],
+      "reason": "none"
+    },
+    {
+      "phase": "watchdog",
+      "mono": 18811.94,
+      "active": false,
+      "pending": false,
+      "variant": "quiet",
+      "ack": 187,
+      "owned": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        48
+      ],
+      "reason": "lease_expired"
+    }
+  ],
+  "load": {
+    "quiet": [
+      {
+        "cpu_temp": 52.0,
+        "gpu_temp": 53.0,
+        "gpu_w": 141.35,
+        "gpu_limit": 140.0,
+        "gpu_util": 95.0,
+        "cpu_w": 45.1
+      },
+      {
+        "cpu_temp": 54.0,
+        "gpu_temp": 54.0,
+        "gpu_w": 136.91,
+        "gpu_limit": 140.0,
+        "gpu_util": 95.0,
+        "cpu_w": 45.0
+      },
+      {
+        "cpu_temp": 52.0,
+        "gpu_temp": 55.0,
+        "gpu_w": 139.79,
+        "gpu_limit": 140.0,
+        "gpu_util": 97.0,
+        "cpu_w": 45.01
+      },
+      {
+        "cpu_temp": 53.0,
+        "gpu_temp": 56.0,
+        "gpu_w": 138.55,
+        "gpu_limit": 140.0,
+        "gpu_util": 92.0,
+        "cpu_w": 44.89
+      },
+      {
+        "cpu_temp": 56.0,
+        "gpu_temp": 55.0,
+        "gpu_w": 139.57,
+        "gpu_limit": 140.0,
+        "gpu_util": 96.0,
+        "cpu_w": 45.02
+      },
+      {
+        "cpu_temp": 54.0,
+        "gpu_temp": 56.0,
+        "gpu_w": 139.63,
+        "gpu_limit": 140.0,
+        "gpu_util": 99.0,
+        "cpu_w": 45.0
+      },
+      {
+        "cpu_temp": 54.0,
+        "gpu_temp": 56.0,
+        "gpu_w": 139.84,
+        "gpu_limit": 140.0,
+        "gpu_util": 99.0,
+        "cpu_w": 44.93
+      }
+    ],
+    "extreme": [
+      {
+        "cpu_temp": 54.0,
+        "gpu_temp": 56.0,
+        "gpu_w": 139.58,
+        "gpu_limit": 140.0,
+        "gpu_util": 97.0,
+        "cpu_w": 44.97
+      },
+      {
+        "cpu_temp": 60.0,
+        "gpu_temp": 57.0,
+        "gpu_w": 138.65,
+        "gpu_limit": 140.0,
+        "gpu_util": 99.0,
+        "cpu_w": 50.12
+      },
+      {
+        "cpu_temp": 64.0,
+        "gpu_temp": 57.0,
+        "gpu_w": 139.6,
+        "gpu_limit": 140.0,
+        "gpu_util": 97.0,
+        "cpu_w": 75.01
+      },
+      {
+        "cpu_temp": 62.0,
+        "gpu_temp": 58.0,
+        "gpu_w": 139.6,
+        "gpu_limit": 140.0,
+        "gpu_util": 99.0,
+        "cpu_w": 74.95
+      },
+      {
+        "cpu_temp": 64.0,
+        "gpu_temp": 58.0,
+        "gpu_w": 139.4,
+        "gpu_limit": 140.0,
+        "gpu_util": 96.0,
+        "cpu_w": 75.02
+      },
+      {
+        "cpu_temp": 66.0,
+        "gpu_temp": 59.0,
+        "gpu_w": 140.32,
+        "gpu_limit": 140.0,
+        "gpu_util": 99.0,
+        "cpu_w": 74.92
+      },
+      {
+        "cpu_temp": 64.0,
+        "gpu_temp": 59.0,
+        "gpu_w": 139.97,
+        "gpu_limit": 140.0,
+        "gpu_util": 97.0,
+        "cpu_w": 74.84
+      }
+    ]
+  },
+  "identity": {
+    "kernel_release": "6.8.0-149-generic",
+    "dmi": {
+      "sys_vendor": "MECHREVO",
+      "board_name": "YAOSHI Series-XxAF55xx",
+      "bios_version": "N.1.33MRO91"
+    }
+  },
+  "owned_fields": [
+    "APPE bit 0",
+    "TB43 bit 0",
+    "APTC",
+    "CSTM",
+    "GATM",
+    "mode byte"
+  ],
+  "handover": {
+    "service_type": "notify",
+    "managed": true,
+    "variant": "extreme",
+    "active": true,
+    "wmi_bound": true
+  },
+  "physical_sleep_tested": false,
+  "physical_ac_unplug_tested": false
+}
