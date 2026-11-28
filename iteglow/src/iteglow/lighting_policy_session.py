@@ -13,9 +13,10 @@ import json
 import math
 from pathlib import Path
 
+from . import protocol
 from .lighting_policy import (PolicyMemory, acknowledge, action_matches,
                               default_config, plan, validate_config)
-from .lighting_session import _read_saved, apply_action, validate_hid, validate_logo
+from .lighting_session import RestoreAction, _read_saved, apply_action, validate_hid, validate_logo
 from .zone_lock import ZoneTransaction
 
 CONFIG_PATH = Path.home() / '.config/iteglow/lighting-policy.json'
@@ -185,6 +186,11 @@ class PolicyRunner:
                             continue
                         target = (validate_logo(action.params) if action.device == 'logo'
                                   else validate_hid(action.device, action.params))
+                        if action.device == 'keyboard':
+                            level = action.params.get('brightness')
+                            if level is None:
+                                level = protocol.KBD_BRIGHTNESS_MAX
+                            target = RestoreAction('keyboard', tuple(protocol.keyboard_brightness(level)))
                         result['planned'].append({'device': action.device, 'reason': action.reason,
                                                   'brightness': action.params.get('brightness')})
                         if not self.apply:

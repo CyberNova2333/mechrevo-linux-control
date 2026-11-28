@@ -1210,6 +1210,11 @@ pub async fn run_profile_helper(args: &[&str], timeout_secs: u64) -> Result<Valu
     Ok(parsed)
 }
 
+pub fn apply_hid_locked(action: &RestoreAction) -> Result<(), String> {
+    let mut file = open_hidraw(&action.device)?;
+    send_reports_to_file(&mut file, &action.reports)
+}
+
 pub async fn apply_action_locked(action: &RestoreAction) -> Result<(), String> {
     if action.device == "logo" {
         let raw = action
@@ -1231,8 +1236,7 @@ pub async fn apply_action_locked(action: &RestoreAction) -> Result<(), String> {
         }
         Ok(())
     } else if action.device == "keyboard" || action.device == "lightbar" {
-        let mut file = open_hidraw(&action.device)?;
-        send_reports_to_file(&mut file, &action.reports)
+        apply_hid_locked(action)
     } else {
         Err("unknown restore target".to_string())
     }

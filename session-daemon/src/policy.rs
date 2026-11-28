@@ -4,7 +4,7 @@
 //! compatible with `iteglow.lighting_policy` and `iteglow.lighting_policy_session`.
 
 use crate::protocol::{
-    is_known_mode, parse_rgb, parse_strict_int, validate_hid, validate_logo, RestoreAction,
+    is_known_mode, keyboard_brightness, parse_rgb, parse_strict_int, validate_hid, validate_logo, RestoreAction,
     KBD_BRIGHTNESS_MAX, KBD_MATRIX_CELLS, LB_BRIGHTNESS_MAX, LOGO_COLORS, PRESET_NAMES,
 };
 use crate::zone_lock::{read_saved_json, ZoneGuard, MAX_STATE_BYTES};
@@ -739,13 +739,18 @@ impl PolicyRunner {
             } else {
                 validate_hid(&action.device, &params)
             };
-            let target = match target {
+            let mut target = match target {
                 Ok(t) => t,
                 Err(e) => {
                     errors.push(format!("{}: {e}", action.device));
                     continue;
                 }
             };
+
+            if action.device == "keyboard" {
+                let brightness = params["brightness"].as_u64().unwrap_or(KBD_BRIGHTNESS_MAX.into());
+                target.reports = keyboard_brightness(brightness as u8);
+            }
 
             planned.push(json!({
                 "device": action.device,
@@ -925,6 +930,9 @@ mod tests {
                     || async { Ok("ac".to_string()) },
                     || async { Ok(0.0) },
                     |act| {
+                        if act.device == "keyboard" {
+                            assert_eq!(act.reports, keyboard_brightness(32));
+                        }
                         let fail = *fail_kbd.borrow();
                         writes.borrow_mut().push(act.device.clone());
                         async move {

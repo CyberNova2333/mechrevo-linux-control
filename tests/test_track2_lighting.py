@@ -189,6 +189,16 @@ class MatrixCliAndSessionTest(unittest.TestCase):
             self.assertEqual(saved_kbd["direction"], 2)
             self.assertEqual(saved_kbd["speed"], 4)
 
+            def repair(action):
+                self.assertEqual(action, lighting_session.validate_hid("keyboard", saved_kbd))
+                hw.update(mode=3, direction=2)
+            sync._write_kbd = repair
+            hw.update(mode=0x33, direction=1)
+            before = (d / "state.json").read_bytes()
+            self.assertIsNone(sync.sync_if_needed(force_query=True))
+            self.assertEqual(sync.sync_if_needed(force_query=True)["keyboard_restored"], "wave")
+            self.assertEqual((d / "state.json").read_bytes(), before)
+
 
 class Track2GuiTest(unittest.TestCase):
     @patch.object(gui.devices, "HidLed", lambda *_: FakeLed(bytes([0x88, 2, 3, 4, 35, 8, 17, 0])))

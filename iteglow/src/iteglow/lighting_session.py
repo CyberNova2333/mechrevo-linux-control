@@ -225,11 +225,13 @@ class KeyboardHotkeySync:
     def __init__(self, directory: Path, uid: int, *,
                  wmi_state_path: Path = WMI_STATE_PATH,
                  query_kbd: Optional[Callable[[], dict]] = None,
-                 transaction=None):
+                 transaction=None, write_kbd=None):
         self.directory = Path(directory)
         self.uid = uid
         self.wmi_state_path = Path(wmi_state_path)
         self._query_kbd = query_kbd or _default_query_kbd
+        self._write_kbd = write_kbd or _apply_action_locked
+        self._drift_mode = None
         self._transaction = transaction
         self.last_manual = None
         self.last_hw: Optional[dict] = None
@@ -283,10 +285,12 @@ class KeyboardHotkeySync:
 
     def reset(self) -> None:
         self.last_hw = None
+        self._drift_mode = None
 
     def record_applied(self) -> None:
         """Refresh manual & hardware snapshots after our own restore/policy write."""
         _, manual = self._read_manual_kbd()
+        self._drift_mode = None
         self.last_manual = copy.deepcopy(manual)
         self.last_hw = self._safe_query()
         seq = self._current_wmi_seq()
@@ -296,46 +300,59 @@ class KeyboardHotkeySync:
     def sync_if_needed(self, *, force_query: bool = False) -> Optional[dict]:
         """Detect hardware hotkey changes and update saved keyboard brightness."""
         _, manual = self._read_manual_kbd()
-        if manual != self.last_manual:
-            self.last_manual = copy.deepcopy(manual)
-            with self._tx("keyboard"):
-                self.last_hw = self._safe_query()
-            seq = self._current_wmi_seq()
-            if seq is not None:
-                self.last_wmi_seq = seq
-            return None
         seq = self._current_wmi_seq()
         wmi_changed = seq is not None and seq != self.last_wmi_seq
-        if seq is not None:
-            self.last_wmi_seq = seq
-        if not (wmi_changed or force_query):
+        if not (wmi_changed or force_query or manual != self.last_manual):
             return None
         with self._tx("keyboard"):
-            full_state, current_manual = self._read_manual_kbd()
-            if current_manual != self.last_manual:
-                self.last_manual = copy.deepcopy(current_manual)
-                self.last_hw = self._safe_query()
-                return None
+            _, current_manual = self._read_manual_kbd()
             actual = self._safe_query()
             if actual is None:
                 return None
-            if self.last_hw is None:
+            if current_manual != self.last_manual or self.last_hw is None:
+                self.last_manual = copy.deepcopy(current_manual)
                 self.last_hw = dict(actual)
+                self.last_wmi_seq = seq
+                self._drift_mode = None
                 return None
-            changed = (actual.get("power") != self.last_hw.get("power") or
-                       actual.get("brightness") != self.last_hw.get("brightness"))
-            if not changed and actual.get("power") != 1 and actual.get("brightness", 0) > 0:
-                changed = actual.get("mode") != self.last_hw.get("mode")
-            if not changed:
+            saved_mode = current_manual.get("mode") if isinstance(current_manual, dict) else None
+            observed, _ = effects.decode_keyboard_state(actual, saved_mode=saved_mode)
+            mismatch = (actual["power"] != 1 and actual["brightness"] > 0 and
+                        saved_mode not in (None, "off", observed))
+            if mismatch and (not wmi_changed or actual["mode"] == 0x33):
+                signature = (actual["mode"], actual["direction"])
+                if self._drift_mode != signature:
+                    self._drift_mode = signature
+                    return None
+                self._drift_mode = None
+                level = actual["brightness"] if wmi_changed else (
+                    0 if self.last_hw["power"] == 1 else self.last_hw["brightness"])
+                self._write_kbd(validate_hid("keyboard", dict(current_manual, brightness=level)))
+                actual = self._safe_query()
+                if actual is None:
+                    return None
+                observed, _ = effects.decode_keyboard_state(actual, saved_mode=saved_mode)
+                if observed != (saved_mode if level else "off") or actual["brightness"] != level:
+                    return {"keyboard_restore_error": "灯效回读不一致"}
+                if not wmi_changed or self.last_hw["brightness"] == actual["brightness"]:
+                    self.last_hw = dict(actual)
+                    self.last_wmi_seq = seq
+                    return {"keyboard_restored": saved_mode, "brightness": level}
+            else:
+                self._drift_mode = None
+            if not wmi_changed:
                 return None
-            self.last_hw = dict(actual)
+            if actual == self.last_hw:
+                self.last_wmi_seq = seq
+                return None
             new_bright = 0 if (actual.get("power") == 1 or actual.get("brightness", 0) == 0) else max(
                 0, min(protocol.KBD_BRIGHTNESS_MAX, int(actual["brightness"])))
             if isinstance(current_manual, dict):
                 updated = dict(current_manual)
                 if new_bright > 0:
                     mode_name, ui_dir = effects.decode_keyboard_state(actual, saved_mode=updated.get("mode"))
-                    if updated.get("mode") == "off" or updated.get("mode") != mode_name:
+                    if (updated.get("mode") != mode_name or actual["direction"] != self.last_hw["direction"]
+                            or actual["speed"] != self.last_hw["speed"]):
                         updated["mode"] = mode_name
                         updated["direction"] = ui_dir
                         if 1 <= int(actual.get("speed", 0)) <= 10:
@@ -345,10 +362,17 @@ class KeyboardHotkeySync:
                 mode_name, ui_dir = effects.decode_keyboard_state(actual)
                 updated = {"mode": mode_name, "brightness": new_bright, "direction": ui_dir}
             validate_hid("keyboard", updated)
-            next_data = dict(full_state) if isinstance(full_state, dict) else {}
-            next_data["keyboard"] = updated
             with self._tx("manual-state"):
-                state.write(str(self.directory / "state.json"), next_data)
+                path = self.directory / "state.json"
+                next_data = _read_saved(path, self.uid)
+                if next_data is None:
+                    next_data = {}
+                if not isinstance(next_data, dict) or next_data.get("keyboard") != self.last_manual:
+                    return None
+                next_data["keyboard"] = updated
+                state.write(str(path), next_data)
+            self.last_hw = dict(actual)
+            self.last_wmi_seq = seq
             self.last_manual = copy.deepcopy(updated)
             return {"hotkey_sync": "keyboard", "mode": updated["mode"], "brightness": new_bright}
 
