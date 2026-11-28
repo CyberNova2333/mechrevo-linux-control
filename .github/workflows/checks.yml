@@ -110,7 +110,7 @@ jobs:
             -type f \( -name '*.rs' -o -name '*.ts' -o -name '*.vue' -o -name '*.css' -o -name '*.sh' -o -name '*.mjs' \) -print0)
           test "$MISSING" -eq 0
 
-          shellcheck packaging/*.sh .github/scripts/verify-packages.sh
+          shellcheck packaging/*.sh .github/scripts/verify-packages.sh tests/run-python.sh
           shopt -s nullglob
           sh_files=(system/*.sh)
           if [ "${#sh_files[@]}" -gt 0 ]; then
@@ -167,9 +167,9 @@ jobs:
           TEST_PATTERN: ${{ github.event_name == 'workflow_dispatch' && inputs.test_pattern || '' }}
         run: |
           if [ -n "$TEST_PATTERN" ]; then
-            PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -B -m unittest discover -s tests -k "$TEST_PATTERN" -v
+            ./tests/run-python.sh -k "$TEST_PATTERN" -v
           else
-            PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -B -m unittest discover -s tests -v
+            ./tests/run-python.sh -v
           fi
 
   package-smoke:

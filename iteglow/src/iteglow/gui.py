@@ -202,6 +202,7 @@ class DevicePanel(Gtk.Box):
         self.bmax = protocol.KBD_BRIGHTNESS_MAX if device=='keyboard' else protocol.LB_BRIGHTNESS_MAX
         self.ready = False
         self.pending = None
+        self.closed = False
         self._hotkey_timer = None
         self._last_hw_kbd = None
         self.matrix_cells = keymap.preset_cells('gaming')
@@ -470,7 +471,11 @@ class DevicePanel(Gtk.Box):
         if not self.ready:return
         self.refresh()
         if self.pending is not None:GLib.source_remove(self.pending)
-        self.pending=GLib.timeout_add(90,self.apply)
+        self.pending = GLib.timeout_add(90, self._apply_pending)
+
+    def _apply_pending(self):
+        self.pending = None
+        return self.apply()
 
     def params(self):
         data = dict(mode=self.mode,color=rgb(self.color.get_rgba()),colors=[rgb(b.get_rgba()) for b in self.palette_buttons],
@@ -483,7 +488,11 @@ class DevicePanel(Gtk.Box):
         return data
 
     def apply(self):
-        self.pending=None
+        if self.closed:
+            return False
+        if self.pending is not None:
+            GLib.source_remove(self.pending)
+            self.pending = None
         params=self.params()
         try:
             with ZoneTransaction(self.device):
@@ -500,6 +509,10 @@ class DevicePanel(Gtk.Box):
         return False
 
     def close(self):
+        if self.closed:
+            return
+        self.closed = True
+        self.ready = False
         if self._hotkey_timer is not None:
             GLib.source_remove(self._hotkey_timer); self._hotkey_timer = None
         if self.pending is not None:
@@ -622,7 +635,7 @@ class App(Gtk.Application):
     @staticmethod
     def close_panel(panel):
         if panel.pending is not None:
-            GLib.source_remove(panel.pending);panel.pending=None;panel.apply()
+            panel.apply()
         panel.close()
 
     def window_closed(self,window,panels,logo,profiles_panel=None):

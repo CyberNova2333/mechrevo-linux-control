@@ -21,7 +21,7 @@
 
 ### 1. Tauri 2 桌面控制中心与原生 Rust CLI (`ui-tauri/` + `iteglow-cli/`)
 - **Tauri 2 + Vue 3 / Naive UI / TypeScript 原生桌面界面 (`ui-tauri/` → `mechrevo-control-gui`)**：复刻官方机械革命控制中心信息架构，支持跟随系统 / 浅色 / 深色三态主题切换（基于 XDG Desktop Portal / gsettings / KDE 探测并同步原生窗口标题栏），零 Python 依赖直连 ITE 8291/8233 USB HID、水冷 Rust 守护 AF_UNIX Socket 与 Polkit 授权硬件边界，完整覆盖**控制台主页实时硬件遥测、性能与散热调校、RGB 灯光控制（101 键单键矩阵 / 海岸灯带 / 后盖 Logo / 睡眠供电策略）、冰河分体水冷、情景预设与联动、后台服务管理与 journald 实时日志**六大页面。
-- **原生 Rust 命令行工具 (`iteglow-cli/` → `iteglow`)**：零 Python 依赖实现全部 `doctor / list / set / off / restore / pin / profile / cooler / gui` 子命令，`.deb` / `.rpm` / `.AppImage` 发行包无需 Python 运行时（仓库仍保留 `iteglow/` 原型源码及 371 项历史兼容性测试）。
+- **原生 Rust 命令行工具 (`iteglow-cli/` → `iteglow`)**：零 Python 依赖实现全部 `doctor / list / set / off / restore / pin / profile / cooler / gui` 子命令，`.deb` / `.rpm` / `.AppImage` 发行包无需 Python 运行时（仓库仍保留 `iteglow/` 原型源码及历史兼容性测试）。
 - **键盘背光 & 机身灯带（ITE 8291 / 8233 USB HID）**：支持 101 键单键自定义矩阵（[keymap.py](iteglow/src/iteglow/keymap.py)）、全区灯效与自动播放/按键触发状态同步，使用桌面对等 udev 规则与 `ZoneTransaction` 分区锁（[zone_lock.py](iteglow/src/iteglow/zone_lock.py)）。
 - **独立后盖 Logo 灯控制**：EC 掩码安全写入，支持常亮自选色、七色呼吸、七彩渐变、25% 步进亮度与关闭（[logo.py](iteglow/src/iteglow/logo.py)），内嵌实时发光预览。
 - **自动灯光、热键同步与情景联动（`session-daemon/` 异步 Rust 守护进程）**：支持插电 / 电池分设亮度与空闲熄灯（[lighting_policy.py](iteglow/src/iteglow/lighting_policy.py) / [session-daemon/src/policy.rs](session-daemon/src/policy.rs)）、`Fn+F6`/`Fn+F7`（WMI `0xC1`）亮度状态同步（[session-daemon/src/hotkey.rs](session-daemon/src/hotkey.rs)），以及基于当前用户应用进程的 opt-in 情景预设切换（[profiles.py](iteglow/src/iteglow/profiles.py) / [session-daemon/src/profiles.rs](session-daemon/src/profiles.rs)），物理模式键 `0xB0` 切换时自动让步；用户级服务 [iteglow-session-restore.service](system/iteglow-session-restore.service) 由单线程异步 `tokio` + `zbus` 原生二进制 `iteglow-sessiond` 承载（常驻内存约 1.5–2.2 MB，与现有分区锁 `ZoneTransaction` 与状态文件完全兼容）。
@@ -49,8 +49,8 @@
 ## 快速测试与 CLI 使用
 
 ```bash
-# 运行全部离线单元测试与 GTK4 界面测试
-PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -m unittest discover -s tests -v
+# 在临时用户目录中运行全部 Python 与 GTK4 测试
+./tests/run-python.sh -v
 
 # 运行全部 Rust 守护进程、系统助手、CLI 与 Tauri 2 桌面界面构建测试
 (cd watercooling-daemon && cargo test && cargo build --release)

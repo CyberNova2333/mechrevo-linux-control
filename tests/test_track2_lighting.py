@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "iteglow/src"))
 from iteglow import cli, effects, gui, keymap, lighting_session, protocol  # noqa: E402
-from gi.repository import Gtk  # noqa: E402
+from gi.repository import GLib, Gtk  # noqa: E402
 
 Gtk.init()
 
@@ -219,6 +219,30 @@ class Track2GuiTest(unittest.TestCase):
             self.assertEqual(len(save.call_args.args[1]["matrix"]), 126)
         finally:
             panel.close()
+
+    def test_manual_apply_cancels_delayed_matrix_write_after_close(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"XDG_STATE_HOME": tmp, "XDG_RUNTIME_DIR": tmp}), \
+             patch.object(gui.devices, "HidLed", lambda *_: FakeLed()), patch.object(gui.devices, "led_for_label", return_value=None):
+            panel = gui.DevicePanel("keyboard")
+            with patch.object(gui.state, "save", return_value=True) as save:
+                try:
+                    panel.mode = "matrix"
+                    panel.apply_matrix_preset("wasd_fps")
+                    pending = panel.pending
+                    self.assertIsNotNone(pending)
+                    panel.apply()
+                    save.assert_called_once()
+                finally:
+                    panel.close()
+            context = GLib.MainContext.default()
+            source = context.find_source_by_id(pending)
+            if source is not None:
+                source.set_ready_time(0)
+            while context.pending():
+                context.iteration(False)
+            self.assertIsNone(source)
+            self.assertEqual(len(panel.dev.sent), 1)
+            self.assertFalse((Path(tmp) / "iteglow/state.json").exists())
 
     def test_gui_poll_hotkey_updates_brightness_without_rewriting_hardware(self):
         fake = FakeLed(bytes([0x88, 2, 5, 4, 35, 8, 0, 0]))
