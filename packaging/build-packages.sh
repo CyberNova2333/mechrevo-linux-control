@@ -22,7 +22,8 @@ STRICT_ALL="${STRICT_ALL:-0}"
 BUILD_SYSTEM_BUNDLE="${BUILD_SYSTEM_BUNDLE:-0}"
 
 PKG_NAME="iteglow-control"
-VERSION="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$CRATE_DIR/Cargo.toml" | head -n 1)"
+VERSION="$(cd "$REPO_DIR" && python3 .github/scripts/prepare-release.py --check)"
+ASSET_VERSION="${VERSION/+/_}"
 # Package managers sort prereleases before the final version using "~".
 NATIVE_VERSION="$(sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+)-/\1~/; s/-/./g' <<< "$VERSION")"
 ARCH_DEB="amd64"
@@ -35,50 +36,10 @@ export CARGO_TARGET_DIR
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/iteglow-pkg.XXXXXX")"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-if [[ -z "$VERSION" ]]; then
-  echo "error: failed to parse version from $CRATE_DIR/Cargo.toml" >&2
-  exit 1
-fi
-
 if [[ ! -f "$ICON_SVG" ]]; then
   echo "error: ICON_SVG not found: $ICON_SVG" >&2
   exit 1
 fi
-
-# --------------------------------------------------------- Manifest version parity
-verify_manifest_versions() {
-  local expected="$VERSION"
-  local mismatch=0
-  local toml ver
-  for toml in \
-    "$CRATE_DIR/Cargo.toml" \
-    "$SESSION_CRATE_DIR/Cargo.toml" \
-    "$SYSTEM_CRATE_DIR/Cargo.toml" \
-    "$CLI_CRATE_DIR/Cargo.toml" \
-    "$UI_DIR/src-tauri/Cargo.toml"
-  do
-    ver="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$toml" | head -n 1)"
-    if [[ "$ver" != "$expected" ]]; then
-      echo "error: version mismatch in $toml: found '$ver', expected '$expected'" >&2
-      mismatch=1
-    fi
-  done
-
-  local json_file
-  for json_file in "$UI_DIR/package.json" "$UI_DIR/src-tauri/tauri.conf.json"; do
-    ver="$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' "$json_file" | head -n 1)"
-    if [[ "$ver" != "$expected" ]]; then
-      echo "error: version mismatch in $json_file: found '$ver', expected '$expected'" >&2
-      mismatch=1
-    fi
-  done
-
-  if [[ "$mismatch" -ne 0 ]]; then
-    exit 1
-  fi
-}
-
-verify_manifest_versions
 
 echo "==> Building Rust release binaries ($PKG_NAME $VERSION)"
 (cd "$CRATE_DIR" && cargo build --release --locked)
@@ -98,6 +59,7 @@ CLI_BIN_PATH="$CARGO_TARGET_DIR/release/iteglow"
 UI_BIN_PATH="$UI_CARGO_TARGET_DIR/release/mechrevo-control-gui"
 
 mkdir -p "$DIST_DIR"
+artifacts=()
 
 # ----------------------------------------------------------------- Common tree
 populate_root() {
@@ -230,8 +192,9 @@ fi
 EOF
   chmod 0755 "$DEB_ROOT/DEBIAN/postinst"
 
-  DEB_OUT="$DIST_DIR/${PKG_NAME}_${VERSION}_${ARCH_DEB}.deb"
+  DEB_OUT="$DIST_DIR/${PKG_NAME}_${ASSET_VERSION}_${ARCH_DEB}.deb"
   dpkg-deb --root-owner-group --build "$DEB_ROOT" "$DEB_OUT"
+  artifacts+=("${DEB_OUT##*/}")
 elif [[ "$STRICT_ALL" == "1" ]]; then
   echo "error: dpkg-deb not found (STRICT_ALL=1)" >&2
   exit 1
@@ -295,8 +258,9 @@ EOF
 
   rpmbuild -bb --define "_topdir $RPM_TOP" --target "$ARCH_RPM" "$RPM_TOP/SPECS/${PKG_NAME}.spec"
   RPM_BUILT="$(find "$RPM_TOP/RPMS" -name '*.rpm' | head -n 1)"
-  RPM_OUT="$DIST_DIR/${PKG_NAME}-${VERSION}-1.${ARCH_RPM}.rpm"
+  RPM_OUT="$DIST_DIR/${PKG_NAME}-${ASSET_VERSION}-1.${ARCH_RPM}.rpm"
   cp -f "$RPM_BUILT" "$RPM_OUT"
+  artifacts+=("${RPM_OUT##*/}")
 elif [[ "$STRICT_ALL" == "1" ]]; then
   echo "error: rpmbuild not found (STRICT_ALL=1)" >&2
   exit 1
@@ -376,9 +340,10 @@ EOF
 
   SQUASH_IMG="$WORK_DIR/${PKG_NAME}.squashfs"
   mksquashfs "$APPDIR" "$SQUASH_IMG" -root-owned -noappend -comp zstd -Xcompression-level 15 -quiet
-  APPIMAGE_OUT="$DIST_DIR/${PKG_NAME}-${VERSION}-${ARCH_RPM}.AppImage"
+  APPIMAGE_OUT="$DIST_DIR/${PKG_NAME}-${ASSET_VERSION}-${ARCH_RPM}.AppImage"
   cat "$RUNTIME_BIN" "$SQUASH_IMG" > "$APPIMAGE_OUT"
   chmod 0755 "$APPIMAGE_OUT"
+  artifacts+=("${APPIMAGE_OUT##*/}")
 elif [[ "$STRICT_ALL" == "1" ]]; then
   echo "error: AppImage runtime ($RUNTIME_BIN) or mksquashfs missing (STRICT_ALL=1)" >&2
   exit 1
@@ -389,7 +354,7 @@ fi
 # ------------------------------------------------ 4. Optional system-daemon tarball
 if [[ "$BUILD_SYSTEM_BUNDLE" == "1" ]]; then
   echo "==> Packing root system-daemon companion archive"
-  SYS_BUNDLE_NAME="mechrevo-system-daemon-${VERSION}-linux-${ARCH_RPM}"
+  SYS_BUNDLE_NAME="mechrevo-system-daemon-${ASSET_VERSION}-linux-${ARCH_RPM}"
   SYS_STAGE="$WORK_DIR/$SYS_BUNDLE_NAME"
   mkdir -p "$SYS_STAGE/libexec" "$SYS_STAGE/systemd" "$SYS_STAGE/polkit" "$SYS_STAGE/licenses"
 
@@ -426,20 +391,14 @@ if [[ "$BUILD_SYSTEM_BUNDLE" == "1" ]]; then
     "$SYS_STAGE/licenses/LICENSE-ADDITIONAL_TERMS-en.md"
 
   tar -C "$WORK_DIR" -czf "$DIST_DIR/${SYS_BUNDLE_NAME}.tar.gz" "$SYS_BUNDLE_NAME"
+  artifacts+=("${SYS_BUNDLE_NAME}.tar.gz")
 fi
 
-(
-  cd "$DIST_DIR"
-  rm -f SHA256SUMS
-  for art in \
-    "${PKG_NAME}_${VERSION}_${ARCH_DEB}.deb" \
-    "${PKG_NAME}-${VERSION}-1.${ARCH_RPM}.rpm" \
-    "${PKG_NAME}-${VERSION}-${ARCH_RPM}.AppImage" \
-    "mechrevo-system-daemon-${VERSION}-linux-${ARCH_RPM}.tar.gz"
-  do
-    [[ -f "$art" ]] && sha256sum "$art" >> SHA256SUMS
-  done
-)
+if (( ${#artifacts[@]} == 0 )); then
+  echo "error: no distribution artifacts were built" >&2
+  exit 1
+fi
+(cd "$DIST_DIR" && sha256sum -- "${artifacts[@]}" > SHA256SUMS)
 
 echo "==> Artifacts in $DIST_DIR:"
 ls -lh "$DIST_DIR"

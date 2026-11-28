@@ -3,7 +3,7 @@ name: 构建与发版
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-9]*'
   workflow_dispatch:
     inputs:
       tag:
@@ -12,7 +12,7 @@ on:
         type: string
         default: ''
       prerelease:
-        description: '标记为 Pre-release（若标签包含连字符 - 则自动启用）'
+        description: '标记为 Pre-release，预发布版本如 1.0.0-rc.1 会自动启用'
         required: false
         type: boolean
         default: false
@@ -30,235 +30,86 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
-  verify:
-    name: 发版前全栈校验与版本核对
+  metadata:
+    name: 确定发行标签与构建提交
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    env:
-      CARGO_TERM_COLOR: always
     outputs:
       version: ${{ steps.meta.outputs.version }}
       tag: ${{ steps.meta.outputs.tag }}
       is_prerelease: ${{ steps.meta.outputs.is_prerelease }}
-      dry_run: ${{ steps.meta.outputs.dry_run }}
     steps:
-      - name: 检出仓库
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: 确定本次发布版本并写入测试工作区
-        id: meta
-        env:
-          RELEASE_TAG: ${{ inputs.tag || (github.ref_type == 'tag' && github.ref_name) || '' }}
-          INPUT_PRERELEASE: ${{ inputs.prerelease }}
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-        run: |
-          set -euo pipefail
-          version="$(python3 .github/scripts/prepare-release.py "$RELEASE_TAG")"
-          prerelease=false
-          if [[ "$INPUT_PRERELEASE" == true || "${version%%+*}" == *-* ]]; then
-            prerelease=true
-          fi
-          {
-            echo "version=$version"
-            echo "tag=v$version"
-            echo "is_prerelease=$prerelease"
-            echo "dry_run=$DRY_RUN"
-          } >> "$GITHUB_OUTPUT"
-          echo "Release v$version (prerelease=$prerelease, dry_run=$DRY_RUN)"
-
-      - name: 安装系统开发依赖、ShellCheck 与历史单测运行环境
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libdbus-1-dev \
-            pkg-config \
-            shellcheck \
-            python3-gi \
-            gir1.2-gtk-4.0 \
-            python3-usb \
-            xvfb \
-            xauth
-
-      - name: 安装 Rust 稳定工具链与 Clippy
-        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
-        with:
-          toolchain: stable
-          components: clippy
-
-      - name: 缓存 Rust 依赖与编译产物
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-        with:
-          workspaces: |
-            watercooling-daemon
-            session-daemon
-            system-daemon
-            iteglow-cli
-            ui-tauri/src-tauri
-
-      - name: 安装 pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-        with:
-          version: 12
-
-      - name: 安装 Node.js 22
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '22'
-          cache: pnpm
-          cache-dependency-path: ui-tauri/pnpm-lock.yaml
-
-      - name: SPDX 协议头与 ShellCheck 校验
-        run: |
-          set -euo pipefail
-          MISSING=0
-          while IFS= read -r -d '' file; do
-            if ! head -n 3 "$file" | grep -q 'SPDX-License-Identifier: AGPL-3.0-only'; then
-              echo "error: missing AGPL-3.0-only SPDX header: $file" >&2
-              MISSING=1
-            fi
-          done < <(find watercooling-daemon/src session-daemon/src system-daemon/src iteglow-cli/src ui-tauri/src ui-tauri/src-tauri/src packaging \
-            -type f \( -name '*.rs' -o -name '*.ts' -o -name '*.vue' -o -name '*.css' -o -name '*.sh' \) -print0)
-          test "$MISSING" -eq 0
-          shellcheck packaging/build-packages.sh .github/scripts/verify-packages.sh
-
-      - name: Vue 3 + Naive UI 前端构建校验
-        working-directory: ui-tauri
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm build
-
-      - name: Rust 全量单元测试与 Clippy 严格门禁
-        run: |
-          set -euo pipefail
-          for crate in watercooling-daemon session-daemon system-daemon iteglow-cli ui-tauri/src-tauri; do
-            echo "==> testing & linting $crate"
-            (cd "$crate" && cargo test --locked && cargo clippy --locked --all-targets -- -D warnings)
-          done
-
-      - name: 历史 Python 兼容性单元测试
-        run: |
-          /usr/bin/python3 -B -m compileall -q iteglow/src tests
-          PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -B -m unittest discover -s tests -v
-
-  build-artifacts:
-    name: 构建 Linux 发行包 (.deb / .rpm / .AppImage / system-daemon)
-    runs-on: ubuntu-24.04
-    needs: [verify]
-    timeout-minutes: 35
-    env:
-      CARGO_TERM_COLOR: always
-    steps:
-      - name: 检出仓库
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: 将已校验的发布版本写入打包工作区
-        env:
-          VERSION: ${{ needs.verify.outputs.version }}
-        run: python3 .github/scripts/prepare-release.py "$VERSION"
-
-      - name: 安装 Tauri 2 与多格式打包工具链
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libdbus-1-dev \
-            pkg-config \
-            rpm \
-            squashfs-tools \
-            dpkg-dev \
-            fakeroot \
-            file
-
-      - name: 安装 Rust 稳定工具链
-        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
-        with:
-          toolchain: stable
-
-      - name: 缓存 Rust 依赖与编译产物
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-        with:
-          workspaces: |
-            watercooling-daemon
-            session-daemon
-            system-daemon
-            iteglow-cli
-            ui-tauri/src-tauri
-
-      - name: 安装 pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-        with:
-          version: 12
-
-      - name: 安装 Node.js 22
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '22'
-          cache: pnpm
-          cache-dependency-path: ui-tauri/pnpm-lock.yaml
-
-      - name: 执行多格式发行包构建
-        env:
-          STRICT_ALL: '1'
-          FETCH_APPIMAGE_RUNTIME: '1'
-          BUILD_SYSTEM_BUNDLE: '1'
-        run: ./packaging/build-packages.sh
-
-      - name: 核对产物完整性与零 Python 依赖
-        working-directory: dist
-        env:
-          VERSION: ${{ needs.verify.outputs.version }}
-        run: bash ../.github/scripts/verify-packages.sh "$VERSION"
-
-      - name: 上传构建产物
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: release-dist-${{ needs.verify.outputs.version }}
-          path: dist/
-          retention-days: 14
-
-  publish-release:
-    name: 发布 GitHub Release
-    runs-on: ubuntu-24.04
-    needs: [verify, build-artifacts]
-    permissions:
-      contents: write
-    timeout-minutes: 10
-    steps:
-      - name: 检出仓库（用于生成变更日志上下文）
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: 下载构建产物
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - id: meta
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          MARK_PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          set -euo pipefail
+          requested="$INPUT_TAG"
+          if [[ "$GITHUB_REF_TYPE" == tag && -z "$requested" ]]; then
+            requested="$GITHUB_REF_NAME"
+          fi
+          version="$(python3 .github/scripts/prepare-release.py --print-only "$requested")"
+          tag="v$version"
+          if [[ "$GITHUB_REF_TYPE" == tag && "$tag" != "v${GITHUB_REF_NAME#v}" ]]; then
+            echo "::error::The requested version differs from the selected tag ref."
+            exit 1
+          fi
+          if git show-ref --verify --quiet "refs/tags/$tag" &&
+             [[ "$(git rev-parse "refs/tags/$tag^{commit}")" != "$(git rev-parse HEAD)" ]]; then
+            echo "::error::Tag $tag already points to another commit. Select that tag as the workflow ref to rebuild it."
+            exit 1
+          fi
+          prerelease=false
+          if [[ "${version%%+*}" == *-* || "$MARK_PRERELEASE" == true ]]; then
+            prerelease=true
+          fi
+          printf 'version=%s\ntag=%s\nis_prerelease=%s\n' "$version" "$tag" "$prerelease" >> "$GITHUB_OUTPUT"
+          printf '发行标签 %s，构建提交 %s\n' "$tag" "$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: 验证与打包
+    needs: metadata
+    uses: ./.github/workflows/checks.yml
+    with:
+      release_version: ${{ needs.metadata.outputs.version }}
+
+  publish-release:
+    name: 发布 GitHub Release
+    runs-on: ubuntu-24.04
+    needs: [metadata, build]
+    if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+    concurrency:
+      group: publish-${{ needs.metadata.outputs.tag }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    timeout-minutes: 10
+    steps:
+      - name: 检出本次构建提交
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          name: release-dist-${{ needs.verify.outputs.version }}
+          fetch-depth: 1
+
+      - name: 下载构建产物
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ci-packages-linux-x86_64
           path: dist
 
       - name: 重新校验 SHA256SUMS 并生成发布说明
         env:
-          VERSION: ${{ needs.verify.outputs.version }}
-          TAG: ${{ needs.verify.outputs.tag }}
+          VERSION: ${{ needs.metadata.outputs.version }}
+          TAG: ${{ needs.metadata.outputs.tag }}
         run: |
           set -euo pipefail
           (cd dist && sha256sum -c SHA256SUMS)
+          ASSET_VERSION="${VERSION/+/_}"
           SHA_TABLE="$(cat dist/SHA256SUMS)"
 
           cat > release-notes.md <<EOF
@@ -270,10 +121,10 @@ jobs:
 
           | 产物文件 | 适用场景 | 包含内容 |
           | :--- | :--- | :--- |
-          | \`iteglow-control_${VERSION}_amd64.deb\` | Debian / Ubuntu 24.04+ | \`mechrevo-control-gui\`、\`iteglow\` CLI、用户级 Rust 守护（水冷 + 会话灯光）、udev 规则与桌面入口 |
-          | \`iteglow-control-${VERSION}-1.x86_64.rpm\` | Fedora / RHEL / openSUSE | 同上（RPM 打包格式） |
-          | \`iteglow-control-${VERSION}-x86_64.AppImage\` | 跨发行版免安装便携包 | 同上（Type-2 zstd AppImage，内置 CLI / GUI / 守护入口） |
-          | \`mechrevo-system-daemon-${VERSION}-linux-x86_64.tar.gz\` | 本机实测机型 Root 系统套件 | 全部 8 个原生 Rust 系统助手/守护、6 份 systemd 单元与 Polkit 策略（不含针对特定内核版本的 \`.ko\` 模块） |
+          | \`iteglow-control_${ASSET_VERSION}_amd64.deb\` | Debian / Ubuntu 24.04+ | \`mechrevo-control-gui\`、\`iteglow\` CLI、用户级 Rust 守护（水冷 + 会话灯光）、udev 规则与桌面入口 |
+          | \`iteglow-control-${ASSET_VERSION}-1.x86_64.rpm\` | Fedora / RHEL / openSUSE | 同上（RPM 打包格式） |
+          | \`iteglow-control-${ASSET_VERSION}-x86_64.AppImage\` | 跨发行版免安装便携包 | 同上（Type-2 zstd AppImage，内置 CLI / GUI / 守护入口） |
+          | \`mechrevo-system-daemon-${ASSET_VERSION}-linux-x86_64.tar.gz\` | 本机实测机型 Root 系统套件 | 全部 8 个原生 Rust 系统助手/守护、6 份 systemd 单元与 Polkit 策略（不含针对特定内核版本的 \`.ko\` 模块） |
 
           ### 快速安装与校验
 
@@ -282,13 +133,13 @@ jobs:
           sha256sum -c SHA256SUMS
 
           # 2. Debian / Ubuntu 安装桌面端、CLI 与用户级守护
-          sudo apt install ./iteglow-control_${VERSION}_amd64.deb
+          sudo apt install ./iteglow-control_${ASSET_VERSION}_amd64.deb
           systemctl --user daemon-reload
           systemctl --user enable --now iteglow-watercooling.service iteglow-session-restore.service
 
           # 3. 或直接运行便携 AppImage
-          chmod +x iteglow-control-${VERSION}-x86_64.AppImage
-          ./iteglow-control-${VERSION}-x86_64.AppImage
+          chmod +x iteglow-control-${ASSET_VERSION}-x86_64.AppImage
+          ./iteglow-control-${ASSET_VERSION}-x86_64.AppImage
           \`\`\`
 
           > **硬件安全提示**：\`mechrevo-system-daemon\` 伴侣归档中的 EC 调校与狂暴租约组件严格受限于主板 DMI / BIOS 白名单与 \`EC 0x7A5\` 高温保护门禁；请务必先查阅仓库内 \`system/mechrevo-turbo-backend.md\` 与 \`system/mechrevo-custom-gpu-backend.md\` 后再部署系统级单元。
@@ -307,8 +158,7 @@ jobs:
             echo "### Release Summary (${TAG})"
             echo ""
             echo "- **Version**: \`${VERSION}\`"
-            echo "- **Dry Run**: \`${{ needs.verify.outputs.dry_run }}\`"
-            echo "- **Prerelease**: \`${{ needs.verify.outputs.is_prerelease }}\`"
+            echo "- **Prerelease**: \`${{ needs.metadata.outputs.is_prerelease }}\`"
             echo ""
             echo '```text'
             cat dist/SHA256SUMS
@@ -316,37 +166,30 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 创建或更新 GitHub Release
-        if: ${{ needs.verify.outputs.dry_run != 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ needs.verify.outputs.tag }}
-          IS_PRE: ${{ needs.verify.outputs.is_prerelease }}
+          TAG: ${{ needs.metadata.outputs.tag }}
+          IS_PRE: ${{ needs.metadata.outputs.is_prerelease }}
           IS_DRAFT: ${{ github.event_name == 'workflow_dispatch' && inputs.draft || false }}
         run: |
           set -euo pipefail
-          EXTRA_FLAGS=()
-          if [ "$IS_PRE" = "true" ]; then
-            EXTRA_FLAGS+=(--prerelease)
+          commit="$(git rev-parse HEAD)"
+          ref="refs/tags/$TAG"
+          remote_ref="$(git ls-remote --refs origin "$ref")"
+          if [[ -z "$remote_ref" ]]; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="$ref" -f sha="$commit" > /dev/null
           fi
-          if [ "$IS_DRAFT" = "true" ]; then
-            EXTRA_FLAGS+=(--draft)
-          fi
-
-          BUILD_COMMIT="$(git rev-parse HEAD)"
-          if TAG_COMMIT="$(git rev-parse --verify --quiet "refs/tags/${TAG}^{commit}")" && [ "$TAG_COMMIT" != "$BUILD_COMMIT" ]; then
-            echo "error: $TAG points to $TAG_COMMIT, but the packages were built from $BUILD_COMMIT" >&2
+          git fetch --quiet --no-tags origin "$ref"
+          if [[ "$(git rev-parse 'FETCH_HEAD^{commit}')" != "$commit" ]]; then
+            echo "::error::Tag $TAG no longer points to the built commit $commit"
             exit 1
           fi
 
+          flags=(--title "MECHREVO Linux Control ${TAG}" --notes-file release-notes.md
+                 "--prerelease=$IS_PRE" "--draft=$IS_DRAFT" --target "$commit" --verify-tag)
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "==> Updating existing GitHub Release $TAG"
-            gh release edit "$TAG" --title "MECHREVO Linux Control ${TAG}" --notes-file release-notes.md "${EXTRA_FLAGS[@]}"
             gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" "${flags[@]}"
           else
-            echo "==> Creating GitHub Release $TAG"
-            gh release create "$TAG" dist/* \
-              --target "$BUILD_COMMIT" \
-              --title "MECHREVO Linux Control ${TAG}" \
-              --notes-file release-notes.md \
-              "${EXTRA_FLAGS[@]}"
+            gh release create "$TAG" dist/* "${flags[@]}"
           fi

@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """Apply a release version to the current checkout and print the resolved version."""
 
+import argparse
 import json
 import re
-import sys
 import tomllib
 from pathlib import Path
 
@@ -39,16 +39,33 @@ def stamp_package(path: Path, name: str, version: str) -> None:
     raise SystemExit(f"{path}: local package {name} not found")
 
 
-def main(tag: str) -> None:
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("tag", nargs="?", default="")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--print-only", action="store_true", help="resolve without changing the checkout")
+    mode.add_argument("--check", action="store_true", help="verify the package manifests without changing them")
+    args = parser.parse_args()
     packages = [tomllib.loads((crate / "Cargo.toml").read_text())["package"] for crate in CRATES]
-    version = tag.removeprefix("v") if tag else packages[0]["version"]
+    version = args.tag.removeprefix("v") if args.tag else packages[0]["version"]
     if not re.fullmatch(SEMVER, version):
         raise SystemExit("请填写有效的语义版本，例如 1.0.0、v1.0.0 或 v1.0.0-rc.1")
+
+    json_paths = [Path("ui-tauri/package.json"), Path("ui-tauri/src-tauri/tauri.conf.json")]
+    if args.check:
+        versions = [(crate / "Cargo.toml", pkg["version"]) for crate, pkg in zip(CRATES, packages)]
+        versions.extend((path, json.loads(path.read_text())["version"]) for path in json_paths)
+        for path, actual in versions:
+            if actual != version:
+                raise SystemExit(f"{path}: expected {version}, got {actual}")
+    if args.print_only or args.check:
+        print(version)
+        return
 
     for crate, package in zip(CRATES, packages):
         for filename in ("Cargo.toml", "Cargo.lock"):
             stamp_package(crate / filename, package["name"], version)
-    for path in (Path("ui-tauri/package.json"), Path("ui-tauri/src-tauri/tauri.conf.json")):
+    for path in json_paths:
         data = json.loads(path.read_text())
         data["version"] = version
         path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
@@ -56,4 +73,4 @@ def main(tag: str) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main()

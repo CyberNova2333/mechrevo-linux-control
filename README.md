@@ -60,7 +60,7 @@ PYTHONPATH=iteglow/src GSK_RENDERER=cairo xvfb-run -a /usr/bin/python3 -m unitte
 (cd ui-tauri && pnpm install --frozen-lockfile && pnpm build && cargo test --manifest-path src-tauri/Cargo.toml && cargo build --release --manifest-path src-tauri/Cargo.toml)
 
 # 构建零 Python 依赖的 .deb / .rpm / Type-2 .AppImage 发行包（产物输出至 dist/）
-# Ubuntu/Debian 构建前置依赖：libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev pkg-config rpm squashfs-tools dpkg-dev
+# Ubuntu/Debian 构建前置依赖：Python 3.11+（读取版本清单）、libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev pkg-config rpm squashfs-tools dpkg-dev
 # 如需同时打包 root 系统守护伴侣归档 (mechrevo-system-daemon-*.tar.gz)，附加 BUILD_SYSTEM_BUNDLE=1
 FETCH_APPIMAGE_RUNTIME=1 STRICT_ALL=1 ./packaging/build-packages.sh
 

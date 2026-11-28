@@ -4,12 +4,14 @@
 set -euo pipefail
 
 version="${1:?missing package version}"
-deb="iteglow-control_${version}_amd64.deb"
-rpm_package="iteglow-control-${version}-1.x86_64.rpm"
-appimage="iteglow-control-${version}-x86_64.AppImage"
-bundle="mechrevo-system-daemon-${version}-linux-x86_64"
+asset_version="${version/+/_}"
+deb="iteglow-control_${asset_version}_amd64.deb"
+rpm_package="iteglow-control-${asset_version}-1.x86_64.rpm"
+appimage="iteglow-control-${asset_version}-x86_64.AppImage"
+bundle="mechrevo-system-daemon-${asset_version}-linux-x86_64"
 
-sha256sum -c SHA256SUMS
+# Match the four expected files even if a checksum was omitted from the manifest.
+sha256sum -- "$deb" "$rpm_package" "$appimage" "$bundle.tar.gz" | diff -u SHA256SUMS -
 
 native_version="$(sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+)-/\1~/; s/-/./g' <<< "$version")"
 deb_version="$(dpkg-deb -f "$deb" Version)"
