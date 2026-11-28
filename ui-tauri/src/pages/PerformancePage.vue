@@ -8,6 +8,7 @@ import {
   NButton,
   NCard,
   NInputNumber,
+  NPopconfirm,
   NSlider,
   NSwitch,
   NTabPane,
@@ -21,6 +22,7 @@ import {
   CPU_FAN_TEMPS,
   GPU_FAN_TEMPS,
   MIN_FAN_DUTY,
+  type GraphicsProfile,
   type PerformanceStatus,
   type TuningConfig,
 } from "../types/hardware";
@@ -254,10 +256,51 @@ const curvePts = computed(() =>
   activeTemps.value.map((t, i) => `${mapX(t)},${mapY(activeFanVals.value[i])}`).join(" ")
 );
 
+const graphicsModes = [
+  { id: "intel", label: "仅核显" },
+  { id: "on-demand", label: "混合 · 按需独显" },
+  { id: "nvidia", label: "独显优先" },
+] as const;
+const graphicsMode = ref<GraphicsProfile | null>(null);
+const graphicsBusy = ref(false);
+const graphicsHint = ref("正在读取 PRIME 配置…");
+
+async function readGraphics() {
+  try {
+    const mode = await api.getGraphicsProfile();
+    if (!alive) return;
+    graphicsMode.value = mode;
+    graphicsHint.value = "更改配置后需自行重启。";
+  } catch (err) {
+    if (!alive) return;
+    graphicsMode.value = null;
+    graphicsHint.value = String(err);
+  }
+}
+
+async function switchGraphics(mode: GraphicsProfile) {
+  if (!alive || graphicsBusy.value || !graphicsMode.value || graphicsMode.value === mode) return;
+  graphicsBusy.value = true;
+  graphicsHint.value = "正在等待管理员授权并更新 PRIME 配置…";
+  try {
+    const saved = await api.setGraphicsProfile(mode);
+    if (!alive) return;
+    graphicsMode.value = saved;
+    graphicsHint.value = "配置已写入，请保存工作后自行重启。";
+  } catch (err) {
+    if (!alive) return;
+    await readGraphics();
+    if (alive) graphicsHint.value = String(err);
+  } finally {
+    if (alive) graphicsBusy.value = false;
+  }
+}
+
 let pollTimer: number | null = null;
 onMounted(() => {
   alive = true;
   refresh(true);
+  readGraphics();
   pollTimer = window.setInterval(() => {
     if (!busy.value) refresh(!initialized.value);
   }, 3500);
@@ -366,6 +409,27 @@ onUnmounted(() => {
         </div>
       </div>
     </section>
+
+    <n-card>
+      <div class="ccu-field-row" style="flex-wrap: wrap; gap: 12px">
+        <div>
+          <h3 class="ccu-section-title">显卡模式（NVIDIA PRIME）</h3>
+          <p class="ccu-section-sub" role="status">{{ graphicsHint }}</p>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          <n-popconfirm v-for="mode in graphicsModes" :key="mode.id"
+            positive-text="确认更改" negative-text="取消"
+            @positive-click="switchGraphics(mode.id)">
+            <template #trigger>
+              <n-button size="small" :type="graphicsMode === mode.id ? 'primary' : 'default'"
+                :disabled="!graphicsMode || graphicsBusy || graphicsMode === mode.id"
+                :aria-pressed="graphicsMode === mode.id">{{ mode.label }}</n-button>
+            </template>
+            将系统配置改为「{{ mode.label }}」？重启后可能影响 GNOME 登录和外接显示器输出。
+          </n-popconfirm>
+        </div>
+      </div>
+    </n-card>
 
     <!-- Turbo Submode Scheduling -->
     <n-card :bordered="true">

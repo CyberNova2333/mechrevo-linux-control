@@ -459,3 +459,5 @@ export function hexToRgb(hex: string): Rgb {
 export function rgbCss([r, g, b]: Rgb, alpha = 1): string {
   return alpha >= 1 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
+
+export type GraphicsProfile = "intel" | "on-demand" | "nvidia";

@@ -3,6 +3,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  GraphicsProfile,
   KeyboardHwInfo,
   LightingPolicyConfig,
   LightingSavedParams,
@@ -76,6 +77,8 @@ export const api = {
       profile,
     }),
 
+  getGraphicsProfile: () => invoke<GraphicsProfile>("get_graphics_profile"),
+  setGraphicsProfile: (mode: GraphicsProfile) => invoke<GraphicsProfile>("set_graphics_profile", { mode }),
   getPerformanceStatus: () =>
     invoke<{ status: PerformanceStatus; prefs: TuningConfig | null }>("get_performance_status"),
   setPerformanceMode: (mode: string) => invoke<PerformanceStatus>("set_performance_mode", { mode }),

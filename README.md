@@ -37,6 +37,8 @@
 - **固定档位切换**：办公（绿）、均衡（蓝）、狂暴（紫）、自定义（白）模式切换，严格受限于主机 DMI/BIOS/状态校验与 `EC 0x7A5` 高温风扇安全保护。
 - **有界功耗与风扇曲线调校**：支持 CPU 功耗上限 `25–75 W`（PL1/PL2 同步）、受限验证范围内的 GPU 基础功耗（`65–115 W`）/ Dynamic Boost（`5–25 W`）及 11 段 CPU/GPU 独立风扇曲线；切换模式、按下机身模式键或睡眠前自动完整回退还原。
 - **全量原生 Rust 系统助手与守护 (`system-daemon/`)**：`system/mechrevo-turbo-driver/mechrevo_turbo_lease.c` 协同官方 `nvidia-powerd` 触发静音狂暴 / 高能狂暴联合功率调度，以构建 SHA-256 白名单门禁绑定已验收内核版本（**6.8.0-149-generic / BIOS N.1.33MRO91**）；全部 8 个 root 系统服务与一次性钩子（`mechrevo-turbod`、`mechrevo-profile-guardd`、`mechrevo-profile-helper`、`mechrevo-acpi-check`、`mechrevo-powerd-sleep`、`mechrevo-turbo-helper`、`mechrevo-turbo-lifecycle`、`mechrevo-nvidia-hibernate-patch`）均已由零异步依赖的原生 Rust 二进制承载，常驻内存仅 0.7–1.5 MB，Polkit 性能/Logo 轮询耗时从 ~57 ms 降至 ~8 ms。
+- **显卡模式** 在控制中心的「性能与散热调校」页选择仅核显、混合按需或独显优先。需要 Intel 与 NVIDIA 两块显卡和系统提供的 `prime-select`。页面显示已配置的 PRIME 模式。确认更改并完成管理员授权后，保存工作并自行重启以使用新配置。
+- 可选的免密性能助手规则仅适用于本机活动会话中的 `sudo` 或 `wheel` 组成员。通用发行包保留管理员认证。该规则只授权固件性能助手。显卡配置通过独立的 `pkexec /usr/bin/prime-select` 调用授权。
 
 ### 4. NVIDIA 休眠挂起修复与 ACPI 睡眠安全守卫 (`system/`)
 - `mechrevo-nvidia-hibernate-patch` + `nvidia-dkms-hibernate-shutdown.patch`：通过 DKMS 挂钩绕过休眠关机阶段 `nv_pci_remove_helper` 异常问题。

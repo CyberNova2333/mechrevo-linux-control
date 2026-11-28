@@ -3,6 +3,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod graphics;
 mod hid;
 mod services;
 mod telemetry;
@@ -11,6 +12,8 @@ mod zone_lock;
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            graphics::get_graphics_profile,
+            graphics::set_graphics_profile,
             commands::get_system_info,
             commands::get_system_theme,
             commands::set_window_theme,
